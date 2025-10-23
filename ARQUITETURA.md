@@ -1142,6 +1142,245 @@ IMPORTANTE:
 
 ---
 
+### Orquestrador Multi-Agent
+
+**Arquivo:** `backend/src/agentes/orquestrador_multi_agent.py`  
+**Status:** ✅ IMPLEMENTADO (TAREFA-013)  
+**Responsável pela Implementação:** IA (GitHub Copilot)
+
+**Contexto de Negócio:**
+Módulo central que orquestra todo o fluxo de análise jurídica multi-agent na plataforma. Atua como camada de serviço (stateful) acima do Agente Advogado Coordenador (stateless), gerenciando o ciclo de vida completo de consultas de usuários desde o recebimento até a entrega da resposta final compilada.
+
+**Responsabilidades:**
+1. **Ponto de Entrada:** Interface principal para consultas de usuários via API
+2. **Coordenação de Fluxo:** Orquestra interação entre Advogado e Peritos
+3. **Gerenciamento de Estado:** Rastreia status de consultas em andamento
+4. **Robustez:** Garante tratamento de erros, timeouts e recuperação de falhas
+5. **Feedback:** Fornece visibilidade do progresso para o cliente
+
+**Design Patterns:**
+- **Facade Pattern:** Simplifica a interface complexa do sistema multi-agent
+- **Coordinator Pattern:** Coordena múltiplos agentes independentes
+- **State Management:** Rastreia estado de consultas em cache (memória)
+
+**Hierarquia:**
+```
+OrquestradorMultiAgent (camada de serviço)
+    └── AgenteAdvogadoCoordenador (camada de domínio)
+            ├── consultar_rag()
+            ├── delegar_para_peritos()
+            │   ├── AgentePeritoMedico
+            │   └── AgentePeritoSegurancaTrabalho
+            └── compilar_resposta()
+```
+
+**Diferença entre Orquestrador e Agente Advogado:**
+- **OrquestradorMultiAgent:** Camada de SERVIÇO (gerencia fluxo, estado, erros, timeouts)
+- **AgenteAdvogadoCoordenador:** Camada de DOMÍNIO (lógica jurídica, RAG, compilação)
+
+**Classes Principais:**
+
+1. **`OrquestradorMultiAgent`**
+   - Classe principal que coordena todo o sistema
+   - Mantém cache de consultas em andamento
+   - Gerencia instância singleton do AgenteAdvogado
+   
+2. **`StatusConsulta`** (Enum)
+   - Estados possíveis: INICIADA, CONSULTANDO_RAG, DELEGANDO_PERITOS, COMPILANDO_RESPOSTA, CONCLUIDA, ERRO
+   - Usado para rastreamento de progresso
+
+**Funcionalidades:**
+
+**1. Processar Consulta (Método Principal):**
+```python
+from backend.src.agentes.orquestrador_multi_agent import criar_orquestrador
+
+orquestrador = criar_orquestrador()
+
+resultado = await orquestrador.processar_consulta(
+    prompt="Analisar se houve nexo causal entre acidente e condições de trabalho",
+    agentes_selecionados=["medico", "seguranca_trabalho"],
+    metadados_adicionais={
+        "tipo_processo": "acidente_trabalho",
+        "urgencia": "alta"
+    }
+)
+```
+
+**Fluxo de Execução:**
+1. **Validação:** Valida prompt e agentes selecionados
+2. **Registro:** Cria entrada no cache com status INICIADA
+3. **Consulta RAG:** Status → CONSULTANDO_RAG, busca documentos no ChromaDB
+4. **Delegação:** Status → DELEGANDO_PERITOS, executa peritos em paralelo (se houver)
+5. **Compilação:** Status → COMPILANDO_RESPOSTA, advogado integra pareceres
+6. **Retorno:** Status → CONCLUIDA, retorna resultado estruturado
+
+**2. Gerenciamento de Estado:**
+```python
+# Obter status de consulta em andamento
+status = orquestrador.obter_status_consulta("uuid-123...")
+
+# Verificar status
+if status["status"] == "concluida":
+    print(status["resultado"]["resposta_compilada"])
+elif status["status"] == "erro":
+    print(status["mensagem_erro"])
+else:
+    print(f"Processando: {status['status']}")
+```
+
+**3. Listar Peritos Disponíveis:**
+```python
+peritos = orquestrador.listar_peritos_disponiveis()
+# Retorna: ["medico", "seguranca_trabalho"]
+```
+
+**Formato de Resposta:**
+```python
+{
+    "id_consulta": "uuid-123...",
+    "status": "concluida",
+    "resposta_compilada": "Análise jurídica completa...",
+    "pareceres_individuais": [
+        {
+            "agente": "Perito Médico",
+            "parecer": "Parecer técnico médico...",
+            "confianca": 0.85,
+            "timestamp": "2025-10-23T10:30:00"
+        },
+        {
+            "agente": "Perito Segurança do Trabalho",
+            "parecer": "Parecer técnico de segurança...",
+            "confianca": 0.90,
+            "timestamp": "2025-10-23T10:30:00"
+        }
+    ],
+    "documentos_consultados": ["Documento 1", "Documento 2", ...],
+    "numero_documentos_rag": 5,
+    "agentes_utilizados": ["advogado", "medico", "seguranca_trabalho"],
+    "timestamp_inicio": "2025-10-23T10:29:00",
+    "timestamp_fim": "2025-10-23T10:30:45",
+    "tempo_total_segundos": 45.2,
+    "metadados": {...}
+}
+```
+
+**Tratamento de Erros:**
+- **Validação:** ValueError se prompt vazio ou agentes inválidos
+- **Timeout:** TimeoutError se processamento exceder limite (padrão: 60s por agente)
+- **Erros de Peritos:** Registra erro mas não falha toda a consulta
+- **RAG Indisponível:** Continua sem contexto documental
+- **Logging:** Todos os erros são logados com detalhes
+
+**Timeouts Configuráveis:**
+```python
+# Criar orquestrador com timeout customizado
+orquestrador = criar_orquestrador(timeout_padrao_agente=120)  # 120 segundos
+```
+
+**Cache de Estado:**
+- **Armazenamento:** Memória (Dict in-process)
+- **Estrutura:** `{"id_consulta": {"status": "...", "dados": {...}, "historico_status": [...]}}`
+- **Limitações:** Perdido ao reiniciar servidor
+- **Plano Futuro:** Migrar para Redis para persistência e distribuição
+
+**Ciclo de Vida de uma Consulta:**
+```
+INICIADA 
+    → CONSULTANDO_RAG 
+        → DELEGANDO_PERITOS (se houver peritos selecionados)
+            → COMPILANDO_RESPOSTA 
+                → CONCLUIDA ✅
+                
+Ou em caso de erro:
+    → ERRO ❌
+```
+
+**Histórico de Status:**
+Cada consulta mantém histórico de transições:
+```python
+{
+    "historico_status": [
+        {"status": "iniciada", "timestamp": "2025-10-23T10:29:00"},
+        {"status": "consultando_rag", "timestamp": "2025-10-23T10:29:05"},
+        {"status": "delegando_peritos", "timestamp": "2025-10-23T10:29:10"},
+        {"status": "compilando_resposta", "timestamp": "2025-10-23T10:29:40"},
+        {"status": "concluida", "timestamp": "2025-10-23T10:30:45"}
+    ]
+}
+```
+
+**Logging Detalhado:**
+- **INFO:** Início/fim de consulta, transições de estado, estatísticas
+- **WARNING:** RAG indisponível, peritos com erro
+- **ERROR:** Validações falhadas, timeouts, erros não tratados
+- **DEBUG:** Detalhes de cada etapa
+
+**Funções Auxiliares:**
+
+1. **`criar_orquestrador(timeout_padrao_agente: int = 60) -> OrquestradorMultiAgent`**
+   - Factory function para criação consistente
+   - Configura timeout padrão
+   - Instancia advogado coordenador via factory
+
+2. **Métodos Privados:**
+   - `_registrar_consulta()`: Adiciona consulta ao cache
+   - `_atualizar_status_consulta()`: Atualiza status e histórico
+   - `_registrar_erro_consulta()`: Registra erro no cache
+
+**Exemplo de Uso Completo:**
+```python
+import asyncio
+from backend.src.agentes.orquestrador_multi_agent import criar_orquestrador
+
+async def exemplo():
+    # Criar orquestrador
+    orquestrador = criar_orquestrador(timeout_padrao_agente=60)
+    
+    # Processar consulta com múltiplos peritos
+    resultado = await orquestrador.processar_consulta(
+        prompt="Analisar nexo causal e condições de trabalho",
+        agentes_selecionados=["medico", "seguranca_trabalho"]
+    )
+    
+    print(f"✅ Consulta concluída em {resultado['tempo_total_segundos']}s")
+    print(f"Resposta: {resultado['resposta_compilada']}")
+    
+    # Ver pareceres individuais
+    for parecer in resultado['pareceres_individuais']:
+        print(f"\n{parecer['agente']}:")
+        print(f"  {parecer['parecer'][:200]}...")
+
+# Executar
+asyncio.run(exemplo())
+```
+
+**Dependências:**
+- `backend.src.agentes.agente_advogado_coordenador`: Agente coordenador
+- `backend.src.utilitarios.gerenciador_llm`: Exceções customizadas
+- `asyncio`: Execução assíncrona de peritos
+
+**Integrações:**
+- **Entrada:** API REST endpoint (rotas_analise.py - TAREFA-014)
+- **Saída:** Resultado estruturado JSON
+
+**Limitações Conhecidas:**
+1. **Cache em memória:** Perdido ao reiniciar (plano: migrar para Redis)
+2. **Execução sequencial de etapas:** RAG → Peritos → Compilação (plano: otimizar)
+3. **Sem persistência de consultas:** Histórico não é salvo (plano: banco de dados)
+
+**Métricas e Monitoramento:**
+- Tempo total de processamento
+- Tempo por etapa (RAG, peritos, compilação)
+- Taxa de sucesso/erro
+- Número de documentos consultados
+- Agentes utilizados
+
+**Próximas Integrações:**
+- TAREFA-014: Endpoint `POST /api/analise/multi-agent` que usa este orquestrador
+
+---
+
 ## 🌊 FLUXOS DE DADOS
 
 ### Fluxo 1: Ingestão de Documentos

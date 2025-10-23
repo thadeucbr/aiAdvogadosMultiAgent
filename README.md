@@ -189,10 +189,11 @@ npm run dev
 - [x] Agente Advogado (Coordenador)
 - [x] Agente Perito Médico
 - [x] Agente Perito Segurança do Trabalho
+- [x] Orquestrador Multi-Agent
 
 ### 🚧 Em Desenvolvimento
 
-- [ ] Sistema de orquestração multi-agent
+- [ ] Endpoint de análise multi-agent (API REST)
 - [ ] Frontend React
 
 ---
