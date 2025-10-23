@@ -365,18 +365,18 @@ def extrair_texto_do_documento(
                 # Processar PDF - pode ser texto ou escaneado
                 try:
                     # Primeiro, verificar se é PDF com texto
-                    resultado_extracao = servico_extracao_texto.processar_pdf(
+                    resultado_extracao = servico_extracao_texto.extrair_texto_de_pdf_texto(
                         caminho_arquivo
                     )
                     
                     # Se chegou aqui, extração funcionou
                     logger.info(f"PDF processado com extração de texto. "
-                              f"Páginas: {resultado_extracao['numero_paginas']}")
+                              f"Páginas: {resultado_extracao['numero_de_paginas']}")
                     
                     # Padronizar formato de retorno
                     return {
-                        "texto_completo": resultado_extracao["texto_completo"],
-                        "numero_paginas": resultado_extracao["numero_paginas"],
+                        "texto_completo": resultado_extracao["texto_extraido"],
+                        "numero_paginas": resultado_extracao["numero_de_paginas"],
                         "metodo_usado": "extracao",
                         "confianca_media": 1.0,  # Extração sempre tem confiança total
                         "paginas_baixa_confianca": []
@@ -391,7 +391,7 @@ def extrair_texto_do_documento(
                     )
                     
                     logger.info(f"PDF escaneado processado via OCR. "
-                              f"Páginas: {resultado_ocr['numero_paginas']}, "
+                              f"Páginas: {resultado_ocr['numero_de_paginas']}, "
                               f"Confiança: {resultado_ocr['confianca_media']:.2f}")
                     
                     # Validar confiança do OCR
@@ -407,8 +407,8 @@ def extrair_texto_do_documento(
                     
                     # Padronizar formato de retorno
                     return {
-                        "texto_completo": resultado_ocr["texto_completo"],
-                        "numero_paginas": resultado_ocr["numero_paginas"],
+                        "texto_completo": resultado_ocr["texto_extraido"],
+                        "numero_paginas": resultado_ocr["numero_de_paginas"],
                         "metodo_usado": "ocr",
                         "confianca_media": resultado_ocr["confianca_media"],
                         "paginas_baixa_confianca": resultado_ocr.get("paginas_baixa_confianca", [])
@@ -421,13 +421,13 @@ def extrair_texto_do_documento(
                 )
                 
                 logger.info(f"DOCX processado. "
-                          f"Parágrafos: {resultado_extracao.get('numero_paragrafos', 0)}")
+                          f"Parágrafos: {resultado_extracao.get('numero_de_paragrafos', 0)}")
                 
                 # Padronizar formato de retorno
                 # DOCX não tem conceito de "páginas", usar número de parágrafos como proxy
                 return {
-                    "texto_completo": resultado_extracao["texto_completo"],
-                    "numero_paginas": resultado_extracao.get("numero_paragrafos", 1),
+                    "texto_completo": resultado_extracao["texto_extraido"],
+                    "numero_paginas": resultado_extracao.get("numero_de_paragrafos", 1),
                     "metodo_usado": "extracao",
                     "confianca_media": 1.0,
                     "paginas_baixa_confianca": []
@@ -469,7 +469,8 @@ def extrair_texto_do_documento(
             raise ErroDeExtracaoNaIngestao(mensagem_erro)
     
     except (servico_extracao_texto.ErroDeExtracaoDeTexto, 
-            servico_ocr.ErroDeOCR) as erro:
+            servico_ocr.ErroProcessamentoOCR,
+            servico_ocr.ErroImagemInvalida) as erro:
         # Capturar erros dos serviços especializados e re-lançar como erro de ingestão
         mensagem_erro = f"Falha na extração de texto: {str(erro)}"
         logger.error(mensagem_erro)
@@ -674,12 +675,7 @@ def processar_documento_completo(
             # Processar texto completo: chunking + embeddings
             resultado_vetorizacao = servico_vetorizacao.processar_texto_completo(
                 texto=texto_extraido,
-                metadados_texto={
-                    "documento_id": documento_id,
-                    "nome_arquivo": nome_arquivo_original,
-                    "tipo_documento": tipo_documento,
-                    "numero_paginas": numero_paginas
-                }
+                usar_cache=True
             )
             
             chunks = resultado_vetorizacao["chunks"]
