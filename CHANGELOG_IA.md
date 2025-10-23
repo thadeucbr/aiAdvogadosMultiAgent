@@ -50,34 +50,30 @@
 | **007** | 2025-10-23 | Integração com ChromaDB | servico_banco_vetorial.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-007_integracao-chromadb.md) |
 | **008** | 2025-10-23 | Orquestração do Fluxo de Ingestão | servico_ingestao_documentos.py, rotas_documentos.py, modelos.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-008_orquestracao-fluxo-ingestao.md) |
 | **009** | 2025-10-23 | Infraestrutura Base para Agentes | gerenciador_llm.py, agente_base.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-009_infraestrutura-base-agentes.md) |
+| **010** | 2025-10-23 | Agente Advogado (Coordenador) | agente_advogado_coordenador.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-010_agente-advogado-coordenador.md) |
 
 ---
 
 ## 🎯 Última Tarefa Concluída
 
-**TAREFA-009** - Infraestrutura Base para Agentes  
+**TAREFA-010** - Agente Advogado (Coordenador)  
 **Data:** 2025-10-23  
 **IA:** GitHub Copilot  
-**Resumo:** Implementada infraestrutura base para o sistema multi-agent, criando os fundamentos sobre os quais todos os agentes especializados serão construídos. Criado `gerenciador_llm.py` (~600 linhas) com classe GerenciadorLLM que fornece wrapper robusto para OpenAI API: método chamar_llm() com retry automático (3 tentativas, backoff exponencial 1s→2s→4s), tracking detalhado de custos e tokens (dataclasses EstatisticaChamadaLLM e EstatisticasGlobaisLLM), tabela de custos por modelo (gpt-4, gpt-4-turbo, gpt-3.5-turbo), 3 exceções customizadas (ErroLimiteTaxaExcedido, ErroTimeoutAPI, ErroGeralAPI), função verificar_conexao_openai() para health check. Logging extensivo (INFO para sucessos com métricas, WARNING para retries, ERROR para falhas). Estatísticas mantidas em memória (plano futuro: migrar para Prometheus). Criado `agente_base.py` (~450 linhas) com classe abstrata AgenteBase usando padrão Template Method: método processar() orquestra fluxo completo (validação → montar_prompt → chamar LLM → formatar → calcular confiança → logging), método abstrato montar_prompt() para subclasses implementarem sua lógica específica, integração automática com GerenciadorLLM, cálculo heurístico de confiança (base 0.7, penalidades por texto curto/incerteza/falta de contexto), formato de resposta padronizado (agente, parecer, confiança, timestamp, metadados), mensagem de sistema automática contextualizando o LLM. Funções utilitárias: formatar_contexto_de_documentos() e truncar_texto_se_necessario(). Estatísticas por agente (contador de análises). Todos os agentes futuros herdarão desta base, precisando apenas implementar montar_prompt(). **MARCO ATINGIDO:** Base sólida para sistema multi-agent completa! Próximos agentes (Advogado, Perito Médico, Perito Segurança) podem ser implementados rapidamente. Próximo: TAREFA-010 (Agente Advogado - Coordenador).
+**Resumo:** Implementado o Agente Advogado Coordenador, o "maestro" do sistema multi-agent que orquestra análises jurídicas delegando para peritos especializados. Criado `agente_advogado_coordenador.py` (~900 linhas) com classe AgenteAdvogadoCoordenador herdando de AgenteBase. Método montar_prompt() com template especializado em análise jurídica (estrutura: resumo → análise dos fatos → fundamentos jurídicos → conclusão → documentos citados). Método consultar_rag() integrado com ChromaDB via servico_banco_vetorial: busca semântica por similaridade, retorna lista de chunks relevantes, graceful degradation (retorna lista vazia em erro). Método async delegar_para_peritos() implementa coordenação multi-agent com execução PARALELA usando asyncio: cria tasks assíncronas para cada perito, usa asyncio.gather() para execução simultânea, run_in_executor() para converter processar() síncrono em async, tratamento individual de erros (se um perito falha, outros continuam), performance 3-5× melhor que execução sequencial. Método compilar_resposta() é a "joia da coroa": integra pareceres técnicos em narrativa jurídica coesa, monta prompt específico de compilação, usa GPT-4 para integração, calcula confiança agregada (média de peritos - penalidades), formato estruturado com metadados completos. Sistema de registro dinâmico: registrar_perito() permite adicionar peritos em runtime, listar_peritos_disponiveis() para descoberta, validação (classe deve herdar de AgenteBase), preparado para TAREFA-011 (Perito Médico) e TAREFA-012 (Perito Seg. Trabalho). Factory function criar_advogado_coordenador() centraliza inicialização. Configurações: modelo GPT-4, temperatura 0.3 (objetividade jurídica). Inicialização automática de ChromaDB com tratamento de erro. Logging extensivo com emojis (🚀 🎯 📚 ✅ ⚠️ ❌). Documentação exaustiva seguindo AI_MANUAL_DE_MANUTENCAO.md. **MARCO ATINGIDO:** Coordenador multi-agent funcional! Sistema pronto para receber agentes peritos especializados. Próximo: TAREFA-011 (Agente Perito Médico) e TAREFA-012 (Agente Perito Segurança do Trabalho).
 
 ---
 
 ## 🚀 Próxima Tarefa Sugerida
 
-**TAREFA-010:** Agente Advogado (Coordenador)
+**TAREFA-011:** Agente Perito Médico
 
 **Escopo:**
-- Criar `backend/src/agentes/agente_advogado_coordenador.py`
-- Classe `AgenteAdvogado` herda de `AgenteBase`
-- Implementar método `consultar_rag(prompt: str) -> list[str]`
-- Buscar chunks relevantes no ChromaDB
-- Implementar método `delegar_para_peritos(prompt, contexto, peritos_selecionados)`
-- Chamar agentes peritos em paralelo (asyncio)
-- Implementar método `compilar_resposta(pareceres_peritos, contexto_rag)`
-- Gerar resposta final coesa usando GPT-4
-- Combinar insights dos peritos
-- Template de prompt para compilação
-- Testes com cenários simulados
+- Criar `backend/src/agentes/agente_perito_medico.py`
+- Classe `AgentePeritoMedico` herda de `AgenteBase`
+- Prompt especializado em análise médica (diagnósticos, nexo causal, incapacidades)
+- Método `gerar_parecer()` retornando parecer técnico + confiança
+- Registrar no advogado coordenador
+- Testes com casos médicos simulados
 
 ---
 

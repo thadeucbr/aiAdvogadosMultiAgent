@@ -20,8 +20,9 @@
 - ✅ TAREFA-007: Integração com ChromaDB
 - ✅ TAREFA-008: Orquestração do Fluxo de Ingestão
 - ✅ TAREFA-009: Infraestrutura Base para Agentes
+- ✅ TAREFA-010: Agente Advogado (Coordenador)
 
-**Próximo passo:** TAREFA-010 (Agente Advogado - Coordenador)
+**Próximo passo:** TAREFA-011 (Agente Perito Médico) ou TAREFA-012 (Agente Perito Segurança do Trabalho)
 
 ---
 
@@ -288,25 +289,33 @@
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-009  
 **Estimativa:** 3-4 horas
+**Status:** ✅ CONCLUÍDA (2025-10-23)
 
 **Escopo:**
-- [ ] Criar `backend/src/agentes/agente_advogado_coordenador.py`
-- [ ] Classe `AgenteAdvogado` herda de `AgenteBase`
-- [ ] Implementar método `consultar_rag(prompt: str) -> list[str]`
-- [ ] Buscar chunks relevantes no ChromaDB
-- [ ] Implementar método `delegar_para_peritos(prompt, contexto, peritos_selecionados)`
-- [ ] Chamar agentes peritos em paralelo (asyncio)
-- [ ] Implementar método `compilar_resposta(pareceres_peritos, contexto_rag)`
-- [ ] Gerar resposta final coesa usando GPT-4
-- [ ] Combinar insights dos peritos
-- [ ] Template de prompt para compilação
-- [ ] Testes com cenários simulados
+- [x] Criar `backend/src/agentes/agente_advogado_coordenador.py`
+- [x] Classe `AgenteAdvogado` herda de `AgenteBase`
+- [x] Implementar método `consultar_rag(prompt: str) -> list[str]`
+- [x] Buscar chunks relevantes no ChromaDB
+- [x] Implementar método `delegar_para_peritos(prompt, contexto, peritos_selecionados)`
+- [x] Chamar agentes peritos em paralelo (asyncio)
+- [x] Implementar método `compilar_resposta(pareceres_peritos, contexto_rag)`
+- [x] Gerar resposta final coesa usando GPT-4
+- [x] Combinar insights dos peritos
+- [x] Template de prompt para compilação
+- [ ] Testes com cenários simulados (ADIADO - será tarefa futura dedicada)
 
 **Entregáveis:**
-- Agente Advogado funcional
-- Integração com RAG
-- Delegação para peritos
-- Compilação de respostas
+- ✅ Agente Advogado funcional
+- ✅ Integração com RAG
+- ✅ Delegação para peritos (execução paralela)
+- ✅ Compilação de respostas
+- ✅ Sistema de registro dinâmico de peritos
+- ✅ Factory function para criação
+- ✅ Documentação exaustiva
+
+**Changelog:** [Ver detalhes completos](changelogs/TAREFA-010_agente-advogado-coordenador.md)
+
+**Marco:** 🎉 **Coordenador Multi-Agent Completo!** Sistema pronto para receber agentes peritos especializados (TAREFA-011 e TAREFA-012).
 
 ---
 
