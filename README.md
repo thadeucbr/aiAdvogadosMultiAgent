@@ -50,31 +50,99 @@ Para arquitetura detalhada, veja **`ARQUITETURA.md`**.
 
 **NOTA:** Este projeto foi otimizado para manutenção por IAs, mas humanos podem executá-lo normalmente.
 
-### Pré-requisitos
+### 🐳 Opção 1: Docker (Recomendado)
 
-- Python 3.11+
-- Node.js 18+
-- Tesseract OCR (para processamento de imagens)
+A forma mais rápida e confiável de executar o projeto é usando Docker. Isso garante que todas as dependências estejam corretamente instaladas, independente do sistema operacional.
 
-### Instalação
+#### Pré-requisitos
+- Docker e Docker Compose instalados
+- Arquivo `.env` configurado (copie do `.env.example`)
 
-**Backend:**
+#### Instalação Rápida
 ```bash
-cd backend
-python -m venv venv
-source venv/bin/activate  # No Windows: venv\Scripts\activate
-pip install -r requirements.txt
+# 1. Clone o repositório
+git clone <repo-url>
+cd multiAgent
+
+# 2. Configure as variáveis de ambiente
 cp .env.example .env
-# Edite o .env com suas chaves de API
-python src/main.py
+# Edite o .env e adicione sua OPENAI_API_KEY
+
+# 3. Inicie todos os serviços
+docker-compose up -d
+
+# 4. Acesse a aplicação
+# Backend: http://localhost:8000
+# Docs API: http://localhost:8000/docs
+# ChromaDB: http://localhost:8001
 ```
 
-**Frontend:**
+#### Comandos Úteis do Docker
+```bash
+# Ver logs dos serviços
+docker-compose logs -f
+
+# Parar todos os serviços
+docker-compose down
+
+# Rebuild após mudanças no código
+docker-compose up -d --build
+
+# Acessar o shell do backend
+docker-compose exec backend bash
+```
+
+---
+
+### 💻 Opção 2: Instalação Local (Desenvolvimento)
+
+#### Pré-requisitos
+
+- Python 3.12+ (recomendado 3.12 para compatibilidade)
+- Node.js 18+
+- Tesseract OCR (para processamento de imagens)
+- Poppler (para conversão PDF)
+
+**Instalação de Dependências do Sistema:**
+
+```bash
+# macOS
+brew install tesseract tesseract-lang poppler
+
+# Ubuntu/Debian
+sudo apt-get install tesseract-ocr tesseract-ocr-por poppler-utils
+
+# Windows (usando Chocolatey)
+choco install tesseract poppler
+```
+
+#### Instalação do Backend
+
+```bash
+cd backend
+
+# Criar ambiente virtual
+python3 -m venv venv
+
+# Ativar ambiente virtual
+source venv/bin/activate  # No Windows: venv\Scripts\activate
+
+# Instalar dependências
+pip install -r requirements.txt
+
+# Configurar variáveis de ambiente
+cp ../.env.example ../.env
+# Edite o .env com suas chaves de API
+
+# Executar servidor
+uvicorn src.main:app --reload
+```
+
+#### Instalação do Frontend (Futuro)
+
 ```bash
 cd frontend
 npm install
-cp .env.example .env
-# Edite o .env se necessário
 npm run dev
 ```
 
@@ -105,13 +173,19 @@ npm run dev
 **Última Atualização:** 2025-10-23
 
 ### ✅ Concluído
+
 - [x] Estrutura de pastas do monorepo
 - [x] Arquivos de governança (AI_MANUAL, ARQUITETURA, CHANGELOG)
 - [x] Proposta de stack tecnológica
+- [x] Setup do backend (FastAPI)
+- [x] Endpoint de upload de documentos
+- [x] Serviço de extração de texto (PDF/DOCX)
+- [x] Containerização com Docker
 
 ### 🚧 Em Desenvolvimento
-- [ ] Setup do backend (FastAPI)
-- [ ] Implementação de endpoints
+
+- [ ] Integração ChromaDB (Armazenamento Vetorial)
+- [ ] Sistema de embeddings
 - [ ] Sistema multi-agent
 - [ ] Frontend React
 

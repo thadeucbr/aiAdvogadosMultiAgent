@@ -43,30 +43,35 @@
 | **001.1** | 2025-10-23 | Refatoração: Estrutura Modular de Changelogs | CHANGELOG_IA.md, /changelogs/ | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-001-1_refatoracao-changelog-modular.md) |
 | **002** | 2025-10-23 | Setup do Backend (FastAPI) | main.py, configuracoes.py, requirements.txt | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-002_setup-backend-fastapi.md) |
 | **003** | 2025-10-23 | Endpoint de Upload de Documentos | rotas_documentos.py, modelos.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-003_endpoint-upload-documentos.md) |
+| **004** | 2025-10-23 | Serviço de Extração de Texto (PDFs e DOCX) | servico_extracao_texto.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-004_servico-extracao-texto.md) |
+| **005** | 2025-10-23 | Containerização com Docker | Dockerfile, docker-compose.yml, .env.example | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-005_containerizacao-docker.md) |
 
 ---
 
 ## 🎯 Última Tarefa Concluída
 
-**TAREFA-003** - Endpoint de Upload de Documentos  
+**TAREFA-005** - Containerização com Docker  
 **Data:** 2025-10-23  
 **IA:** GitHub Copilot  
-**Resumo:** Implementado endpoint POST /api/documentos/upload com validação de tipos (.pdf, .docx, .png, .jpg, .jpeg) e tamanho (max 50MB). Criados modelos Pydantic (modelos.py) com enums e validações. Arquivos salvos em dados/uploads_temp/ com UUID único. Endpoint de health check (/api/documentos/health). Router registrado no main.py. Documentação completa no ARQUITETURA.md. Status processamento: pendente (processamento assíncrono será TAREFA-008).
+**Resumo:** Criado ambiente Docker completo para garantir execução consistente do projeto em qualquer máquina. Implementado Dockerfile otimizado com multi-stage build usando Python 3.12 (ao invés de 3.13) para compatibilidade com bibliotecas que dependem de compilação Rust (tiktoken, pydantic-core). Criado docker-compose.yml orquestrando backend FastAPI e ChromaDB com volumes persistentes, healthchecks e hot reload para desenvolvimento. Adicionado .dockerignore para otimizar builds. Criado .env.example documentando todas as variáveis de ambiente necessárias. Atualizado README.md com seção completa de Docker incluindo instalação em 4 comandos e troubleshooting. Atualizado requirements.txt com versões mais recentes compatíveis com Python 3.12+. Resolvidos problemas de compilação de tiktoken, pydantic-core e pillow que ocorriam em Python 3.13.
 
 ---
 
 ## 🚀 Próxima Tarefa Sugerida
 
-**TAREFA-004:** Serviço de Extração de Texto (PDFs)
+**TAREFA-006:** Integração ChromaDB (Armazenamento Vetorial)
 
 **Escopo:**
-- Criar `backend/src/servicos/servico_extracao_texto.py`
-- Implementar extração de PDFs com texto selecionável (PyPDF2)
-- Implementar extração de arquivos DOCX (python-docx)
-- Detectar se PDF é escaneado ou texto
+- Criar `backend/src/servicos/servico_chromadb.py`
+- Implementar conexão e inicialização do ChromaDB
+- Criar/gerenciar coleções de documentos
+- Implementar funções de adicionar documentos (com embeddings)
+- Implementar busca semântica
+- Implementar operações CRUD (listar, deletar documentos)
+- Configurar persistência de dados
 - Tratamento robusto de erros
 - Logging detalhado
-- Testes unitários
+- Testes de integração
 
 ---
 

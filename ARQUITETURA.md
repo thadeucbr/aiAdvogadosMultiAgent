@@ -420,6 +420,113 @@ A DEFINIR
 
 ---
 
+## 📦 MÓDULOS DE SERVIÇOS (Backend)
+
+**NOTA:** Esta seção documenta os serviços implementados no backend que encapsulam lógica de negócios.
+
+### Serviço de Extração de Texto
+
+**Arquivo:** `backend/src/servicos/servico_extracao_texto.py`  
+**Status:** ✅ IMPLEMENTADO (TAREFA-004)  
+**Responsável pela Implementação:** IA (GitHub Copilot)
+
+**Contexto de Negócio:**
+Serviço fundamental para o fluxo de ingestão de documentos jurídicos. Responsável por extrair texto de PDFs e arquivos DOCX para que possam ser vetorizados e armazenados no RAG.
+
+**Funcionalidades:**
+
+1. **Extração de Texto de PDFs**
+   - Função: `extrair_texto_de_pdf_texto(caminho_arquivo_pdf: str) -> Dict[str, Any]`
+   - Utiliza PyPDF2 para extrair texto de PDFs com texto selecionável
+   - Detecta automaticamente se o PDF é escaneado (imagem)
+   - Se PDF for escaneado, levanta exceção `PDFEscaneadoError` para redirecionar ao serviço de OCR
+   - Retorna texto completo + metadados (número de páginas, páginas vazias, etc.)
+
+2. **Extração de Texto de DOCX**
+   - Função: `extrair_texto_de_docx(caminho_arquivo_docx: str) -> Dict[str, Any]`
+   - Utiliza python-docx para extrair texto de arquivos Microsoft Word (.docx)
+   - Extrai texto de parágrafos e tabelas
+   - Retorna texto completo + metadados (número de parágrafos, número de tabelas, etc.)
+
+3. **Detecção de Tipo de PDF**
+   - Função: `detectar_se_pdf_e_escaneado(caminho_arquivo_pdf: str) -> bool`
+   - Analisa as primeiras 3 páginas do PDF
+   - Usa heurística: se conseguir extrair >50 caracteres, é PDF com texto
+   - Caso contrário, é PDF escaneado (precisa OCR)
+
+4. **Função Principal (Roteador)**
+   - Função: `extrair_texto_de_documento(caminho_arquivo: str) -> Dict[str, Any]`
+   - Detecta extensão do arquivo (.pdf ou .docx)
+   - Roteia para o extrator apropriado
+   - Interface de "fachada" para outros módulos do sistema
+
+**Exceções Customizadas:**
+- `ErroDeExtracaoDeTexto`: Exceção base para erros de extração
+- `ArquivoNaoEncontradoError`: Arquivo não existe no caminho
+- `TipoDeArquivoNaoSuportadoError`: Extensão de arquivo não suportada
+- `DependenciaNaoInstaladaError`: PyPDF2 ou python-docx não instalado
+- `PDFEscaneadoError`: PDF é imagem (precisa OCR - TAREFA-005)
+
+**Dependências:**
+- `PyPDF2==3.0.1`: Leitura de PDFs
+- `python-docx==1.1.0`: Leitura de DOCX
+
+**Retorno Padrão (PDF):**
+```python
+{
+    "texto_extraido": str,              # Texto completo de todas as páginas
+    "numero_de_paginas": int,           # Total de páginas processadas
+    "metodo_extracao": str,             # "PyPDF2"
+    "caminho_arquivo_original": str,    # Caminho do arquivo processado
+    "tipo_documento": str,              # "pdf_texto"
+    "paginas_vazias": list[int]         # Índices de páginas sem texto
+}
+```
+
+**Retorno Padrão (DOCX):**
+```python
+{
+    "texto_extraido": str,              # Texto completo do documento
+    "numero_de_paragrafos": int,        # Total de parágrafos
+    "numero_de_tabelas": int,           # Total de tabelas
+    "metodo_extracao": str,             # "python-docx"
+    "caminho_arquivo_original": str,    # Caminho do arquivo processado
+    "tipo_documento": str               # "docx"
+}
+```
+
+**Logging:**
+- Todas as operações são logadas usando `logging.getLogger(__name__)`
+- Nível DEBUG: detalhes de extração (caracteres por página, etc.)
+- Nível INFO: início/conclusão de processamento
+- Nível WARNING: páginas vazias, PDFs escaneados detectados
+- Nível ERROR: erros durante processamento
+
+**Uso em outros módulos:**
+```python
+from servicos.servico_extracao_texto import extrair_texto_de_documento
+
+# Extrair texto de qualquer documento suportado
+resultado = extrair_texto_de_documento("/caminho/para/documento.pdf")
+texto = resultado["texto_extraido"]
+metadados = {
+    "paginas": resultado["numero_de_paginas"],
+    "metodo": resultado["metodo_extracao"]
+}
+```
+
+**Limitações Atuais:**
+- PDFs escaneados (imagens) não são processados - precisa OCR (TAREFA-005)
+- Arquivos .doc antigos (Office 2003) não são suportados, apenas .docx
+- Imagens (.png, .jpg, .jpeg) não são processadas por este serviço
+
+**Próximas Integrações:**
+- TAREFA-005: Serviço de OCR para PDFs escaneados e imagens
+- TAREFA-006: Serviço de chunking e vetorização (consumirá o texto extraído)
+- TAREFA-008: Processamento assíncrono de documentos após upload
+
+---
+
 ## 🌊 FLUXOS DE DADOS
 
 ### Fluxo 1: Ingestão de Documentos
@@ -808,28 +915,6 @@ Todas as chamadas HTTP devem usar os serviços em `src/servicos/`:
 ## 📝 CONVENÇÕES DE COMMIT (Quando Git for configurado)
 
 **A DEFINIR** quando o controle de versão for implementado.
-
----
-
-## 🚀 PRÓXIMOS PASSOS (Roadmap Técnico)
-
-Esta seção será atualizada pela IA que implementar cada etapa.
-
-- [ ] Configurar estrutura base do backend (FastAPI)
-- [ ] Implementar endpoint de upload de documentos
-- [ ] Implementar serviço de OCR
-- [ ] Implementar serviço de vetorização
-- [ ] Configurar ChromaDB
-- [ ] Implementar agentes (Advogado, Peritos)
-- [ ] Implementar orquestrador multi-agent
-- [ ] Configurar estrutura base do frontend (React + Vite)
-- [ ] Implementar componente de upload
-- [ ] Implementar seleção de agentes
-- [ ] Implementar visualização de pareceres
-- [ ] Integração Frontend ↔ Backend
-- [ ] Testes unitários (backend)
-- [ ] Testes de integração (backend)
-- [ ] Testes E2E (frontend)
 
 ---
 

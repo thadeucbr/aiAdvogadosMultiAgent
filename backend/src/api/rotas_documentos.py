@@ -37,7 +37,7 @@ from pathlib import Path
 import logging
 
 # Importar modelos de resposta
-from api.modelos import (
+from src.api.modelos import (
     RespostaUploadDocumento,
     InformacaoDocumentoUploadado,
     TipoDocumentoEnum,
@@ -46,7 +46,7 @@ from api.modelos import (
 )
 
 # Importar configurações
-from configuracao.configuracoes import obter_configuracoes
+from src.configuracao.configuracoes import obter_configuracoes
 
 
 # ===== CONFIGURAÇÃO DO ROUTER =====

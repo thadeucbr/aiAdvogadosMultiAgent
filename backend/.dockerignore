@@ -1,0 +1,89 @@
+# ==========================================
+# .DOCKERIGNORE - BACKEND
+# ==========================================
+# 
+# Define arquivos e diretórios que NÃO devem ser copiados para a imagem Docker.
+# Isso otimiza o build e reduz o tamanho da imagem.
+# ==========================================
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ===== Ambientes Virtuais =====
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# ===== IDEs e Editores =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ===== Dados Locais =====
+dados/chroma_db/*
+dados/uploads_temp/*
+!dados/chroma_db/.gitkeep
+!dados/uploads_temp/.gitkeep
+
+# ===== Logs =====
+logs/*
+*.log
+!logs/.gitkeep
+
+# ===== Testes =====
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ===== Git =====
+.git/
+.gitignore
+.gitattributes
+
+# ===== Docker =====
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# ===== Documentação Local =====
+*.md
+!README.md
+
+# ===== Temporários =====
+*.tmp
+*.bak
+*.swp
+.cache/
+
+# ===== Configurações Locais =====
+.env
+.env.local
+.env.*.local
