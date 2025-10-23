@@ -48,33 +48,34 @@
 | **005** | 2025-10-23 | Serviço de OCR (Tesseract) | servico_ocr.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-005_servico-ocr-tesseract.md) |
 | **006** | 2025-10-23 | Serviço de Chunking e Vetorização | servico_vetorizacao.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-006_servico-chunking-vetorizacao.md) |
 | **007** | 2025-10-23 | Integração com ChromaDB | servico_banco_vetorial.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-007_integracao-chromadb.md) |
+| **008** | 2025-10-23 | Orquestração do Fluxo de Ingestão | servico_ingestao_documentos.py, rotas_documentos.py, modelos.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-008_orquestracao-fluxo-ingestao.md) |
 
 ---
 
 ## 🎯 Última Tarefa Concluída
 
-**TAREFA-007** - Integração com ChromaDB  
+**TAREFA-008** - Orquestração do Fluxo de Ingestão  
 **Data:** 2025-10-23  
 **IA:** GitHub Copilot  
-**Resumo:** Implementada integração completa com ChromaDB, o banco de dados vetorial para o sistema RAG. Criado `servico_banco_vetorial.py` com 1.091 linhas, incluindo interface completa para gerenciar chunks de documentos jurídicos e seus embeddings. Implementadas 5 exceções customizadas (ErroDeBancoVetorial, ErroDeInicializacaoChromaDB, ErroDeArmazenamento, ErroDeBusca, ErroDeDelecao) para tratamento preciso de erros. Função `inicializar_chromadb()` cria cliente com persistência em disco e collection "documentos_juridicos" com métrica de similaridade cosseno. Função `armazenar_chunks()` valida consistência de dados (chunks/embeddings/metadados), gera IDs únicos no formato {documento_id}_chunk_{index}, enriquece metadados com chunk_index e total_chunks. Função `buscar_chunks_similares()` realiza busca semântica com k resultados, ajuste automático de k, filtros opcionais por metadados, retornando chunks formatados com texto, distância e metadados. Função `listar_documentos()` agrega chunks por documento_id retornando visão de alto nível ordenada por data. Função `deletar_documento()` remove documento e todos chunks em batch (operação irreversível). Função `verificar_saude_banco_vetorial()` valida dependências, configurações, conexão, collection, retornando status (healthy/degraded/unhealthy) com métricas detalhadas. Validações rigorosas (fail-fast) em todas as funções, logging completo em todos os níveis, docstrings exaustivas com contexto de negócio, exemplos de uso e justificativas. ChromaDB já estava em requirements.txt (>=0.5.0). Sistema RAG agora tem banco vetorial funcional. Próximo: TAREFA-008 (Orquestração do fluxo completo de ingestão).
+**Resumo:** Implementada orquestração completa do fluxo de ingestão de documentos, conectando todos os serviços implementados nas tarefas anteriores em um pipeline integrado end-to-end. Criado `servico_ingestao_documentos.py` (1.120 linhas) com função principal `processar_documento_completo()` que coordena 5 etapas: (1) Detectar tipo de processamento baseado em extensão, (2) Extrair texto via servico_extracao_texto ou servico_ocr com redirecionamento automático PDF→OCR se necessário, (3) Vetorizar texto gerando chunks e embeddings via OpenAI, (4) Armazenar no ChromaDB com metadados completos, (5) Compilar resultado com estatísticas. Implementadas 6 exceções customizadas (ErroDeIngestao, ErroDeDeteccaoDeTipo, ErroDeExtracaoNaIngestao, ErroDeVetorizacaoNaIngestao, ErroDeArmazenamentoNaIngestao, DocumentoVazioError). Funções auxiliares: detectar_tipo_de_processamento(), extrair_texto_do_documento() com formato padronizado, validar_texto_extraido() com threshold de 50 caracteres. Validação de confiança OCR mínima (60%). Health check completo validando todas dependências. Atualizados 3 arquivos: modelos.py (+153 linhas) com 3 novos modelos Pydantic (ResultadoProcessamentoDocumento, StatusDocumento, RespostaListarDocumentos), rotas_documentos.py (+187 linhas) com processamento em background via BackgroundTasks, cache em memória de status documentos, função processar_documento_background(), 2 novos endpoints GET /status/{id} e GET /listar. Endpoint /upload atualizado para agendar processamento assíncrono após salvar arquivo. Mensagens atualizadas orientando uso de endpoint de status para tracking. Background task atualiza status: pendente→processando→concluido/erro. Cache temporário em memória (produção deve usar Redis/PostgreSQL). Logging extensivo com prefixo [BACKGROUND]. **MARCO ATINGIDO:** FASE 1 COMPLETA - Fluxo de ingestão funcionando ponta a ponta! Documentos agora processados automaticamente e disponíveis no RAG para consulta pelos agentes de IA. Próximo: TAREFA-009 (Infraestrutura Base para Agentes).
 
 ---
 
 ## 🚀 Próxima Tarefa Sugerida
 
-**TAREFA-008:** Orquestração do Fluxo de Ingestão
+**TAREFA-009:** Infraestrutura Base para Agentes
 
 **Escopo:**
-- Criar `backend/src/servicos/servico_ingestao_documentos.py`
-- Implementar `processar_documento_completo(arquivo_path) -> dict`
-- Orquestrar fluxo completo: detecção de tipo → extração → chunking → vetorização → armazenamento ChromaDB
-- Processamento assíncrono (background tasks)
-- Atualizar endpoint `/api/documentos/upload` para chamar orquestração
-- Implementar endpoint `GET /api/documentos/status/{documento_id}`
-- Implementar endpoint `GET /api/documentos/listar`
-- Gerar shortcuts sugeridos após processamento
-- Retornar mensagem "Arquivos processados. O que você gostaria de saber?"
-- Testes de integração end-to-end
+- Criar `backend/src/utilitarios/gerenciador_llm.py`
+- Wrapper para OpenAI API com retry logic e backoff exponencial
+- Implementar `chamar_llm(prompt, model, temperature, max_tokens) -> str`
+- Tratamento de erros (rate limits, timeout, API errors)
+- Logging de chamadas (custo, tokens)
+- Criar `backend/src/agentes/agente_base.py`
+- Classe abstrata `AgenteBase`
+- Métodos: `processar(contexto, prompt)`, `montar_prompt()`
+- Template de prompt para cada agente
+- Testes do gerenciador LLM
 
 ---
 
@@ -122,5 +123,5 @@
 ---
 
 **Última Atualização deste Índice:** 2025-10-23  
-**Total de Tarefas Registradas:** 3  
+**Total de Tarefas Registradas:** 10  
 **Mantido por:** IAs seguindo o padrão "Manutenibilidade por LLM"

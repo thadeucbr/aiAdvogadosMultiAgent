@@ -280,3 +280,200 @@ class RespostaErro(BaseModel):
                 "detalhes": "O arquivo 'documento_grande.pdf' possui 75MB."
             }
         }
+
+
+# ===== MODELOS PARA PROCESSAMENTO DE DOCUMENTOS =====
+
+class ResultadoProcessamentoDocumento(BaseModel):
+    """
+    Resultado detalhado do processamento completo de um documento.
+    
+    CONTEXTO:
+    Após o upload, cada documento passa pelo fluxo de ingestão completo:
+    extração de texto, chunking, vetorização e armazenamento no ChromaDB.
+    Este modelo contém todas as informações sobre o processamento.
+    
+    USO:
+    Retornado pelo serviço de ingestão e endpoint de status.
+    """
+    sucesso: bool = Field(
+        ...,
+        description="Indica se o processamento foi concluído com sucesso"
+    )
+    
+    documento_id: str = Field(
+        ...,
+        description="UUID único do documento"
+    )
+    
+    nome_arquivo: str = Field(
+        ...,
+        description="Nome original do arquivo"
+    )
+    
+    tipo_processamento: str = Field(
+        ...,
+        description="Tipo de processamento usado: 'extracao_texto' ou 'ocr'"
+    )
+    
+    numero_paginas: int = Field(
+        ...,
+        ge=0,
+        description="Número de páginas processadas"
+    )
+    
+    numero_chunks: int = Field(
+        ...,
+        ge=0,
+        description="Número de chunks gerados"
+    )
+    
+    numero_caracteres: int = Field(
+        ...,
+        ge=0,
+        description="Total de caracteres extraídos"
+    )
+    
+    confianca_media: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Confiança média (para OCR) ou 1.0 (para extração de texto)"
+    )
+    
+    tempo_processamento_segundos: float = Field(
+        ...,
+        ge=0.0,
+        description="Tempo total de processamento em segundos"
+    )
+    
+    ids_chunks_armazenados: List[str] = Field(
+        default_factory=list,
+        description="IDs dos chunks armazenados no ChromaDB"
+    )
+    
+    data_processamento: str = Field(
+        ...,
+        description="Timestamp ISO do processamento"
+    )
+    
+    metodo_extracao: str = Field(
+        ...,
+        description="Método usado: 'extracao' ou 'ocr'"
+    )
+    
+    mensagem_erro: Optional[str] = Field(
+        default=None,
+        description="Mensagem de erro se processamento falhou"
+    )
+    
+    class Config:
+        """Exemplo para documentação Swagger"""
+        json_schema_extra = {
+            "example": {
+                "sucesso": True,
+                "documento_id": "550e8400-e29b-41d4-a716-446655440000",
+                "nome_arquivo": "processo_123.pdf",
+                "tipo_processamento": "extracao_texto",
+                "numero_paginas": 15,
+                "numero_chunks": 42,
+                "numero_caracteres": 25000,
+                "confianca_media": 1.0,
+                "tempo_processamento_segundos": 12.5,
+                "ids_chunks_armazenados": ["chunk_1", "chunk_2"],
+                "data_processamento": "2025-10-23T14:35:00",
+                "metodo_extracao": "extracao"
+            }
+        }
+
+
+class StatusDocumento(BaseModel):
+    """
+    Status atual de um documento no sistema.
+    
+    CONTEXTO:
+    Permite ao frontend acompanhar o progresso do processamento
+    de um documento após o upload.
+    """
+    documento_id: str = Field(
+        ...,
+        description="UUID do documento"
+    )
+    
+    nome_arquivo_original: str = Field(
+        ...,
+        description="Nome original do arquivo"
+    )
+    
+    status: StatusProcessamentoEnum = Field(
+        ...,
+        description="Status atual do processamento"
+    )
+    
+    data_hora_upload: datetime = Field(
+        ...,
+        description="Quando o upload foi realizado"
+    )
+    
+    resultado_processamento: Optional[ResultadoProcessamentoDocumento] = Field(
+        default=None,
+        description="Resultado detalhado se processamento foi concluído"
+    )
+    
+    class Config:
+        """Exemplo para documentação Swagger"""
+        json_schema_extra = {
+            "example": {
+                "documento_id": "550e8400-e29b-41d4-a716-446655440000",
+                "nome_arquivo_original": "processo_123.pdf",
+                "status": "concluido",
+                "data_hora_upload": "2025-10-23T14:30:00",
+                "resultado_processamento": {
+                    "sucesso": True,
+                    "numero_chunks": 42,
+                    "tempo_processamento_segundos": 12.5
+                }
+            }
+        }
+
+
+class RespostaListarDocumentos(BaseModel):
+    """
+    Resposta do endpoint de listagem de documentos.
+    
+    CONTEXTO:
+    Permite visualizar todos os documentos que foram processados
+    e estão disponíveis no sistema RAG.
+    """
+    sucesso: bool = Field(
+        ...,
+        description="Indica se a listagem foi bem-sucedida"
+    )
+    
+    total_documentos: int = Field(
+        ...,
+        ge=0,
+        description="Total de documentos no sistema"
+    )
+    
+    documentos: List[dict] = Field(
+        default_factory=list,
+        description="Lista de documentos com metadados"
+    )
+    
+    class Config:
+        """Exemplo para documentação Swagger"""
+        json_schema_extra = {
+            "example": {
+                "sucesso": True,
+                "total_documentos": 3,
+                "documentos": [
+                    {
+                        "documento_id": "550e8400-e29b-41d4-a716-446655440000",
+                        "nome_arquivo": "processo_123.pdf",
+                        "data_processamento": "2025-10-23T14:35:00",
+                        "numero_chunks": 42
+                    }
+                ]
+            }
+        }

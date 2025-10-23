@@ -263,17 +263,31 @@
 ### Ingestão de Documentos
 
 #### `POST /api/documentos/upload`
-**Status:** ✅ IMPLEMENTADO (TAREFA-003)
+**Status:** ✅ IMPLEMENTADO (TAREFA-003, atualizado TAREFA-008)
 
-**Descrição:** Recebe um ou múltiplos arquivos jurídicos para processamento e armazenamento no RAG.
+**Descrição:** Recebe um ou múltiplos arquivos jurídicos para processamento completo e armazenamento no RAG.
 
 **Contexto de Negócio:**
-Este é o ponto de entrada principal do fluxo de ingestão de documentos. Advogados fazem upload de petições, sentenças, laudos periciais e outros documentos do processo.
+Este é o ponto de entrada principal do fluxo de ingestão de documentos. Advogados fazem upload de petições, sentenças, laudos periciais e outros documentos do processo. Após o upload, o sistema processa automaticamente em background: extração de texto/OCR, chunking, vetorização e armazenamento no ChromaDB.
 
 **Validações Aplicadas:**
 - **Tipos de arquivo aceitos:** PDF, DOCX, PNG, JPG, JPEG
 - **Tamanho máximo por arquivo:** 50MB (configurável via `TAMANHO_MAXIMO_ARQUIVO_MB`)
 - Validação de extensão e tamanho antes do salvamento
+
+**Fluxo Completo (TAREFA-008):**
+1. Cliente envia arquivo(s) via POST multipart/form-data
+2. Backend valida extensão e tamanho de cada arquivo
+3. Arquivos válidos são salvos em `dados/uploads_temp/` com UUID único
+4. **NOVO:** Processamento completo é agendado em background (não bloqueia resposta)
+5. Metadados são retornados imediatamente ao cliente
+6. **Background Task:**
+   - Detecta tipo de documento (PDF texto, PDF escaneado, DOCX, imagem)
+   - Extrai texto (servico_extracao_texto ou servico_ocr)
+   - Divide em chunks (servico_vetorizacao)
+   - Gera embeddings via OpenAI (servico_vetorizacao)
+   - Armazena no ChromaDB (servico_banco_vetorial)
+7. Status atualizado: pendente → processando → concluido/erro
 
 **Request:**
 - **Content-Type:** `multipart/form-data`
@@ -283,7 +297,7 @@ Este é o ponto de entrada principal do fluxo de ingestão de documentos. Advoga
 ```json
 {
   "sucesso": true,
-  "mensagem": "Upload realizado com sucesso! 2 arquivo(s) aceito(s).",
+  "mensagem": "Upload realizado com sucesso! 2 arquivo(s) aceito(s) e agendado(s) para processamento. Use GET /api/documentos/status/{documento_id} para acompanhar o progresso.",
   "total_arquivos_recebidos": 2,
   "total_arquivos_aceitos": 2,
   "total_arquivos_rejeitados": 0,
@@ -298,6 +312,18 @@ Este é o ponto de entrada principal do fluxo de ingestão de documentos. Advoga
       "status_processamento": "pendente"
     },
     {
+      "id_documento": "660e8400-e29b-41d4-a716-446655440001",
+      "nome_arquivo_original": "laudo_medico.docx",
+      "tamanho_em_bytes": 524288,
+      "tipo_documento": "docx",
+      "caminho_temporario": "/app/dados/uploads_temp/660e8400.docx",
+      "data_hora_upload": "2025-10-23T14:30:05",
+      "status_processamento": "pendente"
+    }
+  ],
+  "erros": []
+}
+```
       "id_documento": "660e8400-e29b-41d4-a716-446655440001",
       "nome_arquivo_original": "laudo_medico.docx",
       "tamanho_em_bytes": 524288,
@@ -394,10 +420,157 @@ Este é o ponto de entrada principal do fluxo de ingestão de documentos. Advoga
 
 ---
 
-#### `GET /api/documentos/listar`
-**Status:** 🚧 A IMPLEMENTAR (TAREFA futura)
+#### `GET /api/documentos/status/{documento_id}`
+**Status:** ✅ IMPLEMENTADO (TAREFA-008)
 
-**Descrição:** Lista todos os documentos já processados no sistema.
+**Descrição:** Consulta o status de processamento de um documento específico.
+
+**Contexto:**
+Após fazer upload, o frontend pode consultar periodicamente este endpoint para saber quando o documento foi processado completamente e está disponível para consulta pelos agentes de IA.
+
+**Path Parameters:**
+- `documento_id` (string, required): UUID do documento retornado no upload
+
+**Request:** Nenhum parâmetro adicional necessário
+
+**Response (Processando):**
+```json
+{
+  "documento_id": "550e8400-e29b-41d4-a716-446655440000",
+  "nome_arquivo_original": "processo_123.pdf",
+  "status": "processando",
+  "data_hora_upload": "2025-10-23T14:30:00",
+  "resultado_processamento": null
+}
+```
+
+**Response (Concluído com Sucesso):**
+```json
+{
+  "documento_id": "550e8400-e29b-41d4-a716-446655440000",
+  "nome_arquivo_original": "processo_123.pdf",
+  "status": "concluido",
+  "data_hora_upload": "2025-10-23T14:30:00",
+  "resultado_processamento": {
+    "sucesso": true,
+    "documento_id": "550e8400-e29b-41d4-a716-446655440000",
+    "nome_arquivo": "processo_123.pdf",
+    "tipo_processamento": "extracao_texto",
+    "numero_paginas": 15,
+    "numero_chunks": 42,
+    "numero_caracteres": 25000,
+    "confianca_media": 1.0,
+    "tempo_processamento_segundos": 12.5,
+    "ids_chunks_armazenados": ["chunk_1", "chunk_2", "..."],
+    "data_processamento": "2025-10-23T14:35:00",
+    "metodo_extracao": "extracao"
+  }
+}
+```
+
+**Response (Erro no Processamento):**
+```json
+{
+  "documento_id": "550e8400-e29b-41d4-a716-446655440000",
+  "nome_arquivo_original": "documento_corrompido.pdf",
+  "status": "erro",
+  "data_hora_upload": "2025-10-23T14:30:00",
+  "resultado_processamento": {
+    "sucesso": false,
+    "documento_id": "550e8400-e29b-41d4-a716-446655440000",
+    "mensagem_erro": "Falha na extração de texto: PDF corrompido ou ilegível"
+  }
+}
+```
+
+**Status HTTP:**
+- `200 OK`: Documento encontrado (verificar campo `status` para saber se processamento concluiu)
+- `404 Not Found`: Documento não encontrado no sistema
+
+**Status Possíveis:**
+- `pendente`: Documento aguardando processamento
+- `processando`: Extração de texto/OCR/vetorização em andamento
+- `concluido`: Processamento finalizado com sucesso, documento disponível no RAG
+- `erro`: Falha durante processamento (ver `mensagem_erro` no resultado)
+
+**Uso Típico:**
+```javascript
+// Frontend: Fazer polling a cada 2 segundos
+setInterval(async () => {
+  const response = await fetch(`/api/documentos/status/${documentoId}`);
+  const data = await response.json();
+  
+  if (data.status === 'concluido') {
+    console.log('Processamento concluído!');
+    // Parar polling e atualizar UI
+  } else if (data.status === 'erro') {
+    console.error('Erro:', data.resultado_processamento.mensagem_erro);
+    // Parar polling e exibir erro
+  }
+}, 2000);
+```
+
+---
+
+#### `GET /api/documentos/listar`
+**Status:** ✅ IMPLEMENTADO (TAREFA-008)
+
+**Descrição:** Lista todos os documentos que foram processados e estão disponíveis no sistema RAG (ChromaDB).
+
+**Contexto:**
+Útil para visualizar todos os documentos disponíveis, criar dashboards, ou permitir que usuário selecione documentos específicos para análise.
+
+**Request:** Nenhum parâmetro necessário
+
+**Response:**
+```json
+{
+  "sucesso": true,
+  "total_documentos": 3,
+  "documentos": [
+    {
+      "documento_id": "550e8400-e29b-41d4-a716-446655440000",
+      "nome_arquivo": "processo_123.pdf",
+      "data_processamento": "2025-10-23T14:35:00",
+      "numero_chunks": 42,
+      "tipo_documento": "pdf",
+      "numero_paginas": 15
+    },
+    {
+      "documento_id": "660e8400-e29b-41d4-a716-446655440001",
+      "nome_arquivo": "laudo_medico.docx",
+      "data_processamento": "2025-10-23T14:40:00",
+      "numero_chunks": 28,
+      "tipo_documento": "docx",
+      "numero_paginas": 10
+    },
+    {
+      "documento_id": "770e8400-e29b-41d4-a716-446655440002",
+      "nome_arquivo": "exame_imagem.png",
+      "data_processamento": "2025-10-23T14:45:00",
+      "numero_chunks": 5,
+      "tipo_documento": "png",
+      "numero_paginas": 1
+    }
+  ]
+}
+```
+
+**Response (Nenhum Documento):**
+```json
+{
+  "sucesso": true,
+  "total_documentos": 0,
+  "documentos": []
+}
+```
+
+**Status HTTP:**
+- `200 OK`: Listagem bem-sucedida (pode retornar lista vazia)
+- `500 Internal Server Error`: Erro ao consultar ChromaDB
+
+**Nota:**
+Este endpoint consulta diretamente o ChromaDB, retornando apenas documentos que foram processados completamente. Documentos com status "pendente", "processando" ou "erro" NÃO aparecem aqui.
 
 ---
 

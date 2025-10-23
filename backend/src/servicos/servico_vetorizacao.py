@@ -51,7 +51,7 @@ except ImportError:
     OpenAI = None
 
 # Importações internas
-from configuracao.configuracoes import obter_configuracoes
+from src.configuracao.configuracoes import obter_configuracoes
 
 
 # ==========================================

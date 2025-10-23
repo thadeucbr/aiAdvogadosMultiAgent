@@ -29,12 +29,13 @@ JUSTIFICATIVA PARA LLMs:
 - Funções auxiliares pequenas e focadas
 """
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, status
-from typing import List
+from fastapi import APIRouter, UploadFile, File, HTTPException, status, BackgroundTasks
+from typing import List, Dict, Any
 import uuid
 import os
 from pathlib import Path
 import logging
+from datetime import datetime
 
 # Importar modelos de resposta
 from src.api.modelos import (
@@ -42,11 +43,18 @@ from src.api.modelos import (
     InformacaoDocumentoUploadado,
     TipoDocumentoEnum,
     StatusProcessamentoEnum,
-    RespostaErro
+    RespostaErro,
+    StatusDocumento,
+    RespostaListarDocumentos,
+    ResultadoProcessamentoDocumento
 )
 
 # Importar configurações
 from src.configuracao.configuracoes import obter_configuracoes
+
+# Importar serviços
+from src.servicos import servico_ingestao_documentos
+from src.servicos import servico_banco_vetorial
 
 
 # ===== CONFIGURAÇÃO DO ROUTER =====
@@ -75,6 +83,13 @@ logger = logging.getLogger(__name__)
 # ===== OBTER CONFIGURAÇÕES =====
 
 configuracoes = obter_configuracoes()
+
+
+# ===== ARMAZENAMENTO EM MEMÓRIA DE STATUS =====
+# NOTA: Em produção, isso deve ser substituído por um banco de dados
+# Por agora, usamos um dict em memória para rastrear status dos documentos
+
+documentos_status_cache: Dict[str, Dict[str, Any]] = {}
 
 
 # ===== CONSTANTES =====
@@ -318,15 +333,24 @@ async def salvar_arquivo_no_disco(
     1. Arquivo é validado (tipo e tamanho)
     2. UUID único é gerado
     3. Arquivo é salvo em pasta temporária
-    4. Metadados são retornados
-    5. Processamento assíncrono é agendado (implementação futura)
+    4. Processamento completo é agendado em background
+    5. Metadados são retornados imediatamente
+    
+    **Processamento em background:**
+    Após retornar resposta, o sistema processa o documento:
+    - Extração de texto (ou OCR)
+    - Chunking e vetorização
+    - Armazenamento no ChromaDB
+    
+    Use o endpoint /status/{documento_id} para acompanhar progresso.
     """
 )
 async def endpoint_upload_documentos(
     arquivos: List[UploadFile] = File(
         ...,
         description="Lista de arquivos a fazer upload (um ou mais documentos)"
-    )
+    ),
+    background_tasks: BackgroundTasks = BackgroundTasks()
 ) -> RespostaUploadDocumento:
     """
     Endpoint para upload de documentos jurídicos.
@@ -429,20 +453,41 @@ async def endpoint_upload_documentos(
             bytes_escritos = await salvar_arquivo_no_disco(arquivo, caminho_arquivo)
             
             # Criar objeto de informação do documento
+            data_hora_atual = datetime.now()
+            
             info_documento = InformacaoDocumentoUploadado(
                 id_documento=id_documento,
                 nome_arquivo_original=nome_original,
                 tamanho_em_bytes=bytes_escritos,
                 tipo_documento=tipo_documento,
                 caminho_temporario=str(caminho_arquivo),
-                status_processamento=StatusProcessamentoEnum.PENDENTE
+                status_processamento=StatusProcessamentoEnum.PENDENTE,
+                data_hora_upload=data_hora_atual
             )
             
             documentos_aceitos.append(info_documento)
             
+            # Armazenar informações no cache de status
+            documentos_status_cache[id_documento] = {
+                "documento_id": id_documento,
+                "nome_arquivo_original": nome_original,
+                "status": StatusProcessamentoEnum.PENDENTE,
+                "data_hora_upload": data_hora_atual,
+                "resultado_processamento": None
+            }
+            
+            # Agendar processamento em background
+            background_tasks.add_task(
+                processar_documento_background,
+                caminho_arquivo=str(caminho_arquivo),
+                documento_id=id_documento,
+                nome_arquivo_original=nome_original,
+                tipo_documento=tipo_documento.value  # Converter enum para string
+            )
+            
             logger.info(
                 f"Arquivo '{nome_original}' salvo com sucesso "
-                f"(ID: {id_documento})"
+                f"(ID: {id_documento}). Processamento agendado."
             )
             
         except Exception as erro:
@@ -467,13 +512,16 @@ async def endpoint_upload_documentos(
     if sucesso and total_rejeitados == 0:
         mensagem = (
             f"Upload realizado com sucesso! "
-            f"{total_aceitos} arquivo(s) aceito(s)."
+            f"{total_aceitos} arquivo(s) aceito(s) e agendado(s) para processamento. "
+            f"Use GET /api/documentos/status/{{documento_id}} para acompanhar o progresso."
         )
     elif sucesso and total_rejeitados > 0:
         mensagem = (
             f"Upload parcialmente concluído. "
-            f"{total_aceitos} arquivo(s) aceito(s), "
-            f"{total_rejeitados} rejeitado(s). Veja lista de erros."
+            f"{total_aceitos} arquivo(s) aceito(s) e agendado(s) para processamento, "
+            f"{total_rejeitados} rejeitado(s). "
+            f"Use GET /api/documentos/status/{{documento_id}} para acompanhar o progresso. "
+            f"Veja lista de erros."
         )
     else:
         mensagem = (
@@ -532,4 +580,176 @@ async def endpoint_health_check() -> dict:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Serviço temporariamente indisponível"
+        )
+
+
+# ===== FUNÇÕES DE PROCESSAMENTO EM BACKGROUND =====
+
+def processar_documento_background(
+    caminho_arquivo: str,
+    documento_id: str,
+    nome_arquivo_original: str,
+    tipo_documento: str
+) -> None:
+    """
+    Processa um documento em background (tarefa assíncrona).
+    
+    CONTEXTO:
+    O processamento de documentos pode levar vários segundos (OCR, vetorização, etc).
+    Para não bloquear a resposta do endpoint de upload, processamos em background.
+    
+    FLUXO:
+    1. Atualizar status para "processando"
+    2. Chamar servico_ingestao_documentos.processar_documento_completo()
+    3. Atualizar status para "concluido" ou "erro"
+    4. Armazenar resultado no cache
+    
+    Args:
+        caminho_arquivo: Caminho do arquivo no disco
+        documento_id: UUID do documento
+        nome_arquivo_original: Nome original do arquivo
+        tipo_documento: Tipo do documento (pdf, docx, etc)
+    """
+    logger.info(f"[BACKGROUND] Iniciando processamento de {documento_id}")
+    
+    # Atualizar status para processando
+    documentos_status_cache[documento_id]["status"] = StatusProcessamentoEnum.PROCESSANDO
+    
+    try:
+        # Processar documento completo
+        resultado = servico_ingestao_documentos.processar_documento_completo(
+            caminho_arquivo=caminho_arquivo,
+            documento_id=documento_id,
+            nome_arquivo_original=nome_arquivo_original,
+            tipo_documento=tipo_documento
+        )
+        
+        # Atualizar status para concluído
+        documentos_status_cache[documento_id]["status"] = StatusProcessamentoEnum.CONCLUIDO
+        documentos_status_cache[documento_id]["resultado_processamento"] = resultado
+        
+        logger.info(f"[BACKGROUND] Processamento de {documento_id} concluído com sucesso")
+    
+    except Exception as erro:
+        # Atualizar status para erro
+        documentos_status_cache[documento_id]["status"] = StatusProcessamentoEnum.ERRO
+        documentos_status_cache[documento_id]["resultado_processamento"] = {
+            "sucesso": False,
+            "documento_id": documento_id,
+            "mensagem_erro": str(erro)
+        }
+        
+        logger.error(f"[BACKGROUND] Erro ao processar {documento_id}: {erro}", exc_info=True)
+
+
+# ===== NOVOS ENDPOINTS =====
+
+@router.get(
+    "/status/{documento_id}",
+    response_model=StatusDocumento,
+    summary="Consultar status de processamento de um documento",
+    description="""
+    Consulta o status atual de processamento de um documento específico.
+    
+    **Status possíveis:**
+    - pendente: Documento aguardando processamento
+    - processando: Extração de texto/OCR em andamento
+    - concluido: Processamento finalizado com sucesso
+    - erro: Falha durante processamento
+    
+    **Uso:**
+    Após fazer upload, use este endpoint para acompanhar o progresso
+    do processamento do documento.
+    """
+)
+async def endpoint_consultar_status_documento(documento_id: str) -> StatusDocumento:
+    """
+    Consulta o status de processamento de um documento.
+    
+    CONTEXTO:
+    Após upload, frontend pode consultar periodicamente este endpoint
+    para saber quando o documento foi processado e está disponível para consulta.
+    
+    Args:
+        documento_id: UUID do documento
+    
+    Returns:
+        StatusDocumento com informações atuais
+    
+    Raises:
+        HTTPException 404: Se documento não for encontrado
+    """
+    logger.info(f"Consultando status do documento: {documento_id}")
+    
+    # Verificar se documento existe no cache
+    if documento_id not in documentos_status_cache:
+        logger.warning(f"Documento não encontrado: {documento_id}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Documento '{documento_id}' não foi encontrado no sistema"
+        )
+    
+    # Obter informações do cache
+    info_documento = documentos_status_cache[documento_id]
+    
+    # Montar resposta
+    resposta = StatusDocumento(
+        documento_id=documento_id,
+        nome_arquivo_original=info_documento["nome_arquivo_original"],
+        status=info_documento["status"],
+        data_hora_upload=info_documento["data_hora_upload"],
+        resultado_processamento=info_documento.get("resultado_processamento")
+    )
+    
+    return resposta
+
+
+@router.get(
+    "/listar",
+    response_model=RespostaListarDocumentos,
+    summary="Listar todos os documentos processados",
+    description="""
+    Lista todos os documentos que foram processados e estão disponíveis
+    no sistema RAG (ChromaDB).
+    
+    **Retorna:**
+    - Total de documentos
+    - Lista com metadados de cada documento
+    """
+)
+async def endpoint_listar_documentos() -> RespostaListarDocumentos:
+    """
+    Lista todos os documentos disponíveis no sistema.
+    
+    CONTEXTO:
+    Útil para visualizar todos os documentos que foram processados
+    e estão disponíveis para consulta pelos agentes de IA.
+    
+    IMPLEMENTAÇÃO:
+    Consulta diretamente o ChromaDB para obter lista de documentos únicos.
+    
+    Returns:
+        RespostaListarDocumentos com lista de documentos
+    """
+    logger.info("Listando todos os documentos do sistema")
+    
+    try:
+        # Obter lista de documentos do ChromaDB
+        documentos = servico_banco_vetorial.listar_documentos()
+        
+        logger.info(f"Encontrados {len(documentos)} documentos no sistema")
+        
+        resposta = RespostaListarDocumentos(
+            sucesso=True,
+            total_documentos=len(documentos),
+            documentos=documentos
+        )
+        
+        return resposta
+    
+    except Exception as erro:
+        logger.error(f"Erro ao listar documentos: {erro}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao listar documentos: {str(erro)}"
         )
