@@ -191,10 +191,14 @@ npm run dev
 - [x] Agente Perito Segurança do Trabalho
 - [x] Orquestrador Multi-Agent
 - [x] Endpoint de análise multi-agent (API REST)
+- [x] Setup do Frontend (React + Vite + TypeScript + TailwindCSS)
+- [x] Componente de Upload de Documentos (Frontend)
 
 ### 🚧 Em Desenvolvimento
 
-- [ ] Frontend React
+- [ ] Exibição de Shortcuts Sugeridos (Frontend)
+- [ ] Componentes de Análise Multi-Agent (Frontend)
+- [ ] Interface completa de usuário
 
 ---
 

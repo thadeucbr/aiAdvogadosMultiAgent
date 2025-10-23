@@ -55,29 +55,32 @@
 | **012** | 2025-10-23 | Agente Perito Segurança do Trabalho | agente_perito_seguranca_trabalho.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-012_agente-perito-seguranca-trabalho.md) |
 | **013** | 2025-10-23 | Orquestrador Multi-Agent | orquestrador_multi_agent.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-013_orquestrador-multi-agent.md) |
 | **014** | 2025-10-23 | Endpoint de Análise Multi-Agent | rotas_analise.py, modelos.py, main.py, ARQUITETURA.md | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-014_endpoint-analise-multi-agent.md) |
+| **015** | 2025-10-23 | Setup do Frontend (React + Vite) | frontend/* (10 arquivos TS/TSX), package.json, README.md | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-015_setup-frontend.md) |
+| **016** | 2025-10-23 | Componente de Upload de Documentos | ComponenteUploadDocumentos.tsx, tiposDocumentos.ts, servicoApiDocumentos.ts, PaginaUpload.tsx | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-016_componente-upload-documentos.md) |
 
 ---
 
 ## 🎯 Última Tarefa Concluída
 
-**TAREFA-014** - Endpoint de Análise Multi-Agent  
+**TAREFA-016** - Componente de Upload de Documentos  
 **Data:** 2025-10-23  
 **IA:** GitHub Copilot  
-**Resumo:** Implementado os endpoints REST para expor o sistema multi-agent via API HTTP, finalizando a FASE 2 do projeto. Criado `backend/src/api/rotas_analise.py` (~580 linhas, 40% comentários) com 3 endpoints FastAPI: POST /api/analise/multi-agent (análise completa), GET /api/analise/peritos (lista peritos disponíveis), GET /api/analise/health (health check). Modificado `backend/src/api/modelos.py` adicionando 6 novos modelos Pydantic: RequestAnaliseMultiAgent (request com validadores customizados para prompt e agentes), RespostaAnaliseMultiAgent (resposta completa estruturada), ParecerIndividualPerito (parecer de um perito), InformacaoPerito (dados de perito), RespostaListarPeritos (lista de peritos). Registrado router no `backend/src/main.py` via app.include_router(). Atualizado `ARQUITETURA.md` com documentação completa dos 3 endpoints (descrição, fluxo, request/response, status HTTP, exemplos JavaScript). Endpoint POST /api/analise/multi-agent: valida request via Pydantic (prompt 10-5000 chars, agentes válidos), obtém orquestrador singleton via lazy initialization, chama processar_consulta() assíncrono, formata resposta estruturada, trata 4 tipos de erro (400 Bad Request validação, 422 Pydantic, 500 Internal Server Error, 504 Timeout), logging detalhado INFO/WARNING/ERROR. Singleton global _orquestrador_global evita criar instância a cada request. Endpoint GET /api/analise/peritos: retorna dados estáticos do dicionário INFORMACOES_PERITOS com id_perito, nome_exibicao, descricao, especialidades de cada perito (médico e segurança trabalho). Endpoint GET /api/analise/health: verifica orquestrador, advogado e peritos operacionais, retorna 200 OK ou 503 Service Unavailable. Validadores Pydantic customizados: @validator("prompt") strip espaços e valida não vazio, @validator("agentes_selecionados") valida agentes existem e remove duplicatas. Tratamento de erros específico: ValueError→400, ErroLimiteTaxaExcedido→500, ErroTimeoutAPI/asyncio.TimeoutError→504, Exception→500. Documentação OpenAPI/Swagger automática via docstrings e Config.json_schema_extra. **MARCO ATINGIDO:** FASE 2 COMPLETA - BACKEND: SISTEMA MULTI-AGENT! Sistema funciona ponta a ponta: upload documentos → extração/OCR → vetorização → RAG → análise multi-agent via REST API. Total de 9 endpoints implementados (5 documentos + 3 análise + 1 base). Próximo: TAREFA-015 (Setup Frontend React + Vite).
+**Resumo:** Implementado componente completo de upload de documentos jurídicos com funcionalidade de drag-and-drop, validações client-side e progress tracking. Instalada dependência react-dropzone (^14.2.3). Criados 4 arquivos principais: (1) tiposDocumentos.ts (~400 linhas): tipos literais (TipoDocumento, StatusProcessamento), constantes de validação (EXTENSOES_PERMITIDAS, TAMANHO_MAXIMO_50MB), interfaces (InformacaoDocumentoUploadado, RespostaUploadDocumento, ArquivoParaUpload), funções utilitárias (extensaoEhPermitida, formatarTamanhoArquivo, obterExtensaoArquivo); (2) servicoApiDocumentos.ts (~420 linhas): interface ErroAxios type-safe, uploadDocumentos() com FormData/multipart e progress callback, buscarStatusDocumento(), buscarResultadoProcessamento(), listarDocumentos(), validarArquivosParaUpload() client-side, verificarHealthDocumentos(); (3) ComponenteUploadDocumentos.tsx (~620 linhas): drag-and-drop com react-dropzone, estado (arquivosSelecionados, uploadEmAndamento, progressoGlobal, errosValidacao), validações (extensão, tamanho 50MB, duplicatas), lista de arquivos com preview de imagens, progress bar global, tratamento de erros, componente auxiliar ItemArquivo com ícones dinâmicos (File, Loader2, CheckCircle, AlertCircle); (4) PaginaUpload.tsx (~280 linhas modificadas): substituído placeholder por implementação completa, estado (uploadConcluido, idsDocumentosEnviados, mensagemErro), handlers (handleUploadSucesso, handleUploadErro, handleIrParaAnalise, handleEnviarMaisDocumentos), seções (cabeçalho, mensagem de sucesso/erro, componente de upload, informações), integração React Router para navegar a /analise. Total: ~1.720 linhas de código. Validações: extensão (.pdf, .docx, .png, .jpg, .jpeg), tamanho máx 50MB, arquivos duplicados. UI/UX: design responsivo TailwindCSS, cores semânticas (azul/verde/vermelho), ícones Lucide React, transições suaves, feedback visual de estados. Integração: POST /api/documentos/upload com FormData, timeout 5min, progress tracking tempo real, tratamento robusto de erros. **MARCO ALCANÇADO:** PRIMEIRA FUNCIONALIDADE END-TO-END VISÍVEL! Backend processa uploads + Frontend permite uploads + Sistema multi-agent analisa. Próximo: TAREFA-017 (Exibição de Shortcuts Sugeridos).
 
 ---
 
 ## 🚀 Próxima Tarefa Sugerida
 
-**TAREFA-015:** Setup do Frontend (React + Vite)
+**TAREFA-017:** Exibição de Shortcuts Sugeridos
 
 **Escopo:**
-- Inicializar projeto React com Vite
-- Configurar TypeScript
-- Instalar dependências (React Router, Axios, TailwindCSS, Lucide React, React Hook Form, Zustand)
-- Criar estrutura de pastas
-- Conectar com backend (testar CORS)
-- README do frontend
+- Criar ComponenteUploadDocumentos.tsx com drag-and-drop (react-dropzone)
+- Validação de tipos (.pdf, .docx, .png, .jpg) e tamanho (max 50MB)
+- Preview de arquivos selecionados
+- Progress bar durante upload
+- Criar servicoApiDocumentos.ts
+- Integrar com POST /api/documentos/upload
+- Atualizar PaginaUpload.tsx
 
 ---
 
@@ -125,5 +128,5 @@
 ---
 
 **Última Atualização deste Índice:** 2025-10-23  
-**Total de Tarefas Registradas:** 14  
+**Total de Tarefas Registradas:** 15  
 **Mantido por:** IAs seguindo o padrão "Manutenibilidade por LLM"

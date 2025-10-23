@@ -1,0 +1,103 @@
+/**
+ * Estilos Globais da Plataforma Jurídica Multi-Agent
+ * 
+ * CONTEXTO:
+ * Este arquivo define os estilos base da aplicação usando TailwindCSS.
+ * As diretivas @tailwind importam as classes utilitárias do Tailwind.
+ * 
+ * ESTRUTURA:
+ * 1. Diretivas TailwindCSS (base, components, utilities)
+ * 2. Estilos globais customizados
+ * 3. Reset básico de estilos
+ */
+
+/* ===== DIRETIVAS TAILWINDCSS ===== */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== ESTILOS GLOBAIS ===== */
+
+/**
+ * Reset básico e configurações de fonte
+ */
+@layer base {
+  :root {
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    line-height: 1.5;
+    font-weight: 400;
+    
+    /* Anti-aliasing para melhor renderização de fontes */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    min-width: 320px;
+    min-height: 100vh;
+    background-color: #f9fafb;
+    color: #111827;
+  }
+
+  /* Remover estilos padrão de links */
+  a {
+    color: inherit;
+    text-decoration: inherit;
+  }
+}
+
+/**
+ * Componentes customizados reutilizáveis
+ */
+@layer components {
+  /* Botão primário padrão */
+  .btn-primary {
+    @apply bg-blue-600 text-white px-4 py-2 rounded-lg font-medium;
+    @apply hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
+    @apply transition-colors duration-200;
+  }
+
+  /* Botão secundário */
+  .btn-secondary {
+    @apply bg-gray-200 text-gray-800 px-4 py-2 rounded-lg font-medium;
+    @apply hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2;
+    @apply transition-colors duration-200;
+  }
+
+  /* Card padrão */
+  .card {
+    @apply bg-white rounded-lg shadow-md p-6 border border-gray-200;
+  }
+
+  /* Input de formulário padrão */
+  .input-field {
+    @apply w-full px-3 py-2 border border-gray-300 rounded-lg;
+    @apply focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+    @apply transition-all duration-200;
+  }
+}
+
+/**
+ * Utilitários customizados
+ */
+@layer utilities {
+  /* Scrollbar customizada */
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: #f1f1f1;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: #555;
+  }
+}

@@ -23,8 +23,12 @@
 - ✅ TAREFA-010: Agente Advogado (Coordenador)
 - ✅ TAREFA-011: Agente Perito Médico
 - ✅ TAREFA-012: Agente Perito Segurança do Trabalho
+- ✅ TAREFA-013: Orquestrador Multi-Agent
+- ✅ TAREFA-014: Endpoint de análise multi-agent (API REST)
+- ✅ TAREFA-015: Setup do Frontend (React + Vite)
+- ✅ TAREFA-016: Componente de Upload de Documentos
 
-**Próximo passo:** TAREFA-013 (Orquestrador Multi-Agent)
+**Próximo passo:** TAREFA-017 (Exibição de Shortcuts Sugeridos)
 
 ---
 
@@ -491,29 +495,37 @@
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-014  
 **Estimativa:** 2-3 horas
+**Status:** ✅ CONCLUÍDA (2025-10-23)
 
 **Escopo:**
-- [ ] Inicializar projeto React com Vite
-- [ ] Configurar TypeScript
-- [ ] Instalar dependências:
-  - [ ] React 18+
-  - [ ] React Router
-  - [ ] Axios (HTTP client)
-  - [ ] TailwindCSS
-  - [ ] Lucide React (ícones)
-  - [ ] React Hook Form (formulários)
-  - [ ] Zustand (state management)
-- [ ] Criar estrutura de pastas conforme `ARQUITETURA.md`
-- [ ] Configurar `.env` para API URL
-- [ ] Criar componentes base (Layout, Header, Footer)
-- [ ] Configurar rotas principais
-- [ ] Conectar com backend (testar CORS)
-- [ ] README do frontend
+- [x] Inicializar projeto React com Vite
+- [x] Configurar TypeScript
+- [x] Instalar dependências:
+  - [x] React 18+
+  - [x] React Router
+  - [x] Axios (HTTP client)
+  - [x] TailwindCSS
+  - [x] Lucide React (ícones)
+  - [x] React Hook Form (formulários)
+  - [x] Zustand (state management)
+- [x] Criar estrutura de pastas conforme `ARQUITETURA.md`
+- [x] Configurar `.env` para API URL
+- [x] Criar componentes base (Layout, Header, Footer)
+- [x] Configurar rotas principais
+- [x] Conectar com backend (testar CORS)
+- [x] README do frontend
 
 **Entregáveis:**
-- Projeto React funcionando
-- Estrutura de pastas organizada
-- Conexão com backend validada
+- ✅ Projeto React funcionando
+- ✅ Estrutura de pastas organizada
+- ✅ Conexão com backend validada
+- ✅ 7 componentes criados (3 base + 4 páginas)
+- ✅ Serviço de API configurado
+- ✅ Documentação completa
+
+**Changelog:** [Ver detalhes completos](changelogs/TAREFA-015_setup-frontend.md)
+
+**Marco:** 🎉 **FUNDAÇÃO DO FRONTEND COMPLETA!** Infraestrutura pronta para implementar componentes de upload, análise e histórico.
 
 ---
 
@@ -521,21 +533,41 @@
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-015  
 **Estimativa:** 3-4 horas
+**Status:** ✅ CONCLUÍDA (2025-10-23)
 
 **Escopo:**
-- [ ] Criar `frontend/src/componentes/upload/ComponenteUploadDocumentos.tsx`
-- [ ] Drag-and-drop de arquivos
-- [ ] Biblioteca: react-dropzone
-- [ ] Preview de arquivos selecionados
-- [ ] Validação de tipos (.pdf, .docx, .png, .jpg)
-- [ ] Validação de tamanho (max 50MB)
-- [ ] Mensagens de erro claras
-- [ ] Progress bar durante upload
-- [ ] Implementar `servicoApiDocumentos.ts`:
-  - [ ] `uploadDocumentos(arquivos: File[]) -> Promise<Response>`
-- [ ] Exibir resposta do backend após upload
-- [ ] Criar `frontend/src/paginas/PaginaUpload.tsx`
-- [ ] Testes com React Testing Library
+- [x] Criar `frontend/src/componentes/upload/ComponenteUploadDocumentos.tsx`
+- [x] Drag-and-drop de arquivos
+- [x] Biblioteca: react-dropzone
+- [x] Preview de arquivos selecionados
+- [x] Validação de tipos (.pdf, .docx, .png, .jpg)
+- [x] Validação de tamanho (max 50MB)
+- [x] Mensagens de erro claras
+- [x] Progress bar durante upload
+- [x] Implementar `servicoApiDocumentos.ts`:
+  - [x] `uploadDocumentos(arquivos: File[]) -> Promise<Response>`
+- [x] Exibir resposta do backend após upload
+- [x] Criar `frontend/src/tipos/tiposDocumentos.ts`
+- [x] Criar `frontend/src/paginas/PaginaUpload.tsx`
+- [ ] Testes com React Testing Library (ADIADO - será tarefa futura dedicada)
+
+**Entregáveis:**
+- ✅ Componente de upload funcional (~620 linhas)
+- ✅ Drag-and-drop intuitivo com react-dropzone
+- ✅ Feedback visual de progresso
+- ✅ Validação client-side e server-side
+- ✅ Preview de imagens selecionadas
+- ✅ Tipos TypeScript completos (~400 linhas)
+- ✅ Serviço de API de documentos (~420 linhas)
+- ✅ Página de upload completa (~280 linhas)
+
+**Changelog:** [Ver detalhes completos](changelogs/TAREFA-016_componente-upload-documentos.md)
+
+**Marco:** 🎉 **PRIMEIRA FUNCIONALIDADE END-TO-END COMPLETA!** Backend processa + Frontend envia + Sistema analisa. Próximo: TAREFA-017 (Shortcuts Sugeridos).
+
+---
+
+#### TAREFA-017: Exibição de Shortcuts Sugeridos
 
 **Entregáveis:**
 - Componente de upload funcional
