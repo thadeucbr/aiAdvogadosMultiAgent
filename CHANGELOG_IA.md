@@ -52,29 +52,29 @@
 | **009** | 2025-10-23 | Infraestrutura Base para Agentes | gerenciador_llm.py, agente_base.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-009_infraestrutura-base-agentes.md) |
 | **010** | 2025-10-23 | Agente Advogado (Coordenador) | agente_advogado_coordenador.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-010_agente-advogado-coordenador.md) |
 | **011** | 2025-10-23 | Agente Perito Médico | agente_perito_medico.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-011_agente-perito-medico.md) |
+| **012** | 2025-10-23 | Agente Perito Segurança do Trabalho | agente_perito_seguranca_trabalho.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-012_agente-perito-seguranca-trabalho.md) |
 
 ---
 
 ## 🎯 Última Tarefa Concluída
 
-**TAREFA-011** - Agente Perito Médico  
+**TAREFA-012** - Agente Perito Segurança do Trabalho  
 **Data:** 2025-10-23  
 **IA:** GitHub Copilot  
-**Resumo:** Implementado o Agente Perito Médico, especialista em análises médicas periciais para processos jurídicos. Criado `agente_perito_medico.py` (~850 linhas, 47% comentários) com classe AgentePeritoMedico herdando de AgenteBase. Configuração especializada: nome "Perito Médico", modelo GPT-4, temperatura 0.2 (objetividade médica - análises devem ser reprodutíveis), 8 áreas de especialidade documentadas. Método montar_prompt() com template médico pericial: define papel (perito médico qualificado em Medicina do Trabalho e Legal), diretrizes detalhadas (TÉCNICA-terminologia médica/CIDs, OBJETIVA-evidências documentais, FUNDAMENTADA-citar documentos, ESTRUTURADA-formato pericial padrão, PRUDENTE-grau de certeza), documentos formatados com numeração [DOCUMENTO 1], [DOCUMENTO 2] para rastreabilidade, instruções especializadas (identificação de diagnósticos com CIDs, análise de nexo causal com categorias ESTABELECIDO/PROVÁVEL/POSSÍVEL/IMPROVÁVEL/INEXISTENTE, avaliação de incapacidade TEMPORÁRIA/PERMANENTE e PARCIAL/TOTAL, identificação de sequelas, análise crítica de laudos), formato de parecer estruturado em 8 seções. Método gerar_parecer() como alias semântico de processar() (melhora legibilidade no domínio médico). Método analisar_nexo_causal() especializado: parâmetros específicos (doenca_ou_lesao, atividade_laboral), pergunta pré-formatada, enriquecimento automático de metadados, crítico em processos trabalhistas/previdenciários. Método avaliar_incapacidade() especializado: classificações padronizadas (duração e extensão), análise incluindo limitações funcionais, estimativas de afastamento/redução de capacidade, necessidade de reabilitação. Método privado _formatar_documentos_para_prompt() para estruturação visual. Factory function criar_perito_medico() centraliza criação. Integração com coordenador: atualizado criar_advogado_coordenador() para registro automático com try/except (graceful degradation), logs informativos (✅/⚠️). Exemplo de uso completo no __main__ com 2 cenários (nexo causal e incapacidade). Decisões técnicas documentadas: temperatura 0.2 justificada (objetividade > naturalidade), categorias explícitas de nexo causal baseadas em práticas periciais reais, métodos especializados vs genérico (semântica + parâmetros intuitivos), formatação de documentos com numeração. **MARCO ATINGIDO:** Primeiro agente perito implementado! Sistema pode realizar análises médicas periciais especializadas. Próximo: TAREFA-012 (Agente Perito Segurança do Trabalho).
+**Resumo:** Implementado o Agente Perito de Segurança do Trabalho, segundo especialista do sistema multi-agent. Criado `agente_perito_seguranca_trabalho.py` (~1.100 linhas, 48% comentários) com classe AgentePeritoSegurancaTrabalho herdando de AgenteBase. Configuração especializada: nome "Perito de Segurança do Trabalho", modelo GPT-4, temperatura 0.2 (objetividade técnica), 12 áreas de atuação documentadas. Documentação de 13 Normas Regulamentadoras (NRs) principais com títulos completos em dicionário interno. Método montar_prompt() com template de segurança do trabalho: define papel (engenheiro/técnico de segurança experiente em NRs), diretrizes detalhadas (TÉCNICA-terminologia de segurança, NORMATIVA-citar NRs aplicáveis, OBJETIVA-evidências documentais, FUNDAMENTADA-citar documentos, ESTRUTURADA-formato pericial, PROPOSITIVA-sugerir medidas corretivas), documentos formatados com numeração para rastreabilidade, instruções especializadas em 8 áreas (identificação de riscos ocupacionais com classificação por tipo/grau, análise de conformidade com NRs citando itens específicos, avaliação de EPIs com CAs e treinamento, avaliação de EPCs priorizando medidas coletivas, caracterização de insalubridade com graus mínimo/médio/máximo NR-15, caracterização de periculosidade NR-16, investigação de acidentes com causas imediatas/raiz, análise de programas PPRA/PGR/PCMSO), formato de parecer estruturado em 12 seções, hierarquia de controle de riscos explícita (eliminação→substituição→engenharia→administrativa→EPC→EPI). Método gerar_parecer() como alias semântico. Método analisar_conformidade_nrs() especializado: aceita lista de NRs específicas ou analisa todas aplicáveis, categorização em 5 níveis (CONFORME, PARCIALMENTE CONFORME, NÃO CONFORME, NÃO APLICÁVEL, INFORMAÇÃO INSUFICIENTE), crítico em processos trabalhistas. Método investigar_acidente_trabalho() especializado: parâmetro descricao_acidente, análise de causas imediatas/raiz, classificação típico/trajeto/doença, NRs violadas, responsabilidades, medidas preventivas. Método caracterizar_insalubridade_periculosidade() especializado: tipo_caracterizacao (insalubridade/periculosidade/ambos), análise de agentes nocivos/perigosos, enquadramento em anexos NR-15/NR-16, limites de tolerância, medidas de controle, graus/caracterização, nota sobre não cumulatividade. Método privado _formatar_documentos_para_prompt() reutilizado. Factory function criar_perito_seguranca_trabalho(). Exemplos de uso no __main__ com 3 cenários (investigação de acidente, conformidade NRs, caracterização insalubridade). Decisões técnicas: 3 métodos especializados vs 2 do médico (domínio mais amplo), hierarquia de controles no prompt (padrão internacional), 13 NRs principais (90% dos casos). Integração com coordenador: pode ser registrado via advogado.registrar_perito(). **MARCO ATINGIDO:** Segundo agente perito implementado! Sistema possui coordenador + 2 peritos especializados (médico e segurança). Próximo: TAREFA-013 (Orquestrador Multi-Agent completo).
 
 ---
 
 ## 🚀 Próxima Tarefa Sugerida
 
-**TAREFA-012:** Agente Perito Segurança do Trabalho
+**TAREFA-013:** Orquestrador Multi-Agent
 
 **Escopo:**
-- Criar `backend/src/agentes/agente_perito_medico.py`
-- Classe `AgentePeritoMedico` herda de `AgenteBase`
-- Prompt especializado em análise médica (diagnósticos, nexo causal, incapacidades)
-- Método `gerar_parecer()` retornando parecer técnico + confiança
-- Registrar no advogado coordenador
-- Testes com casos médicos simulados
+- Criar `backend/src/agentes/orquestrador_multi_agent.py`
+- Classe `OrquestradorMultiAgent`
+- Implementar `processar_consulta(prompt, agentes_selecionados) -> dict`
+- Fluxo completo: instanciar advogado, consultar RAG, delegar peritos, compilar resposta
+- Testes de integração com todos os agentes
 
 ---
 

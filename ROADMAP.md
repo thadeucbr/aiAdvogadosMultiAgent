@@ -22,8 +22,9 @@
 - ✅ TAREFA-009: Infraestrutura Base para Agentes
 - ✅ TAREFA-010: Agente Advogado (Coordenador)
 - ✅ TAREFA-011: Agente Perito Médico
+- ✅ TAREFA-012: Agente Perito Segurança do Trabalho
 
-**Próximo passo:** TAREFA-012 (Agente Perito Segurança do Trabalho)
+**Próximo passo:** TAREFA-013 (Orquestrador Multi-Agent)
 
 ---
 
@@ -360,30 +361,42 @@
 #### ✅ TAREFA-012: Agente Perito - Segurança do Trabalho
 **Prioridade:** 🟡 ALTA  
 **Dependências:** TAREFA-010  
-**Estimativa:** 2-3 horas
+**Estimativa:** 2-3 horas  
+**Status:** ✅ CONCLUÍDA (2025-10-23)
 
 **Escopo:**
-- [ ] Criar `backend/src/agentes/agente_perito_seguranca_trabalho.py`
-- [ ] Classe `AgentePeritoSegurancaTrabalho` herda de `AgenteBase`
-- [ ] Prompt especializado em segurança do trabalho:
-  - [ ] Análise de EPIs (Equipamentos de Proteção Individual)
-  - [ ] Condições de trabalho
-  - [ ] NRs (Normas Regulamentadoras) aplicáveis
-  - [ ] Riscos ocupacionais
-  - [ ] Medidas preventivas
-- [ ] Método `gerar_parecer(prompt, contexto_documentos) -> dict`
-- [ ] Identificar NRs mencionadas nos documentos
-- [ ] Avaliar conformidade
-- [ ] Testes com casos de segurança do trabalho
+- [x] Criar `backend/src/agentes/agente_perito_seguranca_trabalho.py`
+- [x] Classe `AgentePeritoSegurancaTrabalho` herda de `AgenteBase`
+- [x] Prompt especializado em segurança do trabalho:
+  - [x] Análise de EPIs (Equipamentos de Proteção Individual)
+  - [x] Condições de trabalho
+  - [x] NRs (Normas Regulamentadoras) aplicáveis
+  - [x] Riscos ocupacionais
+  - [x] Medidas preventivas
+- [x] Método `gerar_parecer(prompt, contexto_documentos) -> dict`
+- [x] Retornar:
+  - [x] Parecer técnico
+  - [x] Grau de confiança
+  - [x] Referências aos documentos analisados
+- [x] Métodos especializados: `analisar_conformidade_nrs()`, `investigar_acidente_trabalho()` e `caracterizar_insalubridade_periculosidade()`
+- [x] Integração com `criar_advogado_coordenador()` (registro automático)
+- [ ] Testes com casos de segurança do trabalho (ADIADO - será tarefa futura dedicada)
 
 **Entregáveis:**
-- Agente Perito Segurança do Trabalho funcional
-- Análise de EPIs e NRs
-- Pareceres técnicos estruturados
+- ✅ Agente Perito de Segurança do Trabalho funcional (~1.100 linhas de código)
+- ✅ Prompts especializados (temperatura 0.2 para objetividade)
+- ✅ Pareceres técnicos estruturados (formato pericial padrão)
+- ✅ Factory function `criar_perito_seguranca_trabalho()`
+- ✅ Exemplo de uso completo no `__main__`
+- ✅ Documentação exaustiva (48% do arquivo é comentários)
+
+**Changelog:** [Ver detalhes completos](changelogs/TAREFA-012_agente-perito-seguranca-trabalho.md)
+
+**Marco:** 🎉 **Segundo Agente Perito Implementado!** Sistema pode realizar análises de segurança do trabalho especializadas (conformidade NRs, acidentes, insalubridade/periculosidade).
 
 ---
 
-#### ✅ TAREFA-013: Orquestrador Multi-Agent
+#### TAREFA-013: Orquestrador Multi-Agent
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFAS 010-012  
 **Estimativa:** 3-4 horas

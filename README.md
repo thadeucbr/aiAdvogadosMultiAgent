@@ -188,10 +188,10 @@ npm run dev
 - [x] Infraestrutura Base para Agentes (GerenciadorLLM + AgenteBase)
 - [x] Agente Advogado (Coordenador)
 - [x] Agente Perito Médico
+- [x] Agente Perito Segurança do Trabalho
 
 ### 🚧 Em Desenvolvimento
 
-- [ ] Agente Perito Segurança do Trabalho
 - [ ] Sistema de orquestração multi-agent
 - [ ] Frontend React
 
