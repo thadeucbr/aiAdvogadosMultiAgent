@@ -1,0 +1,5 @@
+# Ignorar todos os arquivos de upload temporários
+*
+
+# Mas manter o diretório
+!.gitignore
