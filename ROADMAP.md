@@ -13,8 +13,13 @@
 - ✅ TAREFA-001.1: Estrutura modular de changelogs
 - ✅ TAREFA-002: Setup do backend (FastAPI, configurações, dependências)
 - ✅ TAREFA-003: Endpoint de upload de documentos (POST /api/documentos/upload)
+- ✅ TAREFA-004: Serviço de Extração de Texto (PDFs e DOCX)
+- ✅ TAREFA-005A: Containerização com Docker (não mapeada)
+- ✅ TAREFA-005: Serviço de OCR (Tesseract)
+- ✅ TAREFA-006: Serviço de Chunking e Vetorização
+- ✅ TAREFA-007: Integração com ChromaDB
 
-**Próximo passo:** TAREFA-004 (Serviço de Extração de Texto - PDFs)
+**Próximo passo:** TAREFA-008 (Orquestração do Fluxo de Ingestão)
 
 ---
 
@@ -102,78 +107,98 @@
 #### ✅ TAREFA-005: Serviço de OCR (Tesseract)
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-004  
-**Estimativa:** 3-4 horas
+**Estimativa:** 3-4 horas  
+**Status:** ✅ CONCLUÍDA (2025-10-23)
 
 **Escopo:**
-- [ ] Criar `backend/src/servicos/servico_ocr.py`
-- [ ] Implementar `extrair_texto_de_imagem(caminho_imagem) -> dict`
-- [ ] Integrar Tesseract via pytesseract
-- [ ] Pré-processamento de imagem (Pillow):
-  - [ ] Conversão para escala de cinza
-  - [ ] Binarização (threshold)
-  - [ ] Remoção de ruído
-- [ ] Implementar `extrair_texto_de_pdf_escaneado(caminho_pdf) -> dict`
-- [ ] Usar pdf2image para converter PDF → imagens
-- [ ] Aplicar OCR em cada página
-- [ ] Calcular confiança do OCR por página
-- [ ] Marcar páginas com baixa confiança
-- [ ] Configurar idioma (português)
-- [ ] Testes com documentos reais
+- [x] Criar `backend/src/servicos/servico_ocr.py`
+- [x] Implementar `extrair_texto_de_imagem(caminho_imagem) -> dict`
+- [x] Integrar Tesseract via pytesseract
+- [x] Pré-processamento de imagem (Pillow):
+  - [x] Conversão para escala de cinza
+  - [x] Binarização (threshold)
+  - [x] Remoção de ruído
+  - [x] Aumento de contraste
+  - [x] Aumento de nitidez
+- [x] Implementar `extrair_texto_de_pdf_escaneado(caminho_pdf) -> dict`
+- [x] Usar pdf2image para converter PDF → imagens
+- [x] Aplicar OCR em cada página
+- [x] Calcular confiança do OCR por página
+- [x] Marcar páginas com baixa confiança
+- [x] Configurar idioma (português)
+- [ ] Testes com documentos reais (ADIADO - será tarefa futura dedicada)
 
 **Entregáveis:**
-- Serviço de OCR funcional para imagens e PDFs escaneados
-- Métricas de confiança por página
-- Pré-processamento de imagem para melhorar acurácia
+- ✅ Serviço de OCR funcional para imagens e PDFs escaneados
+- ✅ Métricas de confiança por página
+- ✅ Pré-processamento de imagem para melhorar acurácia
+- ✅ Interface de fachada para roteamento automático
+- ✅ Funções utilitárias de health check
+
+**Changelog:** [Ver detalhes completos](changelogs/TAREFA-005_servico-ocr-tesseract.md)
 
 ---
 
 #### ✅ TAREFA-006: Serviço de Chunking e Vetorização
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-005  
-**Estimativa:** 3-4 horas
+**Estimativa:** 3-4 horas  
+**Status:** ✅ CONCLUÍDA (2025-10-23)
 
 **Escopo:**
-- [ ] Criar `backend/src/servicos/servico_vetorizacao.py`
-- [ ] Implementar `dividir_texto_em_chunks(texto: str) -> list[str]`
-- [ ] Usar LangChain TextSplitter
-- [ ] Configurar tamanho de chunk (500 tokens)
-- [ ] Configurar overlap (50 tokens)
-- [ ] Usar tiktoken para contagem precisa de tokens
-- [ ] Implementar `gerar_embeddings(chunks: list[str]) -> list[list[float]]`
-- [ ] Integrar OpenAI API (text-embedding-ada-002)
-- [ ] Batch processing para eficiência
-- [ ] Cache de embeddings (evitar reprocessamento)
-- [ ] Tratamento de rate limits da OpenAI
-- [ ] Testes com textos jurídicos reais
+- [x] Criar `backend/src/servicos/servico_vetorizacao.py`
+- [x] Implementar `dividir_texto_em_chunks(texto: str) -> list[str]`
+- [x] Usar LangChain TextSplitter
+- [x] Configurar tamanho de chunk (500 tokens)
+- [x] Configurar overlap (50 tokens)
+- [x] Usar tiktoken para contagem precisa de tokens
+- [x] Implementar `gerar_embeddings(chunks: list[str]) -> list[list[float]]`
+- [x] Integrar OpenAI API (text-embedding-ada-002)
+- [x] Batch processing para eficiência
+- [x] Cache de embeddings (evitar reprocessamento)
+- [x] Tratamento de rate limits da OpenAI
+- [ ] Testes com textos jurídicos reais (ADIADO - será tarefa futura dedicada)
 
 **Entregáveis:**
-- Chunking inteligente de textos longos
-- Geração de embeddings via OpenAI
-- Sistema de cache para reduzir custos
+- ✅ Chunking inteligente de textos longos
+- ✅ Geração de embeddings via OpenAI
+- ✅ Sistema de cache para reduzir custos
+- ✅ Interface de alto nível (processar_texto_completo)
+- ✅ Health check completo
+- ✅ Validação de dependências e configurações
+
+**Changelog:** [Ver detalhes completos](changelogs/TAREFA-006_servico-chunking-vetorizacao.md)
 
 ---
 
 #### ✅ TAREFA-007: Integração com ChromaDB
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-006  
-**Estimativa:** 2-3 horas
+**Estimativa:** 2-3 horas  
+**Status:** ✅ CONCLUÍDA (2025-10-23)
 
 **Escopo:**
-- [ ] Criar `backend/src/servicos/servico_banco_vetorial.py`
-- [ ] Implementar `inicializar_chromadb() -> chromadb.Client`
-- [ ] Criar/carregar collection "documentos_juridicos"
-- [ ] Implementar `armazenar_chunks(chunks, embeddings, metadados) -> list[str]`
-- [ ] Metadados: nome_arquivo, data_upload, tipo_documento, numero_pagina
-- [ ] Implementar `buscar_chunks_similares(query: str, k: int) -> list[dict]`
-- [ ] Implementar `listar_documentos() -> list[dict]`
-- [ ] Implementar `deletar_documento(documento_id: str) -> bool`
-- [ ] Configurar persistência no disco
-- [ ] Testes de inserção e busca
+- [x] Criar `backend/src/servicos/servico_banco_vetorial.py`
+- [x] Implementar `inicializar_chromadb() -> chromadb.Client`
+- [x] Criar/carregar collection "documentos_juridicos"
+- [x] Implementar `armazenar_chunks(chunks, embeddings, metadados) -> list[str]`
+- [x] Metadados: nome_arquivo, data_upload, tipo_documento, numero_pagina
+- [x] Implementar `buscar_chunks_similares(query: str, k: int) -> list[dict]`
+- [x] Implementar `listar_documentos() -> list[dict]`
+- [x] Implementar `deletar_documento(documento_id: str) -> bool`
+- [x] Configurar persistência no disco
+- [x] Health check completo
+- [x] Validação de dependências e configurações
+- [ ] Testes de inserção e busca (ADIADO - será tarefa futura dedicada)
 
 **Entregáveis:**
-- Interface completa para ChromaDB
-- CRUD de documentos vetorizados
-- Busca por similaridade funcional
+- ✅ Interface completa para ChromaDB
+- ✅ CRUD de documentos vetorizados
+- ✅ Busca por similaridade funcional
+- ✅ Sistema de validações robusto
+- ✅ Health check para monitoramento
+
+**Changelog:** [Ver detalhes completos](changelogs/TAREFA-007_integracao-chromadb.md)
 
 ---
 

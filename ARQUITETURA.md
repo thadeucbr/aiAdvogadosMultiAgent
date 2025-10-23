@@ -527,6 +527,138 @@ metadados = {
 
 ---
 
+### Serviço de Vetorização e Chunking
+
+**Arquivo:** `backend/src/servicos/servico_vetorizacao.py`  
+**Status:** ✅ IMPLEMENTADO (TAREFA-006)  
+**Responsável pela Implementação:** IA (GitHub Copilot)
+
+**Contexto de Negócio:**
+Serviço responsável por preparar documentos jurídicos para armazenamento no sistema RAG (ChromaDB). Textos longos são divididos em "chunks" (pedaços menores) e transformados em vetores numéricos (embeddings) para permitir busca semântica.
+
+**Funcionalidades:**
+
+1. **Divisão de Texto em Chunks (Chunking)**
+   - Função: `dividir_texto_em_chunks(texto: str, tamanho_chunk: int, chunk_overlap: int) -> List[str]`
+   - Utiliza LangChain RecursiveCharacterTextSplitter
+   - Usa tiktoken para contagem precisa de tokens (não caracteres)
+   - Tamanho padrão: 500 tokens por chunk (configurável via .env: TAMANHO_MAXIMO_CHUNK)
+   - Overlap padrão: 50 tokens (configurável via .env: CHUNK_OVERLAP)
+   - Estratégia de divisão hierárquica:
+     1. Tenta dividir por parágrafos (\n\n)
+     2. Se chunk ainda for grande, divide por frases (. )
+     3. Como último recurso, divide por caracteres
+   - Preserva contexto entre chunks com overlap
+
+2. **Geração de Embeddings (Vetorização)**
+   - Função: `gerar_embeddings(chunks: List[str], usar_cache: bool) -> List[List[float]]`
+   - Integra com OpenAI API usando modelo text-embedding-ada-002
+   - Processa chunks em batches (100 por vez) para eficiência
+   - Trata rate limits com retry + backoff exponencial
+   - Cada embedding é um vetor de 1536 dimensões (float)
+   - Implementa cache baseado em hash SHA-256 do texto
+   - Retorna embeddings na mesma ordem dos chunks
+
+3. **Sistema de Cache de Embeddings**
+   - Funções: `carregar_embedding_do_cache(hash_texto: str)` e `salvar_embedding_no_cache(hash_texto: str, embedding: List[float])`
+   - Cache armazenado em arquivos JSON no diretório `dados/cache_embeddings/`
+   - Usa hash SHA-256 do texto como chave única
+   - Evita reprocessamento de chunks já vetorizados
+   - Reduz custos de API OpenAI
+   - Cache é opcional e não bloqueia o sistema se falhar
+
+4. **Processamento Completo (Interface de Alto Nível)**
+   - Função: `processar_texto_completo(texto: str, usar_cache: bool) -> Dict[str, Any]`
+   - Orquestra todo o pipeline: Texto → Chunking → Embeddings
+   - Retorna chunks + embeddings + metadados
+   - Usado pelo serviço de ingestão após extração de texto
+
+5. **Validação e Health Check**
+   - Função: `verificar_saude_servico_vetorizacao() -> Dict[str, Any]`
+   - Verifica dependências instaladas (langchain, tiktoken, openai)
+   - Valida configurações (.env)
+   - Testa conexão com OpenAI API
+   - Verifica permissões do cache
+
+**Exceções Customizadas:**
+- `ErroDeVetorizacao`: Exceção base para erros de vetorização
+- `DependenciaNaoInstaladaError`: langchain, tiktoken ou openai não instalados
+- `ErroDeChunking`: Falha ao dividir texto em chunks
+- `ErroDeGeracaoDeEmbeddings`: Falha ao gerar embeddings via OpenAI API
+- `ErroDeCache`: Problemas com sistema de cache
+
+**Dependências:**
+- `langchain==0.0.340`: Chunking inteligente de textos
+- `tiktoken==0.5.2`: Contagem precisa de tokens (OpenAI)
+- `openai>=1.55.0`: Geração de embeddings via API
+
+**Configurações (.env):**
+```bash
+# Tamanho máximo de cada chunk em tokens
+TAMANHO_MAXIMO_CHUNK=500
+
+# Overlap (sobreposição) entre chunks consecutivos em tokens
+CHUNK_OVERLAP=50
+
+# Modelo de embedding da OpenAI
+OPENAI_MODEL_EMBEDDING=text-embedding-ada-002
+
+# Chave de API da OpenAI (obrigatória)
+OPENAI_API_KEY=sk-...
+```
+
+**Retorno da Função Principal:**
+```python
+{
+    "chunks": List[str],              # Lista de chunks de texto
+    "embeddings": List[List[float]],  # Lista de embeddings (1536 dims cada)
+    "numero_chunks": int,             # Total de chunks gerados
+    "numero_tokens": int,             # Total de tokens processados
+    "usou_cache": bool                # Se cache foi utilizado
+}
+```
+
+**Logging:**
+- Todas as operações são logadas usando `logging.getLogger(__name__)`
+- Nível DEBUG: cache hits/misses, tokens por chunk
+- Nível INFO: início/conclusão de processamento, estatísticas (número de chunks, tokens)
+- Nível WARNING: rate limits, problemas com cache
+- Nível ERROR: falhas na API OpenAI, erros de chunking
+
+**Uso em outros módulos:**
+```python
+from servicos.servico_vetorizacao import processar_texto_completo
+
+# Processar texto completo: chunking + embeddings
+texto_documento = "Documento jurídico longo..."
+resultado = processar_texto_completo(texto_documento, usar_cache=True)
+
+chunks = resultado["chunks"]
+embeddings = resultado["embeddings"]
+
+# Agora pode armazenar no ChromaDB
+for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+    # Armazenar no banco vetorial
+    pass
+```
+
+**Otimizações Implementadas:**
+- **Batch Processing**: Processa até 100 chunks por vez na API OpenAI
+- **Cache Inteligente**: Evita reprocessar chunks duplicados
+- **Retry com Backoff**: Trata rate limits automaticamente
+- **Singleton de Tokenizer**: Tokenizer carregado uma única vez (lru_cache)
+
+**Custos da OpenAI:**
+- Modelo text-embedding-ada-002: $0.0001 / 1K tokens
+- Exemplo: Documento de 100 páginas (~50.000 tokens) = $0.005 (~R$ 0.025)
+- Cache reduz custos ao evitar reprocessamento
+
+**Próximas Integrações:**
+- TAREFA-007: Integração com ChromaDB (armazenar chunks + embeddings)
+- TAREFA-008: Orquestração completa de ingestão (upload → extração → chunking → vetorização → armazenamento)
+
+---
+
 ## 🌊 FLUXOS DE DADOS
 
 ### Fluxo 1: Ingestão de Documentos

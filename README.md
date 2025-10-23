@@ -180,11 +180,14 @@ npm run dev
 - [x] Setup do backend (FastAPI)
 - [x] Endpoint de upload de documentos
 - [x] Serviço de extração de texto (PDF/DOCX)
+- [x] Serviço de OCR (Tesseract) para documentos escaneados
 - [x] Containerização com Docker
+- [x] Serviço de Chunking e Vetorização
+- [x] Integração com ChromaDB (Banco Vetorial)
 
 ### 🚧 Em Desenvolvimento
 
-- [ ] Integração ChromaDB (Armazenamento Vetorial)
+- [ ] Orquestração do Fluxo de Ingestão Completo
 - [ ] Sistema de embeddings
 - [ ] Sistema multi-agent
 - [ ] Frontend React
