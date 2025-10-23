@@ -31,7 +31,7 @@ from datetime import datetime
 import logging
 
 # Importar o gerenciador de LLM para comunicação com OpenAI
-from backend.src.utilitarios.gerenciador_llm import GerenciadorLLM
+from src.utilitarios.gerenciador_llm import GerenciadorLLM
 
 # Configuração do logger para este módulo
 logger = logging.getLogger(__name__)

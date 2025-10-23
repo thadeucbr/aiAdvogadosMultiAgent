@@ -477,3 +477,363 @@ class RespostaListarDocumentos(BaseModel):
                 ]
             }
         }
+
+
+# ===== MODELOS PARA ANÁLISE MULTI-AGENT =====
+
+class RequestAnaliseMultiAgent(BaseModel):
+    """
+    Requisição para análise multi-agent.
+    
+    CONTEXTO DE NEGÓCIO:
+    Este é o modelo de entrada para o endpoint de análise jurídica.
+    O usuário fornece um prompt (pergunta/solicitação) e seleciona
+    quais agentes peritos devem participar da análise.
+    
+    FLUXO:
+    1. Frontend envia: {"prompt": "...", "agentes_selecionados": ["medico"]}
+    2. Backend valida: prompt não vazio, agentes existem
+    3. Orquestrador processa: RAG → Peritos → Compilação
+    4. Backend retorna: Resposta compilada + pareceres individuais
+    
+    EXEMPLOS DE PROMPTS:
+    - "Analisar se há nexo causal entre a doença e o trabalho"
+    - "Verificar conformidade com NR-15 (insalubridade)"
+    - "Avaliar grau de incapacidade permanente do trabalhador"
+    
+    AGENTES DISPONÍVEIS:
+    - "medico": Perito médico (nexo causal, incapacidades, danos corporais)
+    - "seguranca_trabalho": Perito de segurança (EPIs, NRs, riscos ocupacionais)
+    
+    OBSERVAÇÃO:
+    Se agentes_selecionados for None ou lista vazia, apenas o Advogado
+    Coordenador processa a consulta (sem pareceres periciais).
+    """
+    prompt: str = Field(
+        ...,
+        min_length=10,
+        max_length=5000,
+        description="Pergunta ou solicitação de análise jurídica (mínimo 10 caracteres)"
+    )
+    
+    agentes_selecionados: Optional[List[str]] = Field(
+        default=None,
+        description="Lista de IDs dos agentes peritos a serem consultados. "
+                    "Valores válidos: 'medico', 'seguranca_trabalho'. "
+                    "Se None ou vazio, apenas o advogado coordenador responde."
+    )
+    
+    @validator("prompt")
+    def validar_prompt_nao_vazio(cls, valor: str) -> str:
+        """
+        Valida que o prompt não seja apenas espaços em branco.
+        
+        CONTEXTO:
+        Pydantic valida min_length, mas aceita strings como "          " (10 espaços).
+        Esta validação customizada garante que há conteúdo real.
+        """
+        if not valor or valor.strip() == "":
+            raise ValueError("Prompt não pode ser vazio ou conter apenas espaços em branco")
+        return valor.strip()
+    
+    @validator("agentes_selecionados")
+    def validar_agentes(cls, valor: Optional[List[str]]) -> Optional[List[str]]:
+        """
+        Valida que os agentes selecionados existem no sistema.
+        
+        CONTEXTO:
+        Frontend pode enviar IDs incorretos. Esta validação garante que
+        apenas agentes válidos sejam aceitos.
+        
+        AGENTES VÁLIDOS:
+        - "medico": Agente Perito Médico
+        - "seguranca_trabalho": Agente Perito de Segurança do Trabalho
+        """
+        agentes_validos = {"medico", "seguranca_trabalho"}
+        
+        if valor is None or len(valor) == 0:
+            # Permitir consulta sem peritos (apenas advogado)
+            return None
+        
+        # Verificar se todos os agentes são válidos
+        agentes_invalidos = [a for a in valor if a not in agentes_validos]
+        if agentes_invalidos:
+            raise ValueError(
+                f"Agentes inválidos: {agentes_invalidos}. "
+                f"Agentes válidos: {list(agentes_validos)}"
+            )
+        
+        # Remover duplicatas (caso usuário selecione o mesmo agente 2x)
+        return list(set(valor))
+    
+    class Config:
+        """Exemplo para documentação Swagger"""
+        json_schema_extra = {
+            "example": {
+                "prompt": "Analisar se houve nexo causal entre o acidente de trabalho "
+                         "e as condições inseguras do ambiente laboral. Verificar "
+                         "também se o trabalhador possui incapacidade permanente.",
+                "agentes_selecionados": ["medico", "seguranca_trabalho"]
+            }
+        }
+
+
+class ParecerIndividualPerito(BaseModel):
+    """
+    Parecer técnico individual de um agente perito.
+    
+    CONTEXTO:
+    Cada agente perito retorna um parecer técnico estruturado.
+    Este modelo representa o parecer de um único agente.
+    
+    ESTRUTURA DO PARECER:
+    - nome_agente: Identificação do perito (ex: "Perito Médico")
+    - tipo_agente: ID do tipo (ex: "medico")
+    - parecer: Texto do parecer técnico completo
+    - grau_confianca: 0.0 a 1.0 (quão confiante o agente está na resposta)
+    - documentos_referenciados: Documentos do RAG que foram consultados
+    - timestamp: Quando o parecer foi gerado
+    """
+    nome_agente: str = Field(
+        ...,
+        description="Nome legível do agente (ex: 'Perito Médico')"
+    )
+    
+    tipo_agente: str = Field(
+        ...,
+        description="Identificador técnico do agente (ex: 'medico', 'seguranca_trabalho')"
+    )
+    
+    parecer: str = Field(
+        ...,
+        description="Parecer técnico completo do agente"
+    )
+    
+    grau_confianca: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Grau de confiança do agente na resposta (0.0 a 1.0)"
+    )
+    
+    documentos_referenciados: List[str] = Field(
+        default_factory=list,
+        description="Nomes dos documentos do RAG que foram consultados"
+    )
+    
+    timestamp: str = Field(
+        ...,
+        description="Timestamp ISO de quando o parecer foi gerado"
+    )
+    
+    class Config:
+        """Exemplo para documentação Swagger"""
+        json_schema_extra = {
+            "example": {
+                "nome_agente": "Perito Médico",
+                "tipo_agente": "medico",
+                "parecer": "Após análise dos documentos, identifico nexo causal entre...",
+                "grau_confianca": 0.85,
+                "documentos_referenciados": ["laudo_medico.pdf", "atestado.pdf"],
+                "timestamp": "2025-10-23T14:45:00"
+            }
+        }
+
+
+class RespostaAnaliseMultiAgent(BaseModel):
+    """
+    Resposta completa da análise multi-agent.
+    
+    CONTEXTO DE NEGÓCIO:
+    Esta é a resposta final retornada pelo endpoint de análise.
+    Contém toda a informação gerada pelo sistema multi-agent:
+    - Resposta compilada pelo Advogado Coordenador
+    - Pareceres individuais de cada perito
+    - Documentos consultados no RAG
+    - Metadados de processamento (tempos, status)
+    
+    FLUXO DE GERAÇÃO:
+    1. OrquestradorMultiAgent coordena todo o processo
+    2. AgenteAdvogado consulta RAG e delega para peritos
+    3. Peritos processam em paralelo e retornam pareceres
+    4. AgenteAdvogado compila resposta final
+    5. Orquestrador formata e retorna este modelo
+    
+    QUANDO USAR:
+    Toda análise jurídica multi-agent retorna este modelo.
+    Frontend exibe a resposta_compilada e pode mostrar
+    pareceres_individuais em seções expandíveis.
+    """
+    sucesso: bool = Field(
+        ...,
+        description="Indica se a análise foi concluída com sucesso"
+    )
+    
+    id_consulta: str = Field(
+        ...,
+        description="UUID único que identifica esta consulta"
+    )
+    
+    resposta_compilada: str = Field(
+        ...,
+        description="Resposta final compilada pelo Advogado Coordenador "
+                    "(integra pareceres dos peritos + contexto RAG)"
+    )
+    
+    pareceres_individuais: List[ParecerIndividualPerito] = Field(
+        default_factory=list,
+        description="Lista de pareceres técnicos individuais de cada perito consultado"
+    )
+    
+    documentos_consultados: List[str] = Field(
+        default_factory=list,
+        description="Lista de nomes de documentos que foram consultados no RAG"
+    )
+    
+    agentes_utilizados: List[str] = Field(
+        default_factory=list,
+        description="Lista de IDs dos agentes que participaram da análise"
+    )
+    
+    tempo_total_segundos: float = Field(
+        ...,
+        ge=0.0,
+        description="Tempo total de processamento em segundos"
+    )
+    
+    timestamp_inicio: str = Field(
+        ...,
+        description="Timestamp ISO de quando a consulta foi iniciada"
+    )
+    
+    timestamp_fim: str = Field(
+        ...,
+        description="Timestamp ISO de quando a consulta foi concluída"
+    )
+    
+    mensagem_erro: Optional[str] = Field(
+        default=None,
+        description="Mensagem de erro se a análise falhou (sucesso=False)"
+    )
+    
+    class Config:
+        """Exemplo para documentação Swagger"""
+        json_schema_extra = {
+            "example": {
+                "sucesso": True,
+                "id_consulta": "550e8400-e29b-41d4-a716-446655440000",
+                "resposta_compilada": "Com base nos pareceres técnicos dos peritos e "
+                                     "documentos analisados, concluo que: [resposta jurídica completa]",
+                "pareceres_individuais": [
+                    {
+                        "nome_agente": "Perito Médico",
+                        "tipo_agente": "medico",
+                        "parecer": "Identifico nexo causal entre...",
+                        "grau_confianca": 0.85,
+                        "documentos_referenciados": ["laudo.pdf"],
+                        "timestamp": "2025-10-23T14:45:00"
+                    }
+                ],
+                "documentos_consultados": ["laudo.pdf", "processo.pdf"],
+                "agentes_utilizados": ["medico", "seguranca_trabalho"],
+                "tempo_total_segundos": 45.2,
+                "timestamp_inicio": "2025-10-23T14:44:00",
+                "timestamp_fim": "2025-10-23T14:44:45",
+                "mensagem_erro": None
+            }
+        }
+
+
+class InformacaoPerito(BaseModel):
+    """
+    Informações sobre um agente perito disponível.
+    
+    CONTEXTO:
+    Retornado pelo endpoint GET /api/analise/peritos
+    para que o frontend saiba quais peritos estão disponíveis.
+    
+    USO:
+    Frontend usa para popular checkboxes de seleção de agentes.
+    """
+    id_perito: str = Field(
+        ...,
+        description="Identificador único do perito (ex: 'medico')"
+    )
+    
+    nome_exibicao: str = Field(
+        ...,
+        description="Nome legível para exibir na UI (ex: 'Perito Médico')"
+    )
+    
+    descricao: str = Field(
+        ...,
+        description="Descrição das competências do perito"
+    )
+    
+    especialidades: List[str] = Field(
+        default_factory=list,
+        description="Lista de áreas de especialidade"
+    )
+    
+    class Config:
+        """Exemplo para documentação Swagger"""
+        json_schema_extra = {
+            "example": {
+                "id_perito": "medico",
+                "nome_exibicao": "Perito Médico",
+                "descricao": "Especialista em análise de nexo causal, incapacidades e danos corporais",
+                "especialidades": [
+                    "Nexo causal entre doença e trabalho",
+                    "Avaliação de incapacidades (temporárias e permanentes)",
+                    "Danos corporais e sequelas"
+                ]
+            }
+        }
+
+
+class RespostaListarPeritos(BaseModel):
+    """
+    Resposta do endpoint de listagem de peritos disponíveis.
+    
+    CONTEXTO:
+    Frontend consulta este endpoint para saber quais peritos
+    pode selecionar para uma análise.
+    """
+    sucesso: bool = Field(
+        ...,
+        description="Indica se a listagem foi bem-sucedida"
+    )
+    
+    total_peritos: int = Field(
+        ...,
+        ge=0,
+        description="Número total de peritos disponíveis"
+    )
+    
+    peritos: List[InformacaoPerito] = Field(
+        default_factory=list,
+        description="Lista de peritos disponíveis com suas informações"
+    )
+    
+    class Config:
+        """Exemplo para documentação Swagger"""
+        json_schema_extra = {
+            "example": {
+                "sucesso": True,
+                "total_peritos": 2,
+                "peritos": [
+                    {
+                        "id_perito": "medico",
+                        "nome_exibicao": "Perito Médico",
+                        "descricao": "Especialista em análise médica pericial",
+                        "especialidades": ["Nexo causal", "Incapacidades"]
+                    },
+                    {
+                        "id_perito": "seguranca_trabalho",
+                        "nome_exibicao": "Perito de Segurança do Trabalho",
+                        "descricao": "Especialista em NRs e condições de trabalho",
+                        "especialidades": ["Análise de EPIs", "Conformidade NRs"]
+                    }
+                ]
+            }
+        }

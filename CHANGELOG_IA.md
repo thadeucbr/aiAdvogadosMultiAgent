@@ -53,28 +53,31 @@
 | **010** | 2025-10-23 | Agente Advogado (Coordenador) | agente_advogado_coordenador.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-010_agente-advogado-coordenador.md) |
 | **011** | 2025-10-23 | Agente Perito Médico | agente_perito_medico.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-011_agente-perito-medico.md) |
 | **012** | 2025-10-23 | Agente Perito Segurança do Trabalho | agente_perito_seguranca_trabalho.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-012_agente-perito-seguranca-trabalho.md) |
+| **013** | 2025-10-23 | Orquestrador Multi-Agent | orquestrador_multi_agent.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-013_orquestrador-multi-agent.md) |
+| **014** | 2025-10-23 | Endpoint de Análise Multi-Agent | rotas_analise.py, modelos.py, main.py, ARQUITETURA.md | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-014_endpoint-analise-multi-agent.md) |
 
 ---
 
 ## 🎯 Última Tarefa Concluída
 
-**TAREFA-012** - Agente Perito Segurança do Trabalho  
+**TAREFA-014** - Endpoint de Análise Multi-Agent  
 **Data:** 2025-10-23  
 **IA:** GitHub Copilot  
-**Resumo:** Implementado o Agente Perito de Segurança do Trabalho, segundo especialista do sistema multi-agent. Criado `agente_perito_seguranca_trabalho.py` (~1.100 linhas, 48% comentários) com classe AgentePeritoSegurancaTrabalho herdando de AgenteBase. Configuração especializada: nome "Perito de Segurança do Trabalho", modelo GPT-4, temperatura 0.2 (objetividade técnica), 12 áreas de atuação documentadas. Documentação de 13 Normas Regulamentadoras (NRs) principais com títulos completos em dicionário interno. Método montar_prompt() com template de segurança do trabalho: define papel (engenheiro/técnico de segurança experiente em NRs), diretrizes detalhadas (TÉCNICA-terminologia de segurança, NORMATIVA-citar NRs aplicáveis, OBJETIVA-evidências documentais, FUNDAMENTADA-citar documentos, ESTRUTURADA-formato pericial, PROPOSITIVA-sugerir medidas corretivas), documentos formatados com numeração para rastreabilidade, instruções especializadas em 8 áreas (identificação de riscos ocupacionais com classificação por tipo/grau, análise de conformidade com NRs citando itens específicos, avaliação de EPIs com CAs e treinamento, avaliação de EPCs priorizando medidas coletivas, caracterização de insalubridade com graus mínimo/médio/máximo NR-15, caracterização de periculosidade NR-16, investigação de acidentes com causas imediatas/raiz, análise de programas PPRA/PGR/PCMSO), formato de parecer estruturado em 12 seções, hierarquia de controle de riscos explícita (eliminação→substituição→engenharia→administrativa→EPC→EPI). Método gerar_parecer() como alias semântico. Método analisar_conformidade_nrs() especializado: aceita lista de NRs específicas ou analisa todas aplicáveis, categorização em 5 níveis (CONFORME, PARCIALMENTE CONFORME, NÃO CONFORME, NÃO APLICÁVEL, INFORMAÇÃO INSUFICIENTE), crítico em processos trabalhistas. Método investigar_acidente_trabalho() especializado: parâmetro descricao_acidente, análise de causas imediatas/raiz, classificação típico/trajeto/doença, NRs violadas, responsabilidades, medidas preventivas. Método caracterizar_insalubridade_periculosidade() especializado: tipo_caracterizacao (insalubridade/periculosidade/ambos), análise de agentes nocivos/perigosos, enquadramento em anexos NR-15/NR-16, limites de tolerância, medidas de controle, graus/caracterização, nota sobre não cumulatividade. Método privado _formatar_documentos_para_prompt() reutilizado. Factory function criar_perito_seguranca_trabalho(). Exemplos de uso no __main__ com 3 cenários (investigação de acidente, conformidade NRs, caracterização insalubridade). Decisões técnicas: 3 métodos especializados vs 2 do médico (domínio mais amplo), hierarquia de controles no prompt (padrão internacional), 13 NRs principais (90% dos casos). Integração com coordenador: pode ser registrado via advogado.registrar_perito(). **MARCO ATINGIDO:** Segundo agente perito implementado! Sistema possui coordenador + 2 peritos especializados (médico e segurança). Próximo: TAREFA-013 (Orquestrador Multi-Agent completo).
+**Resumo:** Implementado os endpoints REST para expor o sistema multi-agent via API HTTP, finalizando a FASE 2 do projeto. Criado `backend/src/api/rotas_analise.py` (~580 linhas, 40% comentários) com 3 endpoints FastAPI: POST /api/analise/multi-agent (análise completa), GET /api/analise/peritos (lista peritos disponíveis), GET /api/analise/health (health check). Modificado `backend/src/api/modelos.py` adicionando 6 novos modelos Pydantic: RequestAnaliseMultiAgent (request com validadores customizados para prompt e agentes), RespostaAnaliseMultiAgent (resposta completa estruturada), ParecerIndividualPerito (parecer de um perito), InformacaoPerito (dados de perito), RespostaListarPeritos (lista de peritos). Registrado router no `backend/src/main.py` via app.include_router(). Atualizado `ARQUITETURA.md` com documentação completa dos 3 endpoints (descrição, fluxo, request/response, status HTTP, exemplos JavaScript). Endpoint POST /api/analise/multi-agent: valida request via Pydantic (prompt 10-5000 chars, agentes válidos), obtém orquestrador singleton via lazy initialization, chama processar_consulta() assíncrono, formata resposta estruturada, trata 4 tipos de erro (400 Bad Request validação, 422 Pydantic, 500 Internal Server Error, 504 Timeout), logging detalhado INFO/WARNING/ERROR. Singleton global _orquestrador_global evita criar instância a cada request. Endpoint GET /api/analise/peritos: retorna dados estáticos do dicionário INFORMACOES_PERITOS com id_perito, nome_exibicao, descricao, especialidades de cada perito (médico e segurança trabalho). Endpoint GET /api/analise/health: verifica orquestrador, advogado e peritos operacionais, retorna 200 OK ou 503 Service Unavailable. Validadores Pydantic customizados: @validator("prompt") strip espaços e valida não vazio, @validator("agentes_selecionados") valida agentes existem e remove duplicatas. Tratamento de erros específico: ValueError→400, ErroLimiteTaxaExcedido→500, ErroTimeoutAPI/asyncio.TimeoutError→504, Exception→500. Documentação OpenAPI/Swagger automática via docstrings e Config.json_schema_extra. **MARCO ATINGIDO:** FASE 2 COMPLETA - BACKEND: SISTEMA MULTI-AGENT! Sistema funciona ponta a ponta: upload documentos → extração/OCR → vetorização → RAG → análise multi-agent via REST API. Total de 9 endpoints implementados (5 documentos + 3 análise + 1 base). Próximo: TAREFA-015 (Setup Frontend React + Vite).
 
 ---
 
 ## 🚀 Próxima Tarefa Sugerida
 
-**TAREFA-013:** Orquestrador Multi-Agent
+**TAREFA-015:** Setup do Frontend (React + Vite)
 
 **Escopo:**
-- Criar `backend/src/agentes/orquestrador_multi_agent.py`
-- Classe `OrquestradorMultiAgent`
-- Implementar `processar_consulta(prompt, agentes_selecionados) -> dict`
-- Fluxo completo: instanciar advogado, consultar RAG, delegar peritos, compilar resposta
-- Testes de integração com todos os agentes
+- Inicializar projeto React com Vite
+- Configurar TypeScript
+- Instalar dependências (React Router, Axios, TailwindCSS, Lucide React, React Hook Form, Zustand)
+- Criar estrutura de pastas
+- Conectar com backend (testar CORS)
+- README do frontend
 
 ---
 
@@ -122,5 +125,5 @@
 ---
 
 **Última Atualização deste Índice:** 2025-10-23  
-**Total de Tarefas Registradas:** 10  
+**Total de Tarefas Registradas:** 14  
 **Mantido por:** IAs seguindo o padrão "Manutenibilidade por LLM"

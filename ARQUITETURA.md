@@ -577,19 +577,216 @@ Este endpoint consulta diretamente o ChromaDB, retornando apenas documentos que 
 ### Análise Multi-Agent
 
 #### `POST /api/analise/multi-agent`
-**Status:** 🚧 A IMPLEMENTAR (TAREFA futura)
+**Status:** ✅ IMPLEMENTADO (TAREFA-014)
 
-**Descrição:** Recebe um prompt do usuário e a seleção de agentes peritos, executa a análise multi-agent e retorna a resposta compilada + pareceres individuais.
+**Descrição:** Realiza análise jurídica usando sistema multi-agent. Recebe um prompt (pergunta/solicitação) e lista de agentes peritos selecionados, coordena todo o fluxo de análise (RAG → Peritos → Compilação) e retorna resposta final estruturada.
+
+**Contexto de Negócio:**
+Este é o endpoint principal para análises jurídicas inteligentes. O usuário submete uma consulta e seleciona quais peritos especializados devem participar. O sistema consulta a base de conhecimento (RAG), delega para os peritos, e compila uma resposta final integrando todos os pareceres.
+
+**Fluxo de Execução:**
+1. Request é validado (Pydantic)
+2. OrquestradorMultiAgent é acionado
+3. AgenteAdvogado consulta ChromaDB (RAG) para documentos relevantes
+4. AgenteAdvogado delega para peritos selecionados (execução em paralelo)
+5. Peritos retornam pareceres técnicos especializados
+6. AgenteAdvogado compila resposta final integrando pareceres + contexto RAG
+7. Resposta estruturada é retornada ao cliente
 
 **Request Body:**
 ```json
-A DEFINIR
+{
+  "prompt": "Analisar se houve nexo causal entre o acidente de trabalho e as condições inseguras do ambiente laboral. Verificar também se o trabalhador possui incapacidade permanente.",
+  "agentes_selecionados": ["medico", "seguranca_trabalho"]
+}
 ```
+
+**Campos do Request:**
+- `prompt` (string, required): Pergunta ou solicitação de análise jurídica
+  - Mínimo: 10 caracteres
+  - Máximo: 5000 caracteres
+  - Não pode ser apenas espaços em branco
+- `agentes_selecionados` (array of strings, optional): Lista de IDs dos agentes peritos
+  - Valores válidos: `"medico"`, `"seguranca_trabalho"`
+  - Se `null` ou vazio, apenas o Advogado Coordenador responde (sem pareceres periciais)
+  - Duplicatas são automaticamente removidas
+
+**Response (Sucesso):**
+```json
+{
+  "sucesso": true,
+  "id_consulta": "550e8400-e29b-41d4-a716-446655440000",
+  "resposta_compilada": "Com base nos pareceres técnicos dos peritos médico e de segurança do trabalho, e considerando os documentos analisados (laudo_medico.pdf, relatorio_acidente.pdf), concluo que: [resposta jurídica completa integrando todos os pareceres]",
+  "pareceres_individuais": [
+    {
+      "nome_agente": "Perito Médico",
+      "tipo_agente": "medico",
+      "parecer": "Após análise dos documentos médicos, identifico nexo causal entre a lesão na coluna vertebral e as atividades laborais exercidas. O trabalhador apresenta incapacidade permanente parcial de grau moderado (25-50%)...",
+      "grau_confianca": 0.85,
+      "documentos_referenciados": ["laudo_medico.pdf", "atestado_especialista.pdf"],
+      "timestamp": "2025-10-23T14:45:00"
+    },
+    {
+      "nome_agente": "Perito de Segurança do Trabalho",
+      "tipo_agente": "seguranca_trabalho",
+      "parecer": "Após análise do ambiente laboral, identifico diversas não conformidades com a NR-17 (Ergonomia): ausência de suporte lombar nas cadeiras, altura inadequada das mesas, ausência de pausas para descanso...",
+      "grau_confianca": 0.90,
+      "documentos_referenciados": ["relatorio_acidente.pdf", "fotos_ambiente.pdf"],
+      "timestamp": "2025-10-23T14:45:05"
+    }
+  ],
+  "documentos_consultados": ["laudo_medico.pdf", "relatorio_acidente.pdf", "atestado_especialista.pdf", "fotos_ambiente.pdf"],
+  "agentes_utilizados": ["medico", "seguranca_trabalho"],
+  "tempo_total_segundos": 45.2,
+  "timestamp_inicio": "2025-10-23T14:44:00",
+  "timestamp_fim": "2025-10-23T14:44:45",
+  "mensagem_erro": null
+}
+```
+
+**Response (Erro - Validação):**
+```json
+{
+  "detail": "Agentes inválidos: ['invalido']. Agentes válidos: ['medico', 'seguranca_trabalho']"
+}
+```
+
+**Status HTTP:**
+- `200 OK`: Análise concluída com sucesso
+- `400 Bad Request`: Validação falhou (prompt vazio, agentes inválidos)
+- `422 Unprocessable Entity`: Erro de validação Pydantic
+- `500 Internal Server Error`: Erro interno durante processamento
+- `504 Gateway Timeout`: Timeout (análise demorou mais que 60s por agente)
+
+**Agentes Disponíveis:**
+- `medico`: Perito Médico
+  - Especialidades: Nexo causal, incapacidades (temporárias/permanentes), danos corporais, análise de laudos médicos
+- `seguranca_trabalho`: Perito de Segurança do Trabalho
+  - Especialidades: Conformidade com NRs, análise de EPIs/EPCs, investigação de acidentes, insalubridade/periculosidade
+
+**Tempo de Processamento:**
+- Típico: 30-60 segundos (depende da complexidade e número de agentes)
+- Timeout por agente: 60 segundos (configurável)
+- Execução paralela: Peritos processam simultaneamente (não sequencial)
+
+**Limitações:**
+- Máximo de 5000 caracteres no prompt
+- Não suporta streaming de resposta (resposta única ao final)
+- Consulta única por requisição (não suporta conversação/histórico)
+
+**Exemplo de Uso (JavaScript/Frontend):**
+```javascript
+const response = await fetch('/api/analise/multi-agent', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    prompt: 'Analisar se há nexo causal entre a LER e o trabalho repetitivo',
+    agentes_selecionados: ['medico', 'seguranca_trabalho']
+  })
+});
+
+const resultado = await response.json();
+console.log(resultado.resposta_compilada);
+```
+
+---
+
+#### `GET /api/analise/peritos`
+**Status:** ✅ IMPLEMENTADO (TAREFA-014)
+
+**Descrição:** Lista todos os agentes peritos disponíveis no sistema com suas informações (ID, nome, descrição, especialidades).
+
+**Contexto:**
+Frontend consulta este endpoint para saber quais peritos estão disponíveis e popular a UI de seleção (checkboxes, dropdown, etc.).
+
+**Request:** Nenhum parâmetro necessário
 
 **Response:**
 ```json
-A DEFINIR
+{
+  "sucesso": true,
+  "total_peritos": 2,
+  "peritos": [
+    {
+      "id_perito": "medico",
+      "nome_exibicao": "Perito Médico",
+      "descricao": "Especialista em análise médica pericial para casos trabalhistas e cíveis. Realiza avaliação de nexo causal entre doenças e trabalho, grau de incapacidade (temporária/permanente), danos corporais e sequelas.",
+      "especialidades": [
+        "Nexo causal entre doença e trabalho",
+        "Avaliação de incapacidades (temporárias e permanentes)",
+        "Danos corporais e sequelas",
+        "Análise de laudos médicos e atestados",
+        "Perícia de invalidez e aposentadoria por invalidez"
+      ]
+    },
+    {
+      "id_perito": "seguranca_trabalho",
+      "nome_exibicao": "Perito de Segurança do Trabalho",
+      "descricao": "Especialista em análise de condições de trabalho, conformidade com Normas Regulamentadoras (NRs), uso de EPIs/EPCs, riscos ocupacionais, investigação de acidentes e caracterização de insalubridade/periculosidade.",
+      "especialidades": [
+        "Análise de conformidade com Normas Regulamentadoras (NRs)",
+        "Avaliação de uso e adequação de EPIs/EPCs",
+        "Investigação de acidentes de trabalho",
+        "Caracterização de insalubridade e periculosidade",
+        "Análise de riscos ocupacionais (físicos, químicos, biológicos, ergonômicos)",
+        "Avaliação de condições ambientais de trabalho"
+      ]
+    }
+  ]
+}
 ```
+
+**Status HTTP:**
+- `200 OK`: Listagem bem-sucedida
+- `500 Internal Server Error`: Erro ao listar peritos
+
+**Uso Típico:**
+```javascript
+// Frontend: Buscar peritos disponíveis ao carregar página
+const response = await fetch('/api/analise/peritos');
+const { peritos } = await response.json();
+
+// Popular checkboxes dinamicamente
+peritos.forEach(perito => {
+  console.log(`${perito.nome_exibicao}: ${perito.descricao}`);
+});
+```
+
+---
+
+#### `GET /api/analise/health`
+**Status:** ✅ IMPLEMENTADO (TAREFA-014)
+
+**Descrição:** Health check do módulo de análise multi-agent. Verifica se o orquestrador, agente advogado e peritos estão operacionais.
+
+**Request:** Nenhum parâmetro necessário
+
+**Response (Healthy):**
+```json
+{
+  "status": "healthy",
+  "modulo": "analise_multi_agent",
+  "timestamp": "2025-10-23T14:50:00",
+  "orquestrador": "operacional",
+  "agente_advogado": "operacional",
+  "peritos_disponiveis": ["medico", "seguranca_trabalho"],
+  "total_peritos": 2
+}
+```
+
+**Status HTTP:**
+- `200 OK`: Módulo de análise operacional
+- `503 Service Unavailable`: Módulo com problemas (orquestrador não inicializa, peritos não registrados, etc.)
+
+**Verificações Realizadas:**
+1. Orquestrador pode ser instanciado
+2. Agente Advogado está funcional
+3. Pelo menos 1 perito está registrado
+
+**Uso:**
+- Monitoramento de saúde do sistema
+- Validação antes de submeter análises
+- Dashboard de status
 
 ---
 

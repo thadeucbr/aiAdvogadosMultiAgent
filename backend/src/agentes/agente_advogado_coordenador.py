@@ -44,16 +44,16 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 # Importar classe base
-from backend.src.agentes.agente_base import AgenteBase, formatar_contexto_de_documentos
+from src.agentes.agente_base import AgenteBase, formatar_contexto_de_documentos
 
 # Importar serviço de banco vetorial para consultar RAG
-from backend.src.servicos.servico_banco_vetorial import (
+from src.servicos.servico_banco_vetorial import (
     inicializar_chromadb,
     buscar_chunks_similares
 )
 
 # Importar gerenciador de LLM
-from backend.src.utilitarios.gerenciador_llm import GerenciadorLLM
+from src.utilitarios.gerenciador_llm import GerenciadorLLM
 
 
 # Configuração do logger para este módulo
@@ -885,7 +885,7 @@ def criar_advogado_coordenador() -> AgenteAdvogadoCoordenador:
     
     # Registrar Perito Médico (TAREFA-011 - Concluída em 2025-10-23)
     try:
-        from backend.src.agentes.agente_perito_medico import AgentePeritoMedico
+        from src.agentes.agente_perito_medico import AgentePeritoMedico
         advogado.registrar_perito("medico", AgentePeritoMedico)
         logger.info("✅ Perito Médico registrado")
     except ImportError as erro:
@@ -893,7 +893,7 @@ def criar_advogado_coordenador() -> AgenteAdvogadoCoordenador:
     
     # Registrar Perito Segurança do Trabalho (TAREFA-012 - Concluída em 2025-10-23)
     try:
-        from backend.src.agentes.agente_perito_seguranca_trabalho import AgentePeritoSegurancaTrabalho
+        from src.agentes.agente_perito_seguranca_trabalho import AgentePeritoSegurancaTrabalho
         advogado.registrar_perito("seguranca_trabalho", AgentePeritoSegurancaTrabalho)
         logger.info("✅ Perito Segurança do Trabalho registrado")
     except ImportError as erro:

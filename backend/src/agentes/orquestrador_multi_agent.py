@@ -36,7 +36,7 @@ DESIGN PATTERNS UTILIZADOS:
 
 EXEMPLO DE USO:
 ```python
-from backend.src.agentes.orquestrador_multi_agent import criar_orquestrador
+from src.agentes.orquestrador_multi_agent import criar_orquestrador
 
 # Criar orquestrador
 orquestrador = criar_orquestrador()
@@ -67,13 +67,13 @@ from datetime import datetime
 from enum import Enum
 
 # Importar agente advogado coordenador
-from backend.src.agentes.agente_advogado_coordenador import (
+from src.agentes.agente_advogado_coordenador import (
     criar_advogado_coordenador,
     AgenteAdvogadoCoordenador
 )
 
 # Importar exceções customizadas
-from backend.src.utilitarios.gerenciador_llm import (
+from src.utilitarios.gerenciador_llm import (
     ErroLimiteTaxaExcedido,
     ErroTimeoutAPI,
     ErroGeralAPI

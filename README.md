@@ -190,10 +190,10 @@ npm run dev
 - [x] Agente Perito Médico
 - [x] Agente Perito Segurança do Trabalho
 - [x] Orquestrador Multi-Agent
+- [x] Endpoint de análise multi-agent (API REST)
 
 ### 🚧 Em Desenvolvimento
 
-- [ ] Endpoint de análise multi-agent (API REST)
 - [ ] Frontend React
 
 ---

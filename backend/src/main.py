@@ -276,9 +276,9 @@ async def health_check():
 from src.api.rotas_documentos import router as router_documentos
 app.include_router(router_documentos)
 
-# TODO (TAREFA-004): Importar e registrar rotas de análise
-# from src.api.rotas_analise import router as router_analise
-# app.include_router(router_analise, prefix="/api/analise", tags=["Análise Multi-Agent"])
+# TAREFA-014: Rotas de análise multi-agent
+from src.api.rotas_analise import router as router_analise
+app.include_router(router_analise)
 
 
 # ===== FUNÇÃO MAIN (ENTRY POINT) =====

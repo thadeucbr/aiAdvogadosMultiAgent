@@ -35,10 +35,10 @@ from datetime import datetime
 import logging
 
 # Importar classe base de agentes
-from backend.src.agentes.agente_base import AgenteBase
+from src.agentes.agente_base import AgenteBase
 
 # Importar gerenciador de LLM
-from backend.src.utilitarios.gerenciador_llm import GerenciadorLLM
+from src.utilitarios.gerenciador_llm import GerenciadorLLM
 
 # Configuração do logger para este módulo
 logger = logging.getLogger(__name__)
