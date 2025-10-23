@@ -19,8 +19,9 @@
 - ✅ TAREFA-006: Serviço de Chunking e Vetorização
 - ✅ TAREFA-007: Integração com ChromaDB
 - ✅ TAREFA-008: Orquestração do Fluxo de Ingestão
+- ✅ TAREFA-009: Infraestrutura Base para Agentes
 
-**Próximo passo:** TAREFA-009 (Infraestrutura Base para Agentes)
+**Próximo passo:** TAREFA-010 (Agente Advogado - Coordenador)
 
 ---
 
@@ -251,24 +252,35 @@
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-008  
 **Estimativa:** 2-3 horas
+**Status:** ✅ CONCLUÍDA (2025-10-23)
 
 **Escopo:**
-- [ ] Criar `backend/src/utilitarios/gerenciador_llm.py`
-- [ ] Wrapper para OpenAI API
-- [ ] Implementar `chamar_llm(prompt, model, temperature, max_tokens) -> str`
-- [ ] Tratamento de erros (rate limits, timeout, API errors)
-- [ ] Retry logic com backoff exponencial
-- [ ] Logging de chamadas (custo, tokens)
-- [ ] Criar `backend/src/agentes/agente_base.py`
-- [ ] Classe abstrata `AgenteBase`
-- [ ] Métodos: `processar(contexto, prompt)`, `montar_prompt()`
-- [ ] Template de prompt para cada agente
-- [ ] Testes do gerenciador LLM
+- [x] Criar `backend/src/utilitarios/gerenciador_llm.py`
+- [x] Wrapper para OpenAI API
+- [x] Implementar `chamar_llm(prompt, model, temperature, max_tokens) -> str`
+- [x] Tratamento de erros (rate limits, timeout, API errors)
+- [x] Retry logic com backoff exponencial
+- [x] Logging de chamadas (custo, tokens)
+- [x] Criar `backend/src/agentes/agente_base.py`
+- [x] Classe abstrata `AgenteBase`
+- [x] Métodos: `processar(contexto, prompt)`, `montar_prompt()`
+- [x] Template de prompt para cada agente
+- [x] Testes do gerenciador LLM
 
 **Entregáveis:**
-- Wrapper robusto para OpenAI API
-- Classe base para todos os agentes
-- Sistema de logging de custos
+- ✅ Wrapper robusto para OpenAI API
+- ✅ Classe base para todos os agentes
+- ✅ Sistema de logging de custos
+- ✅ Retry logic com backoff exponencial (3 tentativas, 1s→2s→4s)
+- ✅ Tracking automático de custos e tokens
+- ✅ Exceções customizadas (ErroLimiteTaxaExcedido, ErroTimeoutAPI, ErroGeralAPI)
+- ✅ Health check para validar conexão com OpenAI
+- ✅ Template Method pattern na classe AgenteBase
+- ✅ Funções utilitárias (formatar_contexto_de_documentos, truncar_texto_se_necessario)
+
+**Changelog:** [Ver detalhes completos](changelogs/TAREFA-009_infraestrutura-base-agentes.md)
+
+**Marco:** 🎉 **Infraestrutura base para sistema multi-agent completa!** Próximos agentes podem ser implementados rapidamente herdando de AgenteBase.
 
 ---
 

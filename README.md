@@ -184,12 +184,14 @@ npm run dev
 - [x] Containerização com Docker
 - [x] Serviço de Chunking e Vetorização
 - [x] Integração com ChromaDB (Banco Vetorial)
+- [x] Orquestração do Fluxo de Ingestão Completo
+- [x] Infraestrutura Base para Agentes (GerenciadorLLM + AgenteBase)
 
 ### 🚧 Em Desenvolvimento
 
-- [ ] Orquestração do Fluxo de Ingestão Completo
-- [ ] Sistema de embeddings
-- [ ] Sistema multi-agent
+- [ ] Agente Advogado (Coordenador)
+- [ ] Agentes Peritos (Médico, Segurança do Trabalho)
+- [ ] Sistema de orquestração multi-agent
 - [ ] Frontend React
 
 ---

@@ -49,33 +49,35 @@
 | **006** | 2025-10-23 | Serviço de Chunking e Vetorização | servico_vetorizacao.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-006_servico-chunking-vetorizacao.md) |
 | **007** | 2025-10-23 | Integração com ChromaDB | servico_banco_vetorial.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-007_integracao-chromadb.md) |
 | **008** | 2025-10-23 | Orquestração do Fluxo de Ingestão | servico_ingestao_documentos.py, rotas_documentos.py, modelos.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-008_orquestracao-fluxo-ingestao.md) |
+| **009** | 2025-10-23 | Infraestrutura Base para Agentes | gerenciador_llm.py, agente_base.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-009_infraestrutura-base-agentes.md) |
 
 ---
 
 ## 🎯 Última Tarefa Concluída
 
-**TAREFA-008** - Orquestração do Fluxo de Ingestão  
+**TAREFA-009** - Infraestrutura Base para Agentes  
 **Data:** 2025-10-23  
 **IA:** GitHub Copilot  
-**Resumo:** Implementada orquestração completa do fluxo de ingestão de documentos, conectando todos os serviços implementados nas tarefas anteriores em um pipeline integrado end-to-end. Criado `servico_ingestao_documentos.py` (1.120 linhas) com função principal `processar_documento_completo()` que coordena 5 etapas: (1) Detectar tipo de processamento baseado em extensão, (2) Extrair texto via servico_extracao_texto ou servico_ocr com redirecionamento automático PDF→OCR se necessário, (3) Vetorizar texto gerando chunks e embeddings via OpenAI, (4) Armazenar no ChromaDB com metadados completos, (5) Compilar resultado com estatísticas. Implementadas 6 exceções customizadas (ErroDeIngestao, ErroDeDeteccaoDeTipo, ErroDeExtracaoNaIngestao, ErroDeVetorizacaoNaIngestao, ErroDeArmazenamentoNaIngestao, DocumentoVazioError). Funções auxiliares: detectar_tipo_de_processamento(), extrair_texto_do_documento() com formato padronizado, validar_texto_extraido() com threshold de 50 caracteres. Validação de confiança OCR mínima (60%). Health check completo validando todas dependências. Atualizados 3 arquivos: modelos.py (+153 linhas) com 3 novos modelos Pydantic (ResultadoProcessamentoDocumento, StatusDocumento, RespostaListarDocumentos), rotas_documentos.py (+187 linhas) com processamento em background via BackgroundTasks, cache em memória de status documentos, função processar_documento_background(), 2 novos endpoints GET /status/{id} e GET /listar. Endpoint /upload atualizado para agendar processamento assíncrono após salvar arquivo. Mensagens atualizadas orientando uso de endpoint de status para tracking. Background task atualiza status: pendente→processando→concluido/erro. Cache temporário em memória (produção deve usar Redis/PostgreSQL). Logging extensivo com prefixo [BACKGROUND]. **MARCO ATINGIDO:** FASE 1 COMPLETA - Fluxo de ingestão funcionando ponta a ponta! Documentos agora processados automaticamente e disponíveis no RAG para consulta pelos agentes de IA. Próximo: TAREFA-009 (Infraestrutura Base para Agentes).
+**Resumo:** Implementada infraestrutura base para o sistema multi-agent, criando os fundamentos sobre os quais todos os agentes especializados serão construídos. Criado `gerenciador_llm.py` (~600 linhas) com classe GerenciadorLLM que fornece wrapper robusto para OpenAI API: método chamar_llm() com retry automático (3 tentativas, backoff exponencial 1s→2s→4s), tracking detalhado de custos e tokens (dataclasses EstatisticaChamadaLLM e EstatisticasGlobaisLLM), tabela de custos por modelo (gpt-4, gpt-4-turbo, gpt-3.5-turbo), 3 exceções customizadas (ErroLimiteTaxaExcedido, ErroTimeoutAPI, ErroGeralAPI), função verificar_conexao_openai() para health check. Logging extensivo (INFO para sucessos com métricas, WARNING para retries, ERROR para falhas). Estatísticas mantidas em memória (plano futuro: migrar para Prometheus). Criado `agente_base.py` (~450 linhas) com classe abstrata AgenteBase usando padrão Template Method: método processar() orquestra fluxo completo (validação → montar_prompt → chamar LLM → formatar → calcular confiança → logging), método abstrato montar_prompt() para subclasses implementarem sua lógica específica, integração automática com GerenciadorLLM, cálculo heurístico de confiança (base 0.7, penalidades por texto curto/incerteza/falta de contexto), formato de resposta padronizado (agente, parecer, confiança, timestamp, metadados), mensagem de sistema automática contextualizando o LLM. Funções utilitárias: formatar_contexto_de_documentos() e truncar_texto_se_necessario(). Estatísticas por agente (contador de análises). Todos os agentes futuros herdarão desta base, precisando apenas implementar montar_prompt(). **MARCO ATINGIDO:** Base sólida para sistema multi-agent completa! Próximos agentes (Advogado, Perito Médico, Perito Segurança) podem ser implementados rapidamente. Próximo: TAREFA-010 (Agente Advogado - Coordenador).
 
 ---
 
 ## 🚀 Próxima Tarefa Sugerida
 
-**TAREFA-009:** Infraestrutura Base para Agentes
+**TAREFA-010:** Agente Advogado (Coordenador)
 
 **Escopo:**
-- Criar `backend/src/utilitarios/gerenciador_llm.py`
-- Wrapper para OpenAI API com retry logic e backoff exponencial
-- Implementar `chamar_llm(prompt, model, temperature, max_tokens) -> str`
-- Tratamento de erros (rate limits, timeout, API errors)
-- Logging de chamadas (custo, tokens)
-- Criar `backend/src/agentes/agente_base.py`
-- Classe abstrata `AgenteBase`
-- Métodos: `processar(contexto, prompt)`, `montar_prompt()`
-- Template de prompt para cada agente
-- Testes do gerenciador LLM
+- Criar `backend/src/agentes/agente_advogado_coordenador.py`
+- Classe `AgenteAdvogado` herda de `AgenteBase`
+- Implementar método `consultar_rag(prompt: str) -> list[str]`
+- Buscar chunks relevantes no ChromaDB
+- Implementar método `delegar_para_peritos(prompt, contexto, peritos_selecionados)`
+- Chamar agentes peritos em paralelo (asyncio)
+- Implementar método `compilar_resposta(pareceres_peritos, contexto_rag)`
+- Gerar resposta final coesa usando GPT-4
+- Combinar insights dos peritos
+- Template de prompt para compilação
+- Testes com cenários simulados
 
 ---
 

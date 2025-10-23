@@ -832,6 +832,316 @@ for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
 
 ---
 
+### Gerenciador de LLM
+
+**Arquivo:** `backend/src/utilitarios/gerenciador_llm.py`  
+**Status:** ✅ IMPLEMENTADO (TAREFA-009)  
+**Responsável pela Implementação:** IA (GitHub Copilot)
+
+**Contexto de Negócio:**
+Módulo central que fornece interface unificada para comunicação com APIs de Large Language Models (LLMs), especificamente a OpenAI API. Este gerenciador é usado por todos os agentes do sistema multi-agent para gerar análises, pareceres e respostas baseadas em documentos jurídicos.
+
+**Responsabilidades:**
+1. Fazer chamadas à OpenAI API de forma robusta e segura
+2. Implementar retry logic com backoff exponencial para rate limits
+3. Registrar logs detalhados de chamadas (custos, tokens, tempo de resposta)
+4. Tratamento de erros específicos (timeout, rate limit, API errors)
+5. Fornecer estatísticas de uso para monitoramento de custos
+
+**Classes Principais:**
+
+1. **`GerenciadorLLM`**
+   - Wrapper principal para OpenAI API
+   - Métodos:
+     - `chamar_llm()`: Realiza chamada ao LLM com retry automático
+     - `obter_estatisticas_globais()`: Retorna métricas agregadas
+     - `resetar_estatisticas()`: Limpa histórico de chamadas
+     - `_calcular_custo_estimado()`: Calcula custo baseado em tokens
+
+2. **`EstatisticaChamadaLLM`** (dataclass)
+   - Representa dados de uma chamada individual
+   - Campos: timestamp, modelo, tokens (prompt/resposta/total), custo, tempo, sucesso/erro
+
+3. **`EstatisticasGlobaisLLM`** (dataclass)
+   - Mantém estatísticas agregadas em memória
+   - Campos: total de chamadas, tokens usados, custo total, taxa de sucesso
+   - Métodos: `adicionar_chamada()`, `obter_resumo()`
+
+**Funcionalidades:**
+
+**Chamada ao LLM com Retry:**
+```python
+from backend.src.utilitarios.gerenciador_llm import GerenciadorLLM
+
+gerenciador = GerenciadorLLM()
+
+resposta = gerenciador.chamar_llm(
+    prompt="Analise este documento jurídico...",
+    modelo="gpt-4",                    # ou "gpt-3.5-turbo", "gpt-4-turbo"
+    temperatura=0.7,                   # 0.0 = determinístico, 1.0 = criativo
+    max_tokens=500,                    # limite de tokens na resposta
+    mensagens_de_sistema="Você é um advogado especialista...",
+    timeout_segundos=60
+)
+```
+
+**Retry Logic:**
+- **Número máximo de tentativas:** 3
+- **Backoff exponencial:** 1s → 2s → 4s
+- **Erros que acionam retry:** RateLimitError, APITimeoutError
+- **Logging:** Cada tentativa é logada com nível WARNING/ERROR
+
+**Tracking de Custos:**
+```python
+# Obter estatísticas globais
+stats = gerenciador.obter_estatisticas_globais()
+print(f"Total de chamadas: {stats['total_de_chamadas']}")
+print(f"Tokens utilizados: {stats['total_de_tokens_utilizados']}")
+print(f"Custo estimado: ${stats['custo_total_estimado_usd']:.4f}")
+print(f"Taxa de sucesso: {stats['taxa_de_sucesso_percentual']}%")
+```
+
+**Tabela de Custos Interna:**
+| Modelo | Input ($/1K tokens) | Output ($/1K tokens) |
+|--------|---------------------|----------------------|
+| gpt-4 | $0.03 | $0.06 |
+| gpt-4-turbo | $0.01 | $0.03 |
+| gpt-3.5-turbo | $0.0015 | $0.002 |
+
+**Exceções Customizadas:**
+- `ErroLimiteTaxaExcedido`: Rate limit excedido após todos os retries
+- `ErroTimeoutAPI`: Timeout na chamada à API
+- `ErroGeralAPI`: Outros erros da API OpenAI
+
+**Health Check:**
+```python
+from backend.src.utilitarios.gerenciador_llm import verificar_conexao_openai
+
+resultado = verificar_conexao_openai()
+if resultado["status"] == "sucesso":
+    print("Conexão com OpenAI estabelecida!")
+else:
+    print(f"Erro: {resultado['mensagem']}")
+```
+
+**Logging:**
+- **INFO:** Inicialização, chamadas bem-sucedidas com métricas
+- **WARNING:** Rate limits, retries
+- **ERROR:** Falhas após todas as tentativas
+- **DEBUG:** Detalhes de cada tentativa
+
+**Limitações Conhecidas:**
+1. **Estatísticas em memória:** Perdidas ao reiniciar servidor (plano: migrar para Prometheus)
+2. **Thread safety:** Não é thread-safe para múltiplos workers (usar 1 worker em dev)
+3. **Tabela de custos hardcoded:** Precisa atualização manual quando OpenAI muda preços
+
+**Dependências:**
+- `openai>=1.55.0`: SDK oficial da OpenAI
+
+**Uso em outros módulos:**
+- `backend/src/agentes/agente_base.py`: Classe AgenteBase usa para chamadas ao LLM
+- Futuros agentes (Advogado, Perito Médico, etc.): Herdam integração via AgenteBase
+
+---
+
+### Classe Base para Agentes
+
+**Arquivo:** `backend/src/agentes/agente_base.py`  
+**Status:** ✅ IMPLEMENTADO (TAREFA-009)  
+**Responsável pela Implementação:** IA (GitHub Copilot)
+
+**Contexto de Negócio:**
+Define a estrutura base abstrata para todos os agentes do sistema multi-agent. Os agentes são especializações de IA que analisam documentos jurídicos sob perspectivas específicas (médica, segurança do trabalho, jurídica, etc.).
+
+**Design Pattern:**
+Utiliza o padrão **Template Method**: define o esqueleto do algoritmo de análise (método `processar`), mas delega partes específicas para subclasses (método `montar_prompt`).
+
+**Hierarquia de Agentes:**
+```
+AgenteBase (abstrata)
+    ├── AgenteAdvogado (coordenador) - TAREFA-010
+    ├── AgentePeritoMedico - TAREFA-011
+    ├── AgentePeritoSegurancaTrabalho - TAREFA-012
+    └── [Futuros agentes extensíveis]
+```
+
+**Classe Principal:**
+
+```python
+class AgenteBase(ABC):
+    """
+    Classe abstrata base para todos os agentes.
+    
+    CONTRATO: Subclasses DEVEM implementar:
+    - montar_prompt(): Define como o agente estrutura suas perguntas
+    - Definir self.nome_do_agente no __init__
+    - Definir self.descricao_do_agente no __init__
+    """
+    
+    @abstractmethod
+    def montar_prompt(
+        self,
+        contexto_de_documentos: List[str],
+        pergunta_do_usuario: str,
+        metadados_adicionais: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Cada agente implementa seu prompt específico"""
+        pass
+    
+    def processar(
+        self,
+        contexto_de_documentos: List[str],
+        pergunta_do_usuario: str,
+        ...
+    ) -> Dict[str, Any]:
+        """Template method - orquestra o fluxo de análise"""
+        # 1. Validar entradas
+        # 2. Montar prompt (chama método abstrato)
+        # 3. Chamar LLM via GerenciadorLLM
+        # 4. Formatar resposta padronizada
+        # 5. Calcular confiança
+        # 6. Registrar logs
+        pass
+```
+
+**Funcionalidades Fornecidas pela Classe Base:**
+
+1. **Método `processar()`** (Template Method)
+   - Orquestra todo o fluxo de análise
+   - Validação de entradas
+   - Chamada ao método abstrato `montar_prompt()`
+   - Integração com GerenciadorLLM
+   - Formatação de resposta padronizada
+   - Cálculo de confiança heurístico
+   - Logging automático
+
+2. **Integração Automática com GerenciadorLLM**
+   - Cada agente tem acesso ao gerenciador via `self.gerenciador_llm`
+   - Não precisa se preocupar com retry logic, custos, etc.
+
+3. **Cálculo de Confiança Heurístico**
+   - Método `_calcular_confianca()`: Analisa o parecer gerado
+   - Heurísticas: tamanho da resposta, frases de incerteza, contexto fornecido
+   - Retorna float entre 0.0 e 1.0
+
+4. **Estatísticas de Uso**
+   - Contador de análises realizadas por agente
+   - Método `obter_estatisticas()`: Retorna métricas do agente
+
+**Formato de Resposta Padronizado:**
+```python
+{
+    "agente": "Nome do Agente",
+    "descricao_agente": "Descrição da expertise",
+    "parecer": "Análise gerada pelo LLM",
+    "confianca": 0.85,                    # 0.0 a 1.0
+    "timestamp": "2025-10-23T10:30:00",
+    "modelo_utilizado": "gpt-4",
+    "temperatura_utilizada": 0.7,
+    "metadados": {
+        "numero_de_documentos_analisados": 5,
+        "tamanho_do_prompt_caracteres": 2500,
+        "tamanho_da_resposta_caracteres": 1200,
+        ...
+    }
+}
+```
+
+**Como Criar um Novo Agente:**
+
+```python
+from backend.src.agentes.agente_base import AgenteBase, formatar_contexto_de_documentos
+
+class AgenteNovoPerito(AgenteBase):
+    def __init__(self):
+        super().__init__()
+        
+        # OBRIGATÓRIO: Definir identidade do agente
+        self.nome_do_agente = "Perito em [Área]"
+        self.descricao_do_agente = "Especialista em análise de [...]"
+        
+        # OPCIONAL: Customizar modelo e temperatura
+        self.modelo_llm_padrao = "gpt-4"
+        self.temperatura_padrao = 0.7
+    
+    def montar_prompt(self, contexto_de_documentos, pergunta_do_usuario, metadados_adicionais):
+        """OBRIGATÓRIO: Implementar lógica específica de prompt"""
+        contexto_formatado = formatar_contexto_de_documentos(contexto_de_documentos)
+        
+        prompt = f"""
+        IDENTIDADE: Você é um {self.nome_do_agente}.
+        
+        CONTEXTO:
+        {contexto_formatado}
+        
+        TAREFA:
+        {pergunta_do_usuario}
+        
+        INSTRUÇÕES:
+        1. Analise os documentos fornecidos
+        2. Cite trechos específicos ao fazer afirmações
+        3. Forneça análise técnica sob a ótica de [sua área]
+        4. Se informação for insuficiente, indique claramente
+        """
+        
+        return prompt
+
+# Usar o agente
+agente = AgenteNovoPerito()
+resultado = agente.processar(
+    contexto_de_documentos=["chunk1", "chunk2"],
+    pergunta_do_usuario="Analise este caso"
+)
+print(resultado["parecer"])
+```
+
+**Funções Utilitárias:**
+
+1. **`formatar_contexto_de_documentos(chunks: List[str]) -> str`**
+   - Formata lista de chunks em string legível para o LLM
+   - Formato: "DOCUMENTO 1:\n[conteúdo]\n\nDOCUMENTO 2:\n[conteúdo]..."
+
+2. **`truncar_texto_se_necessario(texto: str, tamanho_maximo: int) -> str`**
+   - Trunca texto se exceder tamanho máximo
+   - Adiciona indicação de truncamento
+   - Útil para evitar prompts excessivamente longos
+
+**Mensagem de Sistema Padrão:**
+Cada agente envia automaticamente uma mensagem de sistema ao LLM:
+```
+Você é um [Nome do Agente] especializado em análise de documentos jurídicos.
+
+Sua função: [Descrição do Agente]
+
+IMPORTANTE:
+1. Baseie suas análises nos documentos fornecidos
+2. Seja objetivo e técnico em suas respostas
+3. Cite trechos específicos dos documentos quando relevante
+4. Se não houver informação suficiente, indique claramente
+5. Use terminologia técnica apropriada da sua área de expertise
+```
+
+**Cálculo de Confiança (Heurísticas):**
+- **Base:** 0.7
+- **-0.2:** Se parecer muito curto (< 100 caracteres)
+- **-0.1:** Para cada frase de incerteza detectada
+- **-0.2:** Se não houver contexto de documentos
+- **Resultado:** Float entre 0.0 e 1.0
+
+**Limitações Conhecidas:**
+1. **Confiança heurística:** Não reflete confiança real do modelo (plano: usar logprobs)
+2. **Validação simplificada:** Não valida contradições no texto gerado
+
+**Dependências:**
+- `backend.src.utilitarios.gerenciador_llm`: Integração com OpenAI
+
+**Uso em outros módulos:**
+- TAREFA-010: `AgenteAdvogado` herda de `AgenteBase`
+- TAREFA-011: `AgentePeritoMedico` herda de `AgenteBase`
+- TAREFA-012: `AgentePeritoSegurancaTrabalho` herda de `AgenteBase`
+
+---
+
 ## 🌊 FLUXOS DE DADOS
 
 ### Fluxo 1: Ingestão de Documentos
