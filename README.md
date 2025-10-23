@@ -186,11 +186,12 @@ npm run dev
 - [x] Integração com ChromaDB (Banco Vetorial)
 - [x] Orquestração do Fluxo de Ingestão Completo
 - [x] Infraestrutura Base para Agentes (GerenciadorLLM + AgenteBase)
+- [x] Agente Advogado (Coordenador)
+- [x] Agente Perito Médico
 
 ### 🚧 Em Desenvolvimento
 
-- [ ] Agente Advogado (Coordenador)
-- [ ] Agentes Peritos (Médico, Segurança do Trabalho)
+- [ ] Agente Perito Segurança do Trabalho
 - [ ] Sistema de orquestração multi-agent
 - [ ] Frontend React
 

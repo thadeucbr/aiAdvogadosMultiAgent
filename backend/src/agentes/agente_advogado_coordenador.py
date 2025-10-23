@@ -881,12 +881,23 @@ def criar_advogado_coordenador() -> AgenteAdvogadoCoordenador:
     # Criar instância
     advogado = AgenteAdvogadoCoordenador()
     
-    # TODO: Quando TAREFA-011 e TAREFA-012 estiverem concluídas, descomentar:
-    # from backend.src.agentes.agente_perito_medico import AgentePeritoMedico
-    # from backend.src.agentes.agente_perito_seguranca_trabalho import AgentePeritoSegurancaTrabalho
-    # 
-    # advogado.registrar_perito("medico", AgentePeritoMedico)
-    # advogado.registrar_perito("seguranca_trabalho", AgentePeritoSegurancaTrabalho)
+    # ===== REGISTRO DE PERITOS DISPONÍVEIS =====
+    
+    # Registrar Perito Médico (TAREFA-011 - Concluída em 2025-10-23)
+    try:
+        from backend.src.agentes.agente_perito_medico import AgentePeritoMedico
+        advogado.registrar_perito("medico", AgentePeritoMedico)
+        logger.info("✅ Perito Médico registrado")
+    except ImportError as erro:
+        logger.warning(f"⚠️  Perito Médico não disponível: {erro}")
+    
+    # TODO: Registrar Perito Segurança do Trabalho (TAREFA-012 - Pendente)
+    # try:
+    #     from backend.src.agentes.agente_perito_seguranca_trabalho import AgentePeritoSegurancaTrabalho
+    #     advogado.registrar_perito("seguranca_trabalho", AgentePeritoSegurancaTrabalho)
+    #     logger.info("✅ Perito Segurança do Trabalho registrado")
+    # except ImportError as erro:
+    #     logger.warning(f"⚠️  Perito Segurança do Trabalho não disponível: {erro}")
     
     logger.info(
         f"✅ Advogado Coordenador criado | "
