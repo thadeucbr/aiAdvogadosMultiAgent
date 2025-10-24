@@ -169,7 +169,7 @@ npm run dev
 
 ## 📋 Status do Projeto
 
-**Versão Atual:** 0.2.0 (Interface de Análise Completa)  
+**Versão Atual:** 0.3.0 (Exibição Profissional de Pareceres)  
 **Última Atualização:** 2025-10-24
 
 ### ✅ Concluído
@@ -195,7 +195,8 @@ npm run dev
 - [x] Componente de Upload de Documentos (Frontend)
 - [x] Exibição de Shortcuts Sugeridos (Frontend)
 - [x] Componente de Seleção de Agentes (Frontend)
-- [x] Interface de Consulta e Análise (Frontend) - **NOVO!**
+- [x] Interface de Consulta e Análise (Frontend)
+- [x] Componente de Exibição de Pareceres (Markdown + PDF + Clipboard)
 
 ### 🚧 Em Desenvolvimento
 
