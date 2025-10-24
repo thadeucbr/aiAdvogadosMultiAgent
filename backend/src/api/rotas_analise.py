@@ -199,20 +199,35 @@ INFORMACOES_PERITOS = {
     Realiza análise jurídica usando sistema multi-agent.
     
     **Fluxo:**
-    1. Recebe prompt do usuário e agentes selecionados
+    1. Recebe prompt do usuário, agentes selecionados e (opcionalmente) documentos específicos
     2. Consulta base de conhecimento (RAG) para documentos relevantes
-    3. Delega análise para peritos especializados selecionados
-    4. Compila resposta final integrando pareceres dos peritos
+    3. Se documento_ids fornecido, busca apenas nesses documentos específicos
+    4. Delega análise para peritos especializados selecionados
+    5. Compila resposta final integrando pareceres dos peritos
     
     **Agentes Disponíveis:**
     - `medico`: Perito Médico (nexo causal, incapacidades, danos corporais)
     - `seguranca_trabalho`: Perito de Segurança do Trabalho (NRs, EPIs, riscos)
     
-    **Exemplo de Request:**
+    **Seleção de Documentos (NOVO - TAREFA-022):**
+    É possível agora selecionar quais documentos específicos devem ser usados na análise:
+    - Se `documento_ids` for `null` ou vazio: busca em TODOS os documentos
+    - Se `documento_ids` for fornecido: busca APENAS nos documentos especificados
+    
+    **Exemplo de Request (todos os documentos):**
     ```json
     {
       "prompt": "Analisar se houve nexo causal entre o acidente e as condições de trabalho",
       "agentes_selecionados": ["medico", "seguranca_trabalho"]
+    }
+    ```
+    
+    **Exemplo de Request (documentos específicos):**
+    ```json
+    {
+      "prompt": "Analisar se houve nexo causal entre o acidente e as condições de trabalho",
+      "agentes_selecionados": ["medico", "seguranca_trabalho"],
+      "documento_ids": ["550e8400-e29b-41d4-a716-446655440000", "6ba7b810-9dad-11d1-80b4-00c04fd430c8"]
     }
     ```
     
@@ -282,6 +297,7 @@ async def endpoint_analise_multi_agent(
     logger.info("=" * 60)
     logger.info(f"Prompt: {request_body.prompt[:100]}...")  # Log primeiros 100 caracteres
     logger.info(f"Agentes selecionados: {request_body.agentes_selecionados}")
+    logger.info(f"Documentos filtrados: {len(request_body.documento_ids) if request_body.documento_ids else 'Todos'}")
     
     try:
         # ===== OBTER INSTÂNCIA DO ORQUESTRADOR =====
@@ -290,9 +306,11 @@ async def endpoint_analise_multi_agent(
         # ===== PROCESSAR CONSULTA (ASSÍNCRONO) =====
         logger.info("🚀 Iniciando processamento via OrquestradorMultiAgent...")
         
+        # NOVIDADE (TAREFA-022): Passa documento_ids para o orquestrador
         resultado_orquestrador = await orquestrador.processar_consulta(
             prompt=request_body.prompt,
-            agentes_selecionados=request_body.agentes_selecionados
+            agentes_selecionados=request_body.agentes_selecionados,
+            documento_ids=request_body.documento_ids
         )
         
         logger.info("✅ Processamento concluído com sucesso!")

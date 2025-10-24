@@ -62,30 +62,33 @@
 | **019** | 2025-10-24 | Interface de Consulta e Análise | PaginaAnalise.tsx | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-019_interface-consulta-analise.md) |
 | **020** | 2025-10-24 | Componente de Exibição de Pareceres | ComponenteExibicaoPareceres.tsx, PaginaAnalise.tsx, package.json | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-020_componente-exibicao-pareceres.md) |
 | **021** | 2025-10-24 | Página de Histórico de Documentos | PaginaHistorico.tsx, ComponenteFiltrosHistorico.tsx, ComponenteListaDocumentos.tsx, tiposHistorico.ts, servicoApiDocumentos.ts | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-021_pagina-historico-documentos.md) |
-| **022** | 2025-10-24 | Testes Backend - Unitários (Infraestrutura + Fase 1) | requirements_test.txt, pytest.ini, conftest.py, test_servico_extracao_texto.py, test_configuracoes.py, testes/README.md | 🚧 Parcial | [📄 Ver detalhes](changelogs/TAREFA-022_testes-backend-unitarios.md) |
+| **022** | 2025-10-24 | Atualizar API de Análise para Seleção de Documentos | modelos.py, agente_advogado_coordenador.py, orquestrador_multi_agent.py, rotas_analise.py, ARQUITETURA.md | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-022_selecao-documentos-analise.md) |
 
 ---
 
 ## 🎯 Última Tarefa Concluída
 
-**TAREFA-022** - Testes Backend - Unitários (Infraestrutura + Fase 1)  
+**TAREFA-022** - Atualizar API de Análise para Seleção de Documentos  
 **Data:** 2025-10-24  
 **IA:** GitHub Copilot  
-**Status:** 🚧 PARCIALMENTE CONCLUÍDA  
-**Resumo:** Implementação completa da infraestrutura de testes unitários para o backend. Criados 6 arquivos (~1.889 linhas totais): (1) requirements_test.txt (58 linhas) - 11 dependências de teste fixas (pytest 7.4.3, pytest-cov, pytest-asyncio, pytest-mock, Faker, responses, etc.); (2) pytest.ini (170 linhas) - configuração completa com 14 markers customizados (unit, integration, slow, external_api, servico_*, agente_*, etc.), cobertura mínima 70%, timeout 300s, relatórios term-missing/HTML/XML, descoberta automática em testes/; (3) conftest.py (447 linhas) - 9 fixtures globais reutilizáveis: diretorio_temporario_para_testes, arquivo_pdf_de_teste_texto, arquivo_docx_de_teste, mock_resposta_openai_embeddings, mock_resposta_openai_chat_completion, mock_cliente_chromadb (collection mockada completa: add/query/get/delete/count), mock_tesseract_pytesseract, gerador_dados_falsos (Faker pt_BR, seed=42), variaveis_ambiente_teste, limpar_cache_entre_testes (autouse); (4) test_servico_extracao_texto.py (499 linhas) - 15 testes unitários em 6 classes (TestValidacaoExistenciaArquivo, TestValidacaoDependenciasInstaladas, TestDeteccaoPDFEscaneado, TestExtracaoTextoPDF, TestExtracaoTextoDOCX, TestExtracaoTextoDocumentoGenerico), cobertura ~85%; (5) test_configuracoes.py (408 linhas) - 16 testes em 6 classes (TestCarregamentoConfiguracoes, TestValidacaoTipos, TestValidacaoRanges, TestValidacaoLiteral, TestSingletonConfiguracoes, TestListaTiposArquivoAceitos), cobertura ~95%; (6) testes/README.md (307 linhas) - documentação exaustiva com instalação, comandos execução (todos/arquivo/teste específico/por marker), cobertura (term/HTML), estrutura arquivos, fixtures globais, convenções nomenclatura, estratégia testes, debugging, troubleshooting, checklist qualidade. Total: 31 testes implementados (2 de 12 módulos testados). Padrões: comentários exaustivos (40-50% código), nomenclatura autodescritiva (test_cenario_deve_expectativa), mocks realistas simulando APIs (OpenAI/Tesseract/ChromaDB), fixtures parametrizáveis, isolamento completo (sem dependências externas), testes determinísticos. Decisões técnicas: mockar todas APIs externas (velocidade/custo/determinismo/CI-CD), fixtures globais no conftest.py (DRY), cobertura mínima 70% (falha se abaixo), pytest configurado para asyncio automático. **PENDENTE:** Fase 2 (testes de servico_ocr.py, servico_vetorizacao.py, servico_banco_vetorial.py) e Fase 3 (testes de agentes: base, advogado, peritos, orquestrador). Cobertura atual ~40%, meta >70%. Infraestrutura 100% completa e funcional. **MARCO PARCIAL:** 🎉 Infraestrutura de testes pronta! Pytest configurado, fixtures criadas, padrão estabelecido.
+**Status:** ✅ CONCLUÍDA  
+**Resumo:** Implementação completa de seleção granular de documentos para análise multi-agent. Adicionado campo opcional `documento_ids: Optional[List[str]]` ao request de análise (`RequestAnaliseMultiAgent`), permitindo que usuários especifiquem quais documentos devem ser usados como contexto RAG. Modificados 4 arquivos backend: (1) modelos.py - novo campo documento_ids com descrição completa e exemplo atualizado; (2) agente_advogado_coordenador.py - método consultar_rag() aceita documento_ids e implementa filtro ChromaDB usando operador `$in` ({"documento_id": {"$in": [...]}}), mantém comportamento padrão se None/vazio; (3) orquestrador_multi_agent.py - método processar_consulta() aceita documento_ids e passa para consultar_rag(), logging aprimorado mostrando quantidade de documentos filtrados; (4) rotas_analise.py - endpoint POST /api/analise/multi-agent passa documento_ids ao orquestrador, descrição atualizada com exemplos de uso. Documentação completa atualizada em ARQUITETURA.md (endpoint marcado como ATUALIZADO TAREFA-022, nova seção NOVIDADE explicando seleção granular, fluxo atualizado, exemplos request com/sem filtro). Changelog detalhado criado (500+ linhas) em changelogs/TAREFA-022_selecao-documentos-analise.md com detalhes técnicos, casos de uso, testes sugeridos, decisões de design. Projeto atualizado para versão 0.5.0 (Análise com Seleção Granular de Documentos). Funcionalidade 100% retrocompatível: requests sem documento_ids continuam funcionando (busca em todos), requests com documento_ids filtram apenas documentos especificados. Filtro aplicado no nível do ChromaDB (performance), não em Python. Logging completo em todas as camadas para rastreabilidade. **PRÓXIMA TAREFA:** TAREFA-023 (Componente de Seleção de Documentos na Análise - Frontend) pronta para implementação. **MARCO:** 🎉 Backend agora suporta análise focada em documentos específicos!
 
 ---
 
 ## 🚀 Próxima Tarefa Sugerida
 
-**TAREFA-022 (Continuação):** Testes Backend - Unitários (Fase 2 e 3)
+**TAREFA-023:** Componente de Seleção de Documentos na Análise (Frontend)
 
-**Escopo Pendente:**
-- Testes para servico_ocr.py (mockar Tesseract)
-- Testes para servico_vetorizacao.py (mockar OpenAI)
-- Testes para servico_banco_vetorial.py (ChromaDB in-memory)
-- Testes para agentes (mockar LLM)
-- Atingir cobertura > 70%
+**Escopo:**
+- Criar `frontend/src/componentes/analise/ComponenteSelecionadorDocumentos.tsx`
+- Buscar lista de documentos usando `GET /api/documentos/listar`
+- Exibir checkboxes com documentos disponíveis
+- Botões "Selecionar Todos" / "Limpar Seleção"
+- Modificar `PaginaAnalise.tsx` para passar `documento_ids` selecionados para API
+- Integrar com novo campo `documento_ids` da TAREFA-022
+
+**Objetivo:** Permitir que usuário selecione visualmente quais documentos usar na análise.
 
 ---
 

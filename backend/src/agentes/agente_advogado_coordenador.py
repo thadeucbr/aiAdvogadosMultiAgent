@@ -247,7 +247,8 @@ Agora, proceda com sua análise jurídica:
         self,
         consulta: str,
         numero_de_resultados: int = 5,
-        filtro_metadados: Optional[Dict[str, Any]] = None
+        filtro_metadados: Optional[Dict[str, Any]] = None,
+        documento_ids: Optional[List[str]] = None
     ) -> List[str]:
         """
         Consulta a base de conhecimento (RAG) para recuperar documentos relevantes.
@@ -257,20 +258,29 @@ Agora, proceda com sua análise jurídica:
         Ela busca no ChromaDB os chunks de documentos mais semanticamente similares
         à consulta do usuário.
         
+        NOVIDADE (TAREFA-022):
+        Agora suporta seleção granular de documentos específicos via parâmetro documento_ids.
+        Se fornecido, apenas chunks dos documentos especificados serão considerados na busca.
+        
         CASOS DE USO:
         1. Usuário pergunta sobre "acidente de trabalho" → Busca laudos periciais, CAT, relatórios
         2. Usuário pergunta sobre "aposentadoria por invalidez" → Busca laudos médicos, perícias INSS
         3. Usuário pergunta sobre "insalubridade" → Busca PPP, laudos ambientais
+        4. (NOVO) Usuário seleciona documentos específicos → Busca apenas nos documentos selecionados
         
         IMPLEMENTAÇÃO:
         1. Valida se ChromaDB está disponível
-        2. Usa a função buscar_chunks_similares do servico_banco_vetorial
-        3. Retorna lista de chunks (textos) mais relevantes
+        2. Se documento_ids fornecido, adiciona filtro de metadados para limitar busca
+        3. Usa a função buscar_chunks_similares do servico_banco_vetorial
+        4. Retorna lista de chunks (textos) mais relevantes
         
         Args:
             consulta: Texto da consulta para busca semântica
             numero_de_resultados: Quantos chunks retornar (padrão: 5)
             filtro_metadados: Filtros opcionais (ex: {"tipo_documento": "laudo_medico"})
+            documento_ids: Lista opcional de IDs de documentos específicos para filtrar busca.
+                          Se None ou vazio, busca em todos os documentos disponíveis.
+                          Se fornecido, apenas chunks desses documentos são considerados.
         
         Returns:
             List[str]: Lista de chunks de texto relevantes
@@ -282,10 +292,17 @@ Agora, proceda com sua análise jurídica:
         ```python
         advogado = AgenteAdvogadoCoordenador()
         
-        # Buscar documentos sobre nexo causal
+        # Buscar documentos sobre nexo causal (todos os documentos)
         chunks = advogado.consultar_rag(
             consulta="nexo causal acidente trabalho",
             numero_de_resultados=5
+        )
+        
+        # Buscar apenas em documentos específicos (NOVO na TAREFA-022)
+        chunks_filtrados = advogado.consultar_rag(
+            consulta="nexo causal acidente trabalho",
+            numero_de_resultados=5,
+            documento_ids=["uuid-doc-1", "uuid-doc-2"]
         )
         
         # Usar chunks como contexto para análise
@@ -297,7 +314,8 @@ Agora, proceda com sua análise jurídica:
         """
         logger.info(
             f"📚 Consultando RAG | Consulta: '{consulta}' | "
-            f"Resultados solicitados: {numero_de_resultados}"
+            f"Resultados solicitados: {numero_de_resultados} | "
+            f"Documentos filtrados: {len(documento_ids) if documento_ids else 'Todos'}"
         )
         
         # Validar se ChromaDB está disponível
@@ -314,13 +332,26 @@ Agora, proceda com sua análise jurídica:
             logger.warning("Consulta RAG vazia. Retornando lista vazia.")
             return []
         
+        # NOVIDADE (TAREFA-022): Adicionar filtro de documento_ids se fornecido
+        # Mesclar com filtros existentes de metadados
+        filtro_final = filtro_metadados.copy() if filtro_metadados else {}
+        
+        if documento_ids and len(documento_ids) > 0:
+            # Adicionar filtro para limitar busca aos documentos especificados
+            # ChromaDB suporta filtro com operador "$in" para lista de valores
+            filtro_final["documento_id"] = {"$in": documento_ids}
+            logger.info(
+                f"🔍 Filtrando busca RAG por {len(documento_ids)} documento(s) específico(s): "
+                f"{documento_ids[:3]}{'...' if len(documento_ids) > 3 else ''}"
+            )
+        
         try:
             # Buscar chunks similares usando o serviço de banco vetorial
             resultados = buscar_chunks_similares(
                 collection=self.collection_chromadb,
                 query=consulta,
                 k=numero_de_resultados,
-                filtro_metadados=filtro_metadados
+                filtro_metadados=filtro_final if filtro_final else None
             )
             
             # Extrair apenas os textos dos chunks (ignorar metadados e distâncias)

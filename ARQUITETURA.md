@@ -657,9 +657,12 @@ Se o arquivo físico não for encontrado em disco (por exemplo, já foi deletado
 ### Análise Multi-Agent
 
 #### `POST /api/analise/multi-agent`
-**Status:** ✅ IMPLEMENTADO (TAREFA-014)
+**Status:** ✅ IMPLEMENTADO (TAREFA-014) | 🆕 ATUALIZADO (TAREFA-022)
 
 **Descrição:** Realiza análise jurídica usando sistema multi-agent. Recebe um prompt (pergunta/solicitação) e lista de agentes peritos selecionados, coordena todo o fluxo de análise (RAG → Peritos → Compilação) e retorna resposta final estruturada.
+
+**🆕 NOVIDADE (TAREFA-022 - Seleção de Documentos):**
+Agora suporta seleção granular de documentos específicos para análise. O usuário pode escolher quais documentos devem ser usados como contexto RAG, permitindo análises mais focadas e precisas.
 
 **Contexto de Negócio:**
 Este é o endpoint principal para análises jurídicas inteligentes. O usuário submete uma consulta e seleciona quais peritos especializados devem participar. O sistema consulta a base de conhecimento (RAG), delega para os peritos, e compila uma resposta final integrando todos os pareceres.
@@ -668,16 +671,30 @@ Este é o endpoint principal para análises jurídicas inteligentes. O usuário 
 1. Request é validado (Pydantic)
 2. OrquestradorMultiAgent é acionado
 3. AgenteAdvogado consulta ChromaDB (RAG) para documentos relevantes
+   - **🆕 Se documento_ids fornecido:** Busca apenas nos documentos especificados
+   - **Se documento_ids vazio/null:** Busca em todos os documentos disponíveis
 4. AgenteAdvogado delega para peritos selecionados (execução em paralelo)
 5. Peritos retornam pareceres técnicos especializados
 6. AgenteAdvogado compila resposta final integrando pareceres + contexto RAG
 7. Resposta estruturada é retornada ao cliente
 
-**Request Body:**
+**Request Body (todos os documentos):**
 ```json
 {
   "prompt": "Analisar se houve nexo causal entre o acidente de trabalho e as condições inseguras do ambiente laboral. Verificar também se o trabalhador possui incapacidade permanente.",
   "agentes_selecionados": ["medico", "seguranca_trabalho"]
+}
+```
+
+**🆕 Request Body (documentos específicos - TAREFA-022):**
+```json
+{
+  "prompt": "Analisar se houve nexo causal entre o acidente de trabalho e as condições inseguras do ambiente laboral. Verificar também se o trabalhador possui incapacidade permanente.",
+  "agentes_selecionados": ["medico", "seguranca_trabalho"],
+  "documento_ids": [
+    "550e8400-e29b-41d4-a716-446655440000",
+    "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+  ]
 }
 ```
 
@@ -690,6 +707,11 @@ Este é o endpoint principal para análises jurídicas inteligentes. O usuário 
   - Valores válidos: `"medico"`, `"seguranca_trabalho"`
   - Se `null` ou vazio, apenas o Advogado Coordenador responde (sem pareceres periciais)
   - Duplicatas são automaticamente removidas
+- **🆕 `documento_ids` (array of strings, optional):** Lista de IDs de documentos específicos (TAREFA-022)
+  - Se `null` ou vazio: busca em TODOS os documentos disponíveis no RAG
+  - Se fornecido: busca APENAS nos documentos com IDs especificados
+  - Permite análise focada em documentos específicos selecionados pelo usuário
+  - IDs devem corresponder aos documentos previamente carregados via `/api/documentos/upload`
 
 **Response (Sucesso):**
 ```json

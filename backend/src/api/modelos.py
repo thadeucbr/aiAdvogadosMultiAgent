@@ -593,6 +593,14 @@ class RequestAnaliseMultiAgent(BaseModel):
                     "Se None ou vazio, apenas o advogado coordenador responde."
     )
     
+    documento_ids: Optional[List[str]] = Field(
+        default=None,
+        description="Lista opcional de IDs de documentos específicos para usar como contexto RAG. "
+                    "Se None ou vazio, a busca no RAG considerará todos os documentos disponíveis. "
+                    "Se fornecido, apenas os documentos com IDs especificados serão usados na análise. "
+                    "Permite seleção granular de quais documentos devem ser considerados na consulta."
+    )
+    
     @validator("prompt")
     def validar_prompt_nao_vazio(cls, valor: str) -> str:
         """
@@ -643,7 +651,11 @@ class RequestAnaliseMultiAgent(BaseModel):
                 "prompt": "Analisar se houve nexo causal entre o acidente de trabalho "
                          "e as condições inseguras do ambiente laboral. Verificar "
                          "também se o trabalhador possui incapacidade permanente.",
-                "agentes_selecionados": ["medico", "seguranca_trabalho"]
+                "agentes_selecionados": ["medico", "seguranca_trabalho"],
+                "documento_ids": [
+                    "550e8400-e29b-41d4-a716-446655440000",
+                    "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+                ]
             }
         }
 

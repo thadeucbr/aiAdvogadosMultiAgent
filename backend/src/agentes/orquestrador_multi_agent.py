@@ -195,7 +195,8 @@ class OrquestradorMultiAgent:
         prompt: str,
         agentes_selecionados: Optional[List[str]] = None,
         id_consulta: Optional[str] = None,
-        metadados_adicionais: Optional[Dict[str, Any]] = None
+        metadados_adicionais: Optional[Dict[str, Any]] = None,
+        documento_ids: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Processa uma consulta jurídica usando o sistema multi-agent.
@@ -208,6 +209,10 @@ class OrquestradorMultiAgent:
         4. Compilação da resposta final
         5. Retorno de resultado estruturado
         
+        NOVIDADE (TAREFA-022):
+        Agora suporta seleção granular de documentos específicos via parâmetro documento_ids.
+        Quando fornecido, apenas os documentos selecionados serão usados na consulta RAG.
+        
         FLUXO DETALHADO:
         
         ETAPA 1: VALIDAÇÃO
@@ -219,6 +224,7 @@ class OrquestradorMultiAgent:
         ETAPA 2: CONSULTAR RAG
         - Status → CONSULTANDO_RAG
         - AgenteAdvogado busca documentos relevantes no ChromaDB
+        - Se documento_ids fornecido, busca apenas nesses documentos
         - Documentos são usados como contexto para peritos
         
         ETAPA 3: DELEGAR PARA PERITOS (SE HOUVER)
@@ -242,6 +248,9 @@ class OrquestradorMultiAgent:
                                   Se None ou vazio, apenas o advogado responde (sem peritos)
             id_consulta: ID único da consulta (se None, será gerado automaticamente)
             metadados_adicionais: Metadados extras (tipo_processo, urgencia, etc.)
+            documento_ids: Lista opcional de IDs de documentos específicos para filtrar consulta RAG.
+                          Se None ou vazio, busca em todos os documentos disponíveis.
+                          Se fornecido, apenas chunks desses documentos são considerados.
         
         Returns:
             Dict[str, Any]: Resultado estruturado da consulta
@@ -278,6 +287,13 @@ class OrquestradorMultiAgent:
             }
         )
         
+        # Consulta com documentos específicos (NOVO na TAREFA-022)
+        resultado = await orquestrador.processar_consulta(
+            prompt="Analisar nexo causal do acidente de trabalho",
+            agentes_selecionados=["medico"],
+            documento_ids=["uuid-doc-1", "uuid-doc-2"]
+        )
+        
         # Consulta sem peritos (apenas advogado)
         resultado = await orquestrador.processar_consulta(
             prompt="Qual o prazo para recurso de sentença trabalhista?",
@@ -298,7 +314,8 @@ class OrquestradorMultiAgent:
             f"🎯 INICIANDO CONSULTA | "
             f"ID: {id_consulta} | "
             f"Prompt: '{prompt[:100]}...' | "
-            f"Agentes: {agentes_selecionados}"
+            f"Agentes: {agentes_selecionados} | "
+            f"Documentos filtrados: {len(documento_ids) if documento_ids else 'Todos'}"
         )
         
         # Validar prompt
@@ -347,9 +364,11 @@ class OrquestradorMultiAgent:
             
             try:
                 # Buscar documentos relevantes no ChromaDB
+                # NOVIDADE (TAREFA-022): Passa documento_ids para filtrar busca
                 contexto_rag = self.agente_advogado.consultar_rag(
                     consulta=prompt,
-                    numero_de_resultados=5  # Top 5 documentos mais relevantes
+                    numero_de_resultados=5,  # Top 5 documentos mais relevantes
+                    documento_ids=documento_ids  # Filtro opcional de documentos específicos
                 )
                 
                 logger.info(
