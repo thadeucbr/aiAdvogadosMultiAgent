@@ -558,26 +558,39 @@ class RequestAnaliseMultiAgent(BaseModel):
     CONTEXTO DE NEGÓCIO:
     Este é o modelo de entrada para o endpoint de análise jurídica.
     O usuário fornece um prompt (pergunta/solicitação) e seleciona
-    quais agentes peritos devem participar da análise.
+    quais agentes devem participar da análise:
+    - Peritos: análise técnica (médico, segurança do trabalho)
+    - Advogados Especialistas: análise jurídica especializada (trabalhista, previdenciário, etc.)
+    
+    NOVIDADE (TAREFA-024):
+    Agora suporta seleção de advogados especialistas além de peritos técnicos.
     
     FLUXO:
-    1. Frontend envia: {"prompt": "...", "agentes_selecionados": ["medico"]}
-    2. Backend valida: prompt não vazio, agentes existem
-    3. Orquestrador processa: RAG → Peritos → Compilação
-    4. Backend retorna: Resposta compilada + pareceres individuais
+    1. Frontend envia: {"prompt": "...", "agentes_selecionados": ["medico"], "advogados_selecionados": ["trabalhista"]}
+    2. Backend valida: prompt não vazio, peritos e advogados existem
+    3. Orquestrador processa: RAG → Peritos → Advogados Especialistas → Compilação
+    4. Backend retorna: Resposta compilada + pareceres de peritos + pareceres de advogados
     
     EXEMPLOS DE PROMPTS:
     - "Analisar se há nexo causal entre a doença e o trabalho"
     - "Verificar conformidade com NR-15 (insalubridade)"
-    - "Avaliar grau de incapacidade permanente do trabalhador"
+    - "Avaliar grau de incapacidade permanente e direito ao benefício previdenciário"
     
     AGENTES DISPONÍVEIS:
+    
+    Peritos (análise técnica):
     - "medico": Perito médico (nexo causal, incapacidades, danos corporais)
     - "seguranca_trabalho": Perito de segurança (EPIs, NRs, riscos ocupacionais)
     
+    Advogados Especialistas (análise jurídica):
+    - "trabalhista": Direito do Trabalho (CLT, verbas, justa causa)
+    - "previdenciario": Direito Previdenciário (benefícios INSS, aposentadoria)
+    - "civel": Direito Cível (responsabilidade civil, danos)
+    - "tributario": Direito Tributário (impostos, tributos)
+    
     OBSERVAÇÃO:
-    Se agentes_selecionados for None ou lista vazia, apenas o Advogado
-    Coordenador processa a consulta (sem pareceres periciais).
+    Se ambas as listas (agentes_selecionados e advogados_selecionados) forem None ou vazias,
+    apenas o Advogado Coordenador processa a consulta (sem pareceres especializados).
     """
     prompt: str = Field(
         ...,
@@ -588,9 +601,17 @@ class RequestAnaliseMultiAgent(BaseModel):
     
     agentes_selecionados: Optional[List[str]] = Field(
         default=None,
-        description="Lista de IDs dos agentes peritos a serem consultados. "
+        description="Lista de IDs dos agentes peritos (técnicos) a serem consultados. "
                     "Valores válidos: 'medico', 'seguranca_trabalho'. "
-                    "Se None ou vazio, apenas o advogado coordenador responde."
+                    "Se None ou vazio, nenhum perito é consultado."
+    )
+    
+    advogados_selecionados: Optional[List[str]] = Field(
+        default=None,
+        description="(NOVO TAREFA-024) Lista de IDs dos advogados especialistas a serem consultados. "
+                    "Valores válidos: 'trabalhista', 'previdenciario', 'civel', 'tributario'. "
+                    "Se None ou vazio, nenhum advogado especialista é consultado. "
+                    "Advogados especialistas fornecem análise jurídica sob perspectiva de áreas específicas do direito."
     )
     
     documento_ids: Optional[List[str]] = Field(
@@ -617,31 +638,63 @@ class RequestAnaliseMultiAgent(BaseModel):
     @validator("agentes_selecionados")
     def validar_agentes(cls, valor: Optional[List[str]]) -> Optional[List[str]]:
         """
-        Valida que os agentes selecionados existem no sistema.
+        Valida que os agentes peritos selecionados existem no sistema.
         
         CONTEXTO:
         Frontend pode enviar IDs incorretos. Esta validação garante que
-        apenas agentes válidos sejam aceitos.
+        apenas peritos válidos sejam aceitos.
         
-        AGENTES VÁLIDOS:
+        AGENTES PERITOS VÁLIDOS:
         - "medico": Agente Perito Médico
         - "seguranca_trabalho": Agente Perito de Segurança do Trabalho
         """
         agentes_validos = {"medico", "seguranca_trabalho"}
         
         if valor is None or len(valor) == 0:
-            # Permitir consulta sem peritos (apenas advogado)
+            # Permitir consulta sem peritos
             return None
         
         # Verificar se todos os agentes são válidos
         agentes_invalidos = [a for a in valor if a not in agentes_validos]
         if agentes_invalidos:
             raise ValueError(
-                f"Agentes inválidos: {agentes_invalidos}. "
-                f"Agentes válidos: {list(agentes_validos)}"
+                f"Peritos inválidos: {agentes_invalidos}. "
+                f"Peritos válidos: {list(agentes_validos)}"
             )
         
         # Remover duplicatas (caso usuário selecione o mesmo agente 2x)
+        return list(set(valor))
+    
+    @validator("advogados_selecionados")
+    def validar_advogados_especialistas(cls, valor: Optional[List[str]]) -> Optional[List[str]]:
+        """
+        Valida que os advogados especialistas selecionados existem no sistema.
+        
+        CONTEXTO (TAREFA-024):
+        Frontend pode enviar IDs incorretos de advogados. Esta validação garante que
+        apenas advogados especialistas válidos sejam aceitos.
+        
+        ADVOGADOS ESPECIALISTAS VÁLIDOS:
+        - "trabalhista": Advogado especialista em Direito do Trabalho
+        - "previdenciario": Advogado especialista em Direito Previdenciário
+        - "civel": Advogado especialista em Direito Cível
+        - "tributario": Advogado especialista em Direito Tributário
+        """
+        advogados_validos = {"trabalhista", "previdenciario", "civel", "tributario"}
+        
+        if valor is None or len(valor) == 0:
+            # Permitir consulta sem advogados especialistas
+            return None
+        
+        # Verificar se todos os advogados são válidos
+        advogados_invalidos = [a for a in valor if a not in advogados_validos]
+        if advogados_invalidos:
+            raise ValueError(
+                f"Advogados especialistas inválidos: {advogados_invalidos}. "
+                f"Advogados válidos: {list(advogados_validos)}"
+            )
+        
+        # Remover duplicatas (caso usuário selecione o mesmo advogado 2x)
         return list(set(valor))
     
     class Config:
@@ -650,8 +703,9 @@ class RequestAnaliseMultiAgent(BaseModel):
             "example": {
                 "prompt": "Analisar se houve nexo causal entre o acidente de trabalho "
                          "e as condições inseguras do ambiente laboral. Verificar "
-                         "também se o trabalhador possui incapacidade permanente.",
+                         "também se o trabalhador possui direito ao benefício auxílio-doença acidentário.",
                 "agentes_selecionados": ["medico", "seguranca_trabalho"],
+                "advogados_selecionados": ["trabalhista", "previdenciario"],
                 "documento_ids": [
                     "550e8400-e29b-41d4-a716-446655440000",
                     "6ba7b810-9dad-11d1-80b4-00c04fd430c8"

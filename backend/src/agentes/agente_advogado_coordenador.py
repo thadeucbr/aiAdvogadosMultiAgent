@@ -137,6 +137,11 @@ class AgenteAdvogadoCoordenador(AgenteBase):
         # FORMATO: {"nome_identificador": ClasseDoPerito}
         self.peritos_disponiveis: Dict[str, type] = {}
         
+        # Cache de advogados especialistas disponíveis (TAREFA-024)
+        # FORMATO: {"nome_identificador": ClasseDoAdvogado}
+        # Exemplo: {"trabalhista": AgenteAdvogadoTrabalhista, "previdenciario": AgenteAdvogadoPrevidenciario}
+        self.advogados_especialistas_disponiveis: Dict[str, type] = {}
+        
         logger.info(f"Agente '{self.nome_do_agente}' inicializado e pronto para coordenar")
     
     def montar_prompt(
@@ -570,38 +575,265 @@ Agora, proceda com sua análise jurídica:
         
         return resultado
     
+    async def delegar_para_advogados_especialistas(
+        self,
+        pergunta: str,
+        contexto_de_documentos: List[str],
+        advogados_selecionados: List[str],
+        metadados_adicionais: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Delega análises jurídicas especializadas para advogados especialistas em paralelo.
+        
+        CONTEXTO DE NEGÓCIO (TAREFA-024):
+        Esta função implementa a NOVA funcionalidade de delegação para advogados
+        especialistas (Trabalhista, Previdenciário, Cível, Tributário). Diferente
+        dos peritos (que fornecem análises TÉCNICAS), os advogados especialistas
+        fornecem análises JURÍDICAS sob óticas de áreas específicas do direito.
+        
+        DIFERENÇA ENTRE PERITOS E ADVOGADOS ESPECIALISTAS:
+        ┌─────────────────────┬──────────────────────┬────────────────────────┐
+        │                     │ PERITOS              │ ADVOGADOS ESPECIALISTAS│
+        ├─────────────────────┼──────────────────────┼────────────────────────┤
+        │ Tipo de Análise     │ Técnica              │ Jurídica               │
+        │ Exemplos            │ Médico, Seg. Trabalho│ Trabalhista, Cível     │
+        │ Foco                │ Fatos técnicos       │ Direito aplicável      │
+        │ Fundamentação       │ Conhecimento técnico │ Legislação, súmulas    │
+        └─────────────────────┴──────────────────────┴────────────────────────┘
+        
+        VANTAGENS DA EXECUÇÃO PARALELA:
+        1. PERFORMANCE: Se há 3 advogados, análise leva tempo de 1 (não 3x)
+        2. ESCALABILIDADE: Fácil adicionar novos especialistas sem impacto no tempo
+        3. INDEPENDÊNCIA: Advogados não dependem uns dos outros
+        4. DIVERSIDADE: Múltiplas perspectivas jurídicas enriquecem a análise
+        
+        ADVOGADOS ESPECIALISTAS DISPONÍVEIS (A SEREM IMPLEMENTADOS):
+        - "trabalhista": Agente Advogado Trabalhista (TAREFA-025)
+        - "previdenciario": Agente Advogado Previdenciário (TAREFA-026)
+        - "civel": Agente Advogado Cível (TAREFA-027)
+        - "tributario": Agente Advogado Tributário (TAREFA-028)
+        
+        IMPLEMENTAÇÃO:
+        1. Validar quais advogados foram solicitados
+        2. Instanciar os agentes advogados especialistas
+        3. Criar tasks assíncronas para cada advogado
+        4. Executar tasks em paralelo usando asyncio.gather()
+        5. Coletar e retornar todas as análises jurídicas
+        
+        Args:
+            pergunta: Pergunta a ser respondida pelos advogados especialistas
+            contexto_de_documentos: Documentos relevantes (do RAG)
+            advogados_selecionados: Lista de identificadores de advogados 
+                                   (ex: ["trabalhista", "previdenciario"])
+            metadados_adicionais: Informações extras para os advogados
+        
+        Returns:
+            Dict[str, Dict[str, Any]]: Pareceres de cada advogado especialista
+            {
+                "trabalhista": {
+                    "agente": "Advogado Trabalhista",
+                    "parecer": "Análise sob ótica do Direito do Trabalho...",
+                    "confianca": 0.85,
+                    "area_especializacao": "Direito do Trabalho",
+                    ...
+                },
+                "previdenciario": {
+                    "agente": "Advogado Previdenciário",
+                    "parecer": "Análise sob ótica do Direito Previdenciário...",
+                    "confianca": 0.90,
+                    "area_especializacao": "Direito Previdenciário",
+                    ...
+                }
+            }
+        
+        EXEMPLO DE USO:
+        ```python
+        advogado = AgenteAdvogadoCoordenador()
+        contexto = advogado.consultar_rag("auxílio-doença nexo causal")
+        
+        # Delegar para advogados especialistas
+        pareceres_juridicos = await advogado.delegar_para_advogados_especialistas(
+            pergunta="Há direito ao benefício de auxílio-doença acidentário?",
+            contexto_de_documentos=contexto,
+            advogados_selecionados=["trabalhista", "previdenciario"]
+        )
+        
+        print(pareceres_juridicos["trabalhista"]["parecer"])  # Análise trabalhista
+        print(pareceres_juridicos["previdenciario"]["parecer"])  # Análise previdenciária
+        ```
+        
+        TAREFA RELACIONADA:
+        - TAREFA-024: Refatoração da infra para suportar advogados especialistas
+        """
+        logger.info(
+            f"⚖️  Delegando análise para advogados especialistas | "
+            f"Advogados solicitados: {advogados_selecionados} | "
+            f"Documentos no contexto: {len(contexto_de_documentos)}"
+        )
+        
+        # Validar entrada
+        if not advogados_selecionados:
+            logger.warning("Nenhum advogado especialista selecionado. Retornando dicionário vazio.")
+            return {}
+        
+        # Dicionário para armazenar os pareceres jurídicos
+        pareceres_dos_advogados: Dict[str, Dict[str, Any]] = {}
+        
+        # Lista para armazenar as tasks assíncronas
+        tasks_advogados = []
+        
+        # Para cada advogado solicitado, criar uma task
+        for identificador_advogado in advogados_selecionados:
+            # Verificar se o advogado está disponível
+            if identificador_advogado not in self.advogados_especialistas_disponiveis:
+                logger.warning(
+                    f"⚠️  Advogado especialista '{identificador_advogado}' não está disponível. "
+                    f"Advogados disponíveis: {list(self.advogados_especialistas_disponiveis.keys())}. "
+                    f"Pulando este advogado."
+                )
+                
+                # Adicionar mensagem de erro no resultado
+                pareceres_dos_advogados[identificador_advogado] = {
+                    "agente": identificador_advogado,
+                    "parecer": f"Advogado especialista '{identificador_advogado}' não está disponível no sistema.",
+                    "confianca": 0.0,
+                    "erro": True,
+                    "timestamp": datetime.now().isoformat()
+                }
+                continue
+            
+            # Instanciar o agente advogado especialista
+            ClasseDoAdvogado = self.advogados_especialistas_disponiveis[identificador_advogado]
+            advogado_especialista = ClasseDoAdvogado(gerenciador_llm=self.gerenciador_llm)
+            
+            # Criar task assíncrona para processar
+            # NOTA: Como processar() é síncrono, usamos run_in_executor para torná-lo assíncrono
+            task = asyncio.create_task(
+                self._processar_advogado_async(
+                    advogado=advogado_especialista,
+                    identificador=identificador_advogado,
+                    contexto_de_documentos=contexto_de_documentos,
+                    pergunta=pergunta,
+                    metadados_adicionais=metadados_adicionais
+                )
+            )
+            tasks_advogados.append((identificador_advogado, task))
+        
+        # Executar todas as tasks em paralelo
+        logger.info(f"⚡ Executando {len(tasks_advogados)} advogados especialistas em paralelo...")
+        
+        for identificador, task in tasks_advogados:
+            try:
+                resultado = await task
+                pareceres_dos_advogados[identificador] = resultado
+                logger.info(f"✅ Parecer do advogado especialista '{identificador}' recebido")
+            except Exception as erro:
+                logger.error(
+                    f"❌ Erro ao processar advogado especialista '{identificador}': {str(erro)}",
+                    exc_info=True
+                )
+                # Adicionar resultado de erro
+                pareceres_dos_advogados[identificador] = {
+                    "agente": identificador,
+                    "parecer": f"Erro ao processar parecer: {str(erro)}",
+                    "confianca": 0.0,
+                    "erro": True,
+                    "timestamp": datetime.now().isoformat()
+                }
+        
+        logger.info(
+            f"🎉 Delegação para advogados concluída | "
+            f"Pareceres recebidos: {len([p for p in pareceres_dos_advogados.values() if not p.get('erro', False)])} | "
+            f"Erros: {len([p for p in pareceres_dos_advogados.values() if p.get('erro', False)])}"
+        )
+        
+        return pareceres_dos_advogados
+    
+    async def _processar_advogado_async(
+        self,
+        advogado: AgenteBase,
+        identificador: str,
+        contexto_de_documentos: List[str],
+        pergunta: str,
+        metadados_adicionais: Optional[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        Processa um advogado especialista de forma assíncrona.
+        
+        CONTEXTO:
+        Esta é uma função auxiliar privada usada por delegar_para_advogados_especialistas().
+        Ela converte a chamada síncrona processar() em uma chamada assíncrona
+        usando run_in_executor.
+        
+        IMPORTANTE:
+        Esta função NÃO deve ser chamada diretamente por código externo.
+        Use delegar_para_advogados_especialistas() em vez disso.
+        
+        Args:
+            advogado: Instância do agente advogado especialista
+            identificador: Identificador do advogado (para logging)
+            contexto_de_documentos: Documentos relevantes
+            pergunta: Pergunta para o advogado
+            metadados_adicionais: Metadados extras
+        
+        Returns:
+            Dict[str, Any]: Parecer do advogado especialista
+        """
+        logger.debug(f"Iniciando processamento assíncrono do advogado especialista '{identificador}'")
+        
+        # Executar em thread pool para não bloquear o event loop
+        loop = asyncio.get_event_loop()
+        resultado = await loop.run_in_executor(
+            None,  # Use o executor padrão (ThreadPoolExecutor)
+            advogado.processar,  # Função a ser executada
+            contexto_de_documentos,  # Arg 1
+            pergunta,  # Arg 2
+            metadados_adicionais  # Arg 3
+        )
+        
+        return resultado
+    
     def compilar_resposta(
         self,
         pareceres_peritos: Dict[str, Dict[str, Any]],
         contexto_rag: List[str],
         pergunta_original: str,
-        metadados_adicionais: Optional[Dict[str, Any]] = None
+        metadados_adicionais: Optional[Dict[str, Any]] = None,
+        pareceres_advogados_especialistas: Optional[Dict[str, Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         """
-        Compila pareceres dos peritos em uma resposta jurídica final coesa.
+        Compila pareceres de peritos E advogados especialistas em uma resposta jurídica final coesa.
         
         CONTEXTO DE NEGÓCIO:
         Esta é a "joia da coroa" do agente coordenador. Aqui, o advogado:
-        1. Recebe múltiplos pareceres técnicos especializados
-        2. Integra os insights em uma narrativa jurídica coesa
-        3. Fundamenta a resposta com documentos e pareceres
-        4. Fornece conclusão e recomendações jurídicas
+        1. Recebe múltiplos pareceres técnicos especializados (peritos)
+        2. Recebe múltiplas análises jurídicas especializadas (advogados) [NOVO na TAREFA-024]
+        3. Integra todos os insights em uma narrativa jurídica coesa
+        4. Fundamenta a resposta com documentos, pareceres técnicos E pareceres jurídicos
+        5. Fornece conclusão e recomendações jurídicas
+        
+        NOVIDADE TAREFA-024:
+        Agora a compilação integra DOIS TIPOS de pareceres:
+        - Pareceres TÉCNICOS (peritos): Médico, Segurança do Trabalho
+        - Pareceres JURÍDICOS (advogados especialistas): Trabalhista, Previdenciário, Cível, Tributário
         
         IMPLEMENTAÇÃO:
-        1. Extrai os pareceres de cada perito
-        2. Monta um prompt específico para compilação
+        1. Extrai os pareceres de cada perito E advogado especialista
+        2. Monta um prompt específico para compilação integrando ambos os tipos
         3. Usa GPT-5-nano para gerar resposta jurídica integradora
-        4. Retorna resposta estruturada com metadados
+        4. Retorna resposta estruturada com metadados completos
         
         DIFERENÇA ENTRE compilar_resposta() E processar():
-        - processar(): Análise jurídica DIRETA (sem peritos)
-        - compilar_resposta(): Análise jurídica INTEGRANDO pareceres de peritos
+        - processar(): Análise jurídica DIRETA (sem peritos nem advogados especialistas)
+        - compilar_resposta(): Análise jurídica INTEGRANDO pareceres de peritos E advogados
         
         Args:
-            pareceres_peritos: Dicionário com pareceres de cada perito
+            pareceres_peritos: Dicionário com pareceres de cada perito técnico
             contexto_rag: Documentos recuperados do RAG
             pergunta_original: Pergunta original do usuário
             metadados_adicionais: Metadados extras
+            pareceres_advogados_especialistas: (NOVO TAREFA-024) Dicionário com pareceres 
+                                              de cada advogado especialista
         
         Returns:
             Dict[str, Any]: Resposta compilada estruturada
@@ -610,52 +842,62 @@ Agora, proceda com sua análise jurídica:
                 "parecer": "Resposta jurídica completa...",
                 "confianca": 0.88,
                 "pareceres_peritos_utilizados": ["medico", "seguranca_trabalho"],
+                "pareceres_advogados_utilizados": ["trabalhista", "previdenciario"],  # NOVO
                 "numero_documentos_citados": 5,
                 ...
             }
         
         EXEMPLO:
         ```python
-        # Fluxo completo
+        # Fluxo completo com peritos E advogados especialistas
         advogado = AgenteAdvogadoCoordenador()
         
         # 1. Consultar RAG
-        contexto = advogado.consultar_rag("acidente trabalho nexo causal")
+        contexto = advogado.consultar_rag("auxílio-doença acidente trabalho")
         
         # 2. Delegar para peritos
-        pareceres = await advogado.delegar_para_peritos(
-            pergunta="Há nexo causal?",
+        pareceres_peritos = await advogado.delegar_para_peritos(
+            pergunta="Há nexo causal e incapacidade?",
             contexto_de_documentos=contexto,
             peritos_selecionados=["medico", "seguranca_trabalho"]
         )
         
-        # 3. Compilar resposta final
-        resposta_final = advogado.compilar_resposta(
-            pareceres_peritos=pareceres,
-            contexto_rag=contexto,
-            pergunta_original="Há nexo causal entre acidente e trabalho?"
+        # 3. Delegar para advogados especialistas (NOVO TAREFA-024)
+        pareceres_advogados = await advogado.delegar_para_advogados_especialistas(
+            pergunta="Há direito ao benefício acidentário?",
+            contexto_de_documentos=contexto,
+            advogados_selecionados=["trabalhista", "previdenciario"]
         )
         
-        print(resposta_final["parecer"])  # Análise jurídica completa
+        # 4. Compilar resposta final integrando TODOS os pareceres
+        resposta_final = advogado.compilar_resposta(
+            pareceres_peritos=pareceres_peritos,
+            pareceres_advogados_especialistas=pareceres_advogados,  # NOVO
+            contexto_rag=contexto,
+            pergunta_original="Há direito ao auxílio-doença acidentário?"
+        )
+        
+        print(resposta_final["parecer"])  # Análise jurídica completa e integrada
         ```
         """
         logger.info(
             f"📝 Compilando resposta final | "
             f"Peritos consultados: {list(pareceres_peritos.keys())} | "
+            f"Advogados especialistas consultados: {list(pareceres_advogados_especialistas.keys()) if pareceres_advogados_especialistas else []} | "
             f"Documentos RAG: {len(contexto_rag)}"
         )
         
         # Validar se há pareceres
-        if not pareceres_peritos:
+        if not pareceres_peritos and not pareceres_advogados_especialistas:
             logger.warning(
-                "Nenhum parecer de perito fornecido. Compilação será baseada "
+                "Nenhum parecer de perito OU advogado especialista fornecido. Compilação será baseada "
                 "apenas em documentos RAG."
             )
         
-        # ===== ETAPA 1: PREPARAR CONTEÚDO DOS PARECERES =====
+        # ===== ETAPA 1: PREPARAR CONTEÚDO DOS PARECERES DOS PERITOS =====
         
         # Formatar pareceres dos peritos de forma legível
-        pareceres_formatados_lista = []
+        pareceres_peritos_formatados_lista = []
         peritos_com_sucesso = []
         peritos_com_erro = []
         
@@ -666,8 +908,9 @@ Agora, proceda com sua análise jurídica:
             
             peritos_com_sucesso.append(identificador)
             parecer_formatado = f"""
-### PARECER: {parecer_data.get('agente', identificador)}
+### PARECER TÉCNICO: {parecer_data.get('agente', identificador)}
 
+**Tipo:** Perito Técnico  
 **Confiança:** {parecer_data.get('confianca', 0.0):.2%}
 
 **Análise Técnica:**
@@ -675,12 +918,47 @@ Agora, proceda com sua análise jurídica:
 
 ---
 """
-            pareceres_formatados_lista.append(parecer_formatado)
+            pareceres_peritos_formatados_lista.append(parecer_formatado)
         
-        pareceres_formatados = "\n".join(pareceres_formatados_lista)
+        pareceres_peritos_formatados = "\n".join(pareceres_peritos_formatados_lista)
         
-        if not pareceres_formatados:
-            pareceres_formatados = "[Nenhum parecer técnico disponível]"
+        if not pareceres_peritos_formatados:
+            pareceres_peritos_formatados = "[Nenhum parecer técnico de perito disponível]"
+        
+        # ===== ETAPA 1B: PREPARAR CONTEÚDO DOS PARECERES DOS ADVOGADOS ESPECIALISTAS (NOVO TAREFA-024) =====
+        
+        advogados_com_sucesso = []
+        advogados_com_erro = []
+        pareceres_advogados_formatados_lista = []
+        
+        # Garantir que pareceres_advogados_especialistas não seja None
+        if pareceres_advogados_especialistas is None:
+            pareceres_advogados_especialistas = {}
+        
+        for identificador, parecer_data in pareceres_advogados_especialistas.items():
+            if parecer_data.get("erro", False):
+                advogados_com_erro.append(identificador)
+                continue
+            
+            advogados_com_sucesso.append(identificador)
+            parecer_formatado = f"""
+### PARECER JURÍDICO: {parecer_data.get('agente', identificador)}
+
+**Tipo:** Advogado Especialista  
+**Área de Especialização:** {parecer_data.get('area_especializacao', 'Não especificada')}  
+**Confiança:** {parecer_data.get('confianca', 0.0):.2%}
+
+**Análise Jurídica Especializada:**
+{parecer_data.get('parecer', '[Parecer não disponível]')}
+
+---
+"""
+            pareceres_advogados_formatados_lista.append(parecer_formatado)
+        
+        pareceres_advogados_formatados = "\n".join(pareceres_advogados_formatados_lista)
+        
+        if not pareceres_advogados_formatados:
+            pareceres_advogados_formatados = "[Nenhum parecer jurídico de advogado especialista disponível]"
         
         # ===== ETAPA 2: PREPARAR CONTEXTO RAG =====
         
@@ -692,7 +970,8 @@ Agora, proceda com sua análise jurídica:
 # COMPILAÇÃO DE ANÁLISE JURÍDICA MULTI-AGENT
 
 Você é um advogado coordenador responsável por integrar pareceres técnicos
-de múltiplos especialistas em uma resposta jurídica coesa e fundamentada.
+de peritos E pareceres jurídicos de advogados especialistas em uma resposta
+jurídica final coesa e fundamentada.
 
 ## PERGUNTA ORIGINAL DO USUÁRIO:
 {pergunta_original}
@@ -705,32 +984,41 @@ de múltiplos especialistas em uma resposta jurídica coesa e fundamentada.
 ---
 
 ## PARECERES TÉCNICOS DOS PERITOS:
-{pareceres_formatados}
+{pareceres_peritos_formatados}
 
 {"## PERITOS QUE FALHARAM:" if peritos_com_erro else ""}
 {", ".join(peritos_com_erro) if peritos_com_erro else ""}
 
 ---
 
+## PARECERES JURÍDICOS DOS ADVOGADOS ESPECIALISTAS:
+{pareceres_advogados_formatados}
+
+{"## ADVOGADOS ESPECIALISTAS QUE FALHARAM:" if advogados_com_erro else ""}
+{", ".join(advogados_com_erro) if advogados_com_erro else ""}
+
+---
+
 ## SUA TAREFA:
 
-Compilar os pareceres técnicos acima em uma **resposta jurídica final** que:
+Compilar os pareceres técnicos E jurídicos acima em uma **resposta jurídica final** que:
 
 1. **INTEGRE OS INSIGHTS**: Não apenas liste os pareceres, mas INTEGRE-os
-   em uma narrativa coesa. Mostre como os pareceres se complementam ou
-   eventualmente se contradizem.
+   em uma narrativa coesa. Mostre como os pareceres TÉCNICOS (peritos) e 
+   JURÍDICOS (advogados especialistas) se complementam ou eventualmente se contradizem.
 
-2. **FUNDAMENTE JURIDICAMENTE**: Conecte os pareceres técnicos com
-   fundamentos jurídicos (leis, súmulas, jurisprudência).
+2. **FUNDAMENTE JURIDICAMENTE**: Conecte os pareceres técnicos com os pareceres
+   jurídicos especializados e com fundamentos jurídicos (leis, súmulas, jurisprudência).
 
-3. **CITE DOCUMENTOS**: Referencie os documentos do RAG que suportam
-   sua análise.
+3. **CITE DOCUMENTOS**: Referencie os documentos do RAG que suportam sua análise.
 
-4. **SEJA CONCLUSIVO**: Forneça uma conclusão clara e recomendações
-   práticas (se aplicável).
+4. **SEJA CONCLUSIVO**: Forneça uma conclusão clara e recomendações práticas (se aplicável).
 
-5. **MANTENHA OBJETIVIDADE**: Seja técnico e direto. Se houver lacunas
-   de informação, indique claramente.
+5. **MANTENHA OBJETIVIDADE**: Seja técnico e direto. Se houver lacunas de informação, 
+   indique claramente.
+
+6. **PRIORIZE A VISÃO JURÍDICA**: Os pareceres dos advogados especialistas devem ter
+   peso significativo na análise final, complementados pelos pareceres técnicos dos peritos.
 
 ---
 
@@ -740,7 +1028,7 @@ Compilar os pareceres técnicos acima em uma **resposta jurídica final** que:
 [Resumo em 1-2 parágrafos]
 
 **ANÁLISE INTEGRADA:**
-[Integração dos pareceres técnicos com documentos e fundamentos jurídicos]
+[Integração dos pareceres técnicos (peritos) E jurídicos (advogados especialistas) com documentos e fundamentos]
 
 **FUNDAMENTOS JURÍDICOS:**
 [Legislação, súmulas, jurisprudência aplicável]
@@ -752,7 +1040,8 @@ Compilar os pareceres técnicos acima em uma **resposta jurídica final** que:
 [Ações recomendadas, se aplicável]
 
 **FONTES UTILIZADAS:**
-- Pareceres técnicos: {", ".join(peritos_com_sucesso) if peritos_com_sucesso else "Nenhum"}
+- Pareceres técnicos (peritos): {", ".join(peritos_com_sucesso) if peritos_com_sucesso else "Nenhum"}
+- Pareceres jurídicos (advogados especialistas): {", ".join(advogados_com_sucesso) if advogados_com_sucesso else "Nenhum"}
 - Documentos citados: [Liste os documentos do RAG que foram relevantes]
 
 ---
@@ -780,22 +1069,32 @@ Agora, proceda com a compilação:
         
         # ===== ETAPA 5: CALCULAR CONFIANÇA DA COMPILAÇÃO =====
         
-        # Confiança é calculada como a média das confianças dos peritos
-        # com penalidade se alguns peritos falharam
+        # Confiança é calculada como a média das confianças dos peritos E advogados
+        # com penalidade se alguns falharam
         confiancias_peritos = [
             p.get("confianca", 0.0)
             for p in pareceres_peritos.values()
             if not p.get("erro", False)
         ]
         
-        if confiancias_peritos:
-            confianca_media = sum(confiancias_peritos) / len(confiancias_peritos)
+        confiancias_advogados = [
+            p.get("confianca", 0.0)
+            for p in pareceres_advogados_especialistas.values()
+            if not p.get("erro", False)
+        ]
+        
+        # Combinar todas as confianças (peritos + advogados)
+        todas_confiancias = confiancias_peritos + confiancias_advogados
+        
+        if todas_confiancias:
+            confianca_media = sum(todas_confiancias) / len(todas_confiancias)
         else:
-            confianca_media = 0.5  # Confiança neutra se não há peritos
+            confianca_media = 0.5  # Confiança neutra se não há peritos nem advogados
         
         # Penalizar se houve erros
-        if peritos_com_erro:
-            penalidade = 0.1 * len(peritos_com_erro)
+        total_erros = len(peritos_com_erro) + len(advogados_com_erro)
+        if total_erros > 0:
+            penalidade = 0.1 * total_erros
             confianca_media = max(0.0, confianca_media - penalidade)
         
         # Penalizar se não há contexto RAG
@@ -817,8 +1116,12 @@ Agora, proceda com a compilação:
                 "pergunta_original": pergunta_original,
                 "pareceres_peritos_utilizados": peritos_com_sucesso,
                 "pareceres_peritos_com_erro": peritos_com_erro,
+                "pareceres_advogados_utilizados": advogados_com_sucesso,  # NOVO TAREFA-024
+                "pareceres_advogados_com_erro": advogados_com_erro,  # NOVO TAREFA-024
                 "numero_de_peritos_consultados": len(pareceres_peritos),
                 "numero_de_peritos_com_sucesso": len(peritos_com_sucesso),
+                "numero_de_advogados_consultados": len(pareceres_advogados_especialistas),  # NOVO TAREFA-024
+                "numero_de_advogados_com_sucesso": len(advogados_com_sucesso),  # NOVO TAREFA-024
                 "numero_de_documentos_rag": len(contexto_rag),
                 "tamanho_da_resposta_caracteres": len(resposta_compilada),
                 "metadados_adicionais_fornecidos": metadados_adicionais or {},
@@ -829,6 +1132,7 @@ Agora, proceda com a compilação:
             f"✅ Resposta compilada com sucesso | "
             f"Confiança: {confianca_media:.2%} | "
             f"Peritos utilizados: {len(peritos_com_sucesso)} | "
+            f"Advogados utilizados: {len(advogados_com_sucesso)} | "
             f"Tamanho: {len(resposta_compilada)} caracteres"
         )
         
@@ -871,6 +1175,46 @@ Agora, proceda com a compilação:
         self.peritos_disponiveis[identificador] = classe_perito
         logger.info(f"✅ Perito '{identificador}' registrado com sucesso")
     
+    def registrar_advogado_especialista(self, identificador: str, classe_advogado: type) -> None:
+        """
+        Registra um novo agente advogado especialista no advogado coordenador.
+        
+        CONTEXTO (TAREFA-024):
+        Esta função permite adicionar novos advogados especialistas ao sistema de forma dinâmica.
+        É usada durante a inicialização da aplicação para registrar todos os
+        advogados especialistas disponíveis.
+        
+        Args:
+            identificador: Nome único do advogado (ex: "trabalhista", "previdenciario")
+            classe_advogado: Classe do agente advogado (deve herdar de AgenteAdvogadoBase)
+        
+        EXEMPLO:
+        ```python
+        from agentes.agente_advogado_trabalhista import AgenteAdvogadoTrabalhista
+        
+        advogado = AgenteAdvogadoCoordenador()
+        advogado.registrar_advogado_especialista("trabalhista", AgenteAdvogadoTrabalhista)
+        
+        # Agora pode delegar para o advogado trabalhista
+        pareceres = await advogado.delegar_para_advogados_especialistas(
+            pergunta="...",
+            contexto_de_documentos=[...],
+            advogados_selecionados=["trabalhista"]
+        )
+        ```
+        """
+        # Importar AgenteAdvogadoBase para validação
+        from src.agentes.agente_advogado_base import AgenteAdvogadoBase
+        
+        if not issubclass(classe_advogado, AgenteAdvogadoBase):
+            raise ValueError(
+                f"Classe do advogado deve herdar de AgenteAdvogadoBase. "
+                f"Recebido: {classe_advogado}"
+            )
+        
+        self.advogados_especialistas_disponiveis[identificador] = classe_advogado
+        logger.info(f"✅ Advogado especialista '{identificador}' registrado com sucesso")
+    
     def listar_peritos_disponiveis(self) -> List[str]:
         """
         Lista os identificadores de todos os peritos disponíveis.
@@ -879,6 +1223,26 @@ Agora, proceda com a compilação:
             List[str]: Lista de identificadores de peritos
         """
         return list(self.peritos_disponiveis.keys())
+    
+    def listar_advogados_especialistas_disponiveis(self) -> List[str]:
+        """
+        Lista os identificadores de todos os advogados especialistas disponíveis.
+        
+        CONTEXTO (TAREFA-024):
+        Retorna lista de advogados especialistas que foram registrados e estão
+        disponíveis para delegação.
+        
+        Returns:
+            List[str]: Lista de identificadores de advogados especialistas
+            
+        EXEMPLO:
+        ```python
+        advogado = criar_advogado_coordenador()
+        advogados_disponiveis = advogado.listar_advogados_especialistas_disponiveis()
+        print(advogados_disponiveis)  # ["trabalhista", "previdenciario", ...]
+        ```
+        """
+        return list(self.advogados_especialistas_disponiveis.keys())
 
 
 # ==============================================================================
@@ -930,9 +1294,44 @@ def criar_advogado_coordenador() -> AgenteAdvogadoCoordenador:
     except ImportError as erro:
         logger.warning(f"⚠️  Perito Segurança do Trabalho não disponível: {erro}")
     
+    # ===== REGISTRO DE ADVOGADOS ESPECIALISTAS DISPONÍVEIS (TAREFA-024) =====
+    
+    # Registrar Advogado Trabalhista (TAREFA-025 - A ser implementada)
+    try:
+        from src.agentes.agente_advogado_trabalhista import AgenteAdvogadoTrabalhista
+        advogado.registrar_advogado_especialista("trabalhista", AgenteAdvogadoTrabalhista)
+        logger.info("✅ Advogado Trabalhista registrado")
+    except ImportError as erro:
+        logger.debug(f"ℹ️  Advogado Trabalhista ainda não implementado: {erro}")
+    
+    # Registrar Advogado Previdenciário (TAREFA-026 - A ser implementada)
+    try:
+        from src.agentes.agente_advogado_previdenciario import AgenteAdvogadoPrevidenciario
+        advogado.registrar_advogado_especialista("previdenciario", AgenteAdvogadoPrevidenciario)
+        logger.info("✅ Advogado Previdenciário registrado")
+    except ImportError as erro:
+        logger.debug(f"ℹ️  Advogado Previdenciário ainda não implementado: {erro}")
+    
+    # Registrar Advogado Cível (TAREFA-027 - A ser implementada)
+    try:
+        from src.agentes.agente_advogado_civel import AgenteAdvogadoCivel
+        advogado.registrar_advogado_especialista("civel", AgenteAdvogadoCivel)
+        logger.info("✅ Advogado Cível registrado")
+    except ImportError as erro:
+        logger.debug(f"ℹ️  Advogado Cível ainda não implementado: {erro}")
+    
+    # Registrar Advogado Tributário (TAREFA-028 - A ser implementada)
+    try:
+        from src.agentes.agente_advogado_tributario import AgenteAdvogadoTributario
+        advogado.registrar_advogado_especialista("tributario", AgenteAdvogadoTributario)
+        logger.info("✅ Advogado Tributário registrado")
+    except ImportError as erro:
+        logger.debug(f"ℹ️  Advogado Tributário ainda não implementado: {erro}")
+    
     logger.info(
         f"✅ Advogado Coordenador criado | "
-        f"Peritos disponíveis: {advogado.listar_peritos_disponiveis()}"
+        f"Peritos disponíveis: {advogado.listar_peritos_disponiveis()} | "
+        f"Advogados especialistas disponíveis: {advogado.listar_advogados_especialistas_disponiveis()}"
     )
     
     return advogado

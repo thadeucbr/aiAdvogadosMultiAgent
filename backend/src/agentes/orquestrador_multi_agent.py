@@ -96,13 +96,15 @@ class StatusConsulta(Enum):
     1. INICIADA → Consulta recebida, validação em andamento
     2. CONSULTANDO_RAG → Buscando documentos relevantes no ChromaDB
     3. DELEGANDO_PERITOS → Peritos processando em paralelo
-    4. COMPILANDO_RESPOSTA → Advogado integrando pareceres
-    5. CONCLUIDA → Resposta final gerada com sucesso
-    6. ERRO → Falha em alguma etapa do processo
+    4. DELEGANDO_ADVOGADOS → (NOVO TAREFA-024) Advogados especialistas processando em paralelo
+    5. COMPILANDO_RESPOSTA → Advogado integrando pareceres
+    6. CONCLUIDA → Resposta final gerada com sucesso
+    7. ERRO → Falha em alguma etapa do processo
     """
     INICIADA = "iniciada"
     CONSULTANDO_RAG = "consultando_rag"
     DELEGANDO_PERITOS = "delegando_peritos"
+    DELEGANDO_ADVOGADOS = "delegando_advogados"  # NOVO TAREFA-024
     COMPILANDO_RESPOSTA = "compilando_resposta"
     CONCLUIDA = "concluida"
     ERRO = "erro"
@@ -187,7 +189,8 @@ class OrquestradorMultiAgent:
         logger.info(
             f"✅ Orquestrador inicializado | "
             f"Timeout: {self.timeout_padrao_agente}s | "
-            f"Peritos disponíveis: {self.agente_advogado.listar_peritos_disponiveis()}"
+            f"Peritos disponíveis: {self.agente_advogado.listar_peritos_disponiveis()} | "
+            f"Advogados especialistas disponíveis: {self.agente_advogado.listar_advogados_especialistas_disponiveis()}"
         )
     
     async def processar_consulta(
@@ -196,7 +199,8 @@ class OrquestradorMultiAgent:
         agentes_selecionados: Optional[List[str]] = None,
         id_consulta: Optional[str] = None,
         metadados_adicionais: Optional[Dict[str, Any]] = None,
-        documento_ids: Optional[List[str]] = None
+        documento_ids: Optional[List[str]] = None,
+        advogados_selecionados: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Processa uma consulta jurídica usando o sistema multi-agent.
@@ -206,18 +210,24 @@ class OrquestradorMultiAgent:
         1. Validação de entrada
         2. Consulta ao RAG (busca documentos relevantes)
         3. Delegação para peritos (execução em paralelo)
-        4. Compilação da resposta final
-        5. Retorno de resultado estruturado
+        4. Delegação para advogados especialistas (execução em paralelo) [NOVO TAREFA-024]
+        5. Compilação da resposta final
+        6. Retorno de resultado estruturado
         
         NOVIDADE (TAREFA-022):
-        Agora suporta seleção granular de documentos específicos via parâmetro documento_ids.
-        Quando fornecido, apenas os documentos selecionados serão usados na consulta RAG.
+        Suporta seleção granular de documentos específicos via parâmetro documento_ids.
+        
+        NOVIDADE (TAREFA-024):
+        Suporta seleção de advogados especialistas via parâmetro advogados_selecionados.
+        Agora o sistema orquestra DOIS TIPOS de agentes:
+        - Peritos (análise técnica): médico, segurança do trabalho
+        - Advogados Especialistas (análise jurídica): trabalhista, previdenciário, cível, tributário
         
         FLUXO DETALHADO:
         
         ETAPA 1: VALIDAÇÃO
         - Validar prompt não vazio
-        - Validar agentes selecionados (devem existir)
+        - Validar agentes selecionados (peritos E advogados)
         - Gerar ID único para consulta
         - Registrar consulta no cache de estado
         
@@ -225,47 +235,53 @@ class OrquestradorMultiAgent:
         - Status → CONSULTANDO_RAG
         - AgenteAdvogado busca documentos relevantes no ChromaDB
         - Se documento_ids fornecido, busca apenas nesses documentos
-        - Documentos são usados como contexto para peritos
         
         ETAPA 3: DELEGAR PARA PERITOS (SE HOUVER)
         - Status → DELEGANDO_PERITOS
         - AgenteAdvogado chama peritos em paralelo
-        - Cada perito tem timeout de self.timeout_padrao_agente segundos
-        - Pareceres são coletados conforme completam
+        - Pareceres técnicos são coletados
         
-        ETAPA 4: COMPILAR RESPOSTA
+        ETAPA 4: DELEGAR PARA ADVOGADOS ESPECIALISTAS (SE HOUVER) [NOVO TAREFA-024]
+        - Status → DELEGANDO_ADVOGADOS
+        - AgenteAdvogado chama advogados especialistas em paralelo
+        - Pareceres jurídicos especializados são coletados
+        
+        ETAPA 5: COMPILAR RESPOSTA
         - Status → COMPILANDO_RESPOSTA
-        - AgenteAdvogado integra pareceres + contexto RAG
+        - AgenteAdvogado integra pareceres de peritos + advogados + contexto RAG
         - Gera resposta jurídica coesa e fundamentada
         
-        ETAPA 5: RETORNAR RESULTADO
+        ETAPA 6: RETORNAR RESULTADO
         - Status → CONCLUIDA
         - Retornar resposta estruturada com metadados
         
         Args:
             prompt: Pergunta/solicitação do usuário
             agentes_selecionados: Lista de peritos a consultar (ex: ["medico", "seguranca_trabalho"])
-                                  Se None ou vazio, apenas o advogado responde (sem peritos)
+                                  Se None ou vazio, nenhum perito é consultado
             id_consulta: ID único da consulta (se None, será gerado automaticamente)
             metadados_adicionais: Metadados extras (tipo_processo, urgencia, etc.)
-            documento_ids: Lista opcional de IDs de documentos específicos para filtrar consulta RAG.
-                          Se None ou vazio, busca em todos os documentos disponíveis.
-                          Se fornecido, apenas chunks desses documentos são considerados.
+            documento_ids: Lista opcional de IDs de documentos específicos para filtrar consulta RAG
+            advogados_selecionados: (NOVO TAREFA-024) Lista de advogados especialistas a consultar
+                                    (ex: ["trabalhista", "previdenciario"])
+                                    Se None ou vazio, nenhum advogado especialista é consultado
         
         Returns:
             Dict[str, Any]: Resultado estruturado da consulta
             {
-                "id_consulta": str,                       # UUID da consulta
-                "status": str,                            # "concluida" ou "erro"
-                "resposta_compilada": str,                # Resposta final do advogado
-                "pareceres_individuais": List[Dict],      # Pareceres de cada perito
-                "documentos_consultados": List[str],      # Documentos do RAG utilizados
-                "numero_documentos_rag": int,             # Quantidade de documentos consultados
-                "agentes_utilizados": List[str],          # Agentes que participaram
-                "timestamp_inicio": str,                  # ISO 8601
-                "timestamp_fim": str,                     # ISO 8601
-                "tempo_total_segundos": float,            # Duração total
-                "metadados": Dict[str, Any]               # Metadados extras
+                "id_consulta": str,
+                "status": str,
+                "resposta_compilada": str,
+                "pareceres_individuais": List[Dict],        # Peritos
+                "pareceres_advogados": List[Dict],          # NOVO: Advogados especialistas
+                "documentos_consultados": List[str],
+                "numero_documentos_rag": int,
+                "agentes_utilizados": List[str],            # Peritos
+                "advogados_utilizados": List[str],          # NOVO: Advogados especialistas
+                "timestamp_inicio": str,
+                "timestamp_fim": str,
+                "tempo_total_segundos": float,
+                "metadados": Dict[str, Any]
             }
         
         Raises:
@@ -277,27 +293,26 @@ class OrquestradorMultiAgent:
         ```python
         orquestrador = OrquestradorMultiAgent()
         
-        # Consulta com peritos
+        # Consulta com peritos E advogados especialistas (NOVO TAREFA-024)
         resultado = await orquestrador.processar_consulta(
-            prompt="Analisar nexo causal do acidente de trabalho",
+            prompt="Analisar benefício auxílio-doença acidentário",
             agentes_selecionados=["medico", "seguranca_trabalho"],
+            advogados_selecionados=["trabalhista", "previdenciario"],
             metadados_adicionais={
-                "tipo_processo": "acidente_trabalho",
-                "urgencia": "alta"
+                "tipo_processo": "acidente_trabalho"
             }
         )
         
-        # Consulta com documentos específicos (NOVO na TAREFA-022)
+        # Consulta apenas com advogados especialistas (sem peritos)
         resultado = await orquestrador.processar_consulta(
-            prompt="Analisar nexo causal do acidente de trabalho",
-            agentes_selecionados=["medico"],
-            documento_ids=["uuid-doc-1", "uuid-doc-2"]
+            prompt="Analisar cálculo de verbas rescisórias",
+            advogados_selecionados=["trabalhista"]
         )
         
-        # Consulta sem peritos (apenas advogado)
+        # Consulta apenas com peritos (sem advogados especialistas)
         resultado = await orquestrador.processar_consulta(
-            prompt="Qual o prazo para recurso de sentença trabalhista?",
-            agentes_selecionados=[]
+            prompt="Analisar nexo causal do acidente",
+            agentes_selecionados=["medico"]
         )
         ```
         """
@@ -314,7 +329,8 @@ class OrquestradorMultiAgent:
             f"🎯 INICIANDO CONSULTA | "
             f"ID: {id_consulta} | "
             f"Prompt: '{prompt[:100]}...' | "
-            f"Agentes: {agentes_selecionados} | "
+            f"Peritos: {agentes_selecionados} | "
+            f"Advogados: {advogados_selecionados} | "
             f"Documentos filtrados: {len(documento_ids) if documento_ids else 'Todos'}"
         )
         
@@ -325,19 +341,37 @@ class OrquestradorMultiAgent:
             self._registrar_erro_consulta(id_consulta, mensagem_erro, timestamp_inicio)
             raise ValueError(mensagem_erro)
         
-        # Validar agentes selecionados
+        # Validar peritos selecionados
         agentes_selecionados = agentes_selecionados or []
         peritos_disponiveis = self.agente_advogado.listar_peritos_disponiveis()
         
-        agentes_invalidos = [
+        peritos_invalidos = [
             agente for agente in agentes_selecionados
             if agente not in peritos_disponiveis
         ]
         
-        if agentes_invalidos:
+        if peritos_invalidos:
             mensagem_erro = (
-                f"Agentes inválidos: {agentes_invalidos}. "
+                f"Peritos inválidos: {peritos_invalidos}. "
                 f"Disponíveis: {peritos_disponiveis}"
+            )
+            logger.error(f"❌ {mensagem_erro} | ID: {id_consulta}")
+            self._registrar_erro_consulta(id_consulta, mensagem_erro, timestamp_inicio)
+            raise ValueError(mensagem_erro)
+        
+        # Validar advogados especialistas selecionados (NOVO TAREFA-024)
+        advogados_selecionados = advogados_selecionados or []
+        advogados_disponiveis = self.agente_advogado.listar_advogados_especialistas_disponiveis()
+        
+        advogados_invalidos = [
+            advogado for advogado in advogados_selecionados
+            if advogado not in advogados_disponiveis
+        ]
+        
+        if advogados_invalidos:
+            mensagem_erro = (
+                f"Advogados especialistas inválidos: {advogados_invalidos}. "
+                f"Disponíveis: {advogados_disponiveis}"
             )
             logger.error(f"❌ {mensagem_erro} | ID: {id_consulta}")
             self._registrar_erro_consulta(id_consulta, mensagem_erro, timestamp_inicio)
@@ -439,26 +473,84 @@ class OrquestradorMultiAgent:
             else:
                 logger.info(
                     f"ℹ️  Nenhum perito selecionado | ID: {id_consulta} | "
-                    f"Advogado responderá diretamente"
+                    f"Advogado responderá com ou sem advogados especialistas"
                 )
             
-            # ===== ETAPA 4: COMPILAR RESPOSTA =====
+            # ===== ETAPA 4: DELEGAR PARA ADVOGADOS ESPECIALISTAS (SE HOUVER) [NOVO TAREFA-024] =====
+            
+            pareceres_advogados_especialistas = {}
+            
+            if advogados_selecionados:
+                self._atualizar_status_consulta(id_consulta, StatusConsulta.DELEGANDO_ADVOGADOS)
+                
+                logger.info(
+                    f"⚖️  DELEGANDO PARA ADVOGADOS ESPECIALISTAS | ID: {id_consulta} | "
+                    f"Advogados: {advogados_selecionados}"
+                )
+                
+                try:
+                    # Executar delegação com timeout
+                    pareceres_advogados_especialistas = await asyncio.wait_for(
+                        self.agente_advogado.delegar_para_advogados_especialistas(
+                            pergunta=prompt,
+                            contexto_de_documentos=contexto_rag,
+                            advogados_selecionados=advogados_selecionados,
+                            metadados_adicionais=metadados_adicionais
+                        ),
+                        timeout=self.timeout_padrao_agente
+                    )
+                    
+                    # Contar advogados que tiveram sucesso
+                    advogados_com_sucesso = [
+                        a for a in pareceres_advogados_especialistas.values()
+                        if not a.get("erro", False)
+                    ]
+                    
+                    logger.info(
+                        f"✅ ADVOGADOS ESPECIALISTAS CONCLUÍDOS | ID: {id_consulta} | "
+                        f"Sucesso: {len(advogados_com_sucesso)}/{len(advogados_selecionados)}"
+                    )
+                
+                except asyncio.TimeoutError:
+                    mensagem_erro = (
+                        f"Timeout ao processar advogados especialistas (limite: {self.timeout_padrao_agente}s)"
+                    )
+                    logger.error(f"⏱️  {mensagem_erro} | ID: {id_consulta}")
+                    self._registrar_erro_consulta(id_consulta, mensagem_erro, timestamp_inicio)
+                    raise TimeoutError(mensagem_erro)
+                
+                except Exception as erro_advogados:
+                    mensagem_erro = f"Erro ao delegar para advogados especialistas: {str(erro_advogados)}"
+                    logger.error(
+                        f"❌ {mensagem_erro} | ID: {id_consulta}",
+                        exc_info=True
+                    )
+                    self._registrar_erro_consulta(id_consulta, mensagem_erro, timestamp_inicio)
+                    raise RuntimeError(mensagem_erro)
+            
+            else:
+                logger.info(
+                    f"ℹ️  Nenhum advogado especialista selecionado | ID: {id_consulta}"
+                )
+            
+            # ===== ETAPA 5: COMPILAR RESPOSTA =====
             
             self._atualizar_status_consulta(id_consulta, StatusConsulta.COMPILANDO_RESPOSTA)
             
             logger.info(f"📝 COMPILANDO RESPOSTA | ID: {id_consulta}")
             
             try:
-                if pareceres_peritos:
-                    # Se há pareceres de peritos, compilar resposta integradora
+                if pareceres_peritos or pareceres_advogados_especialistas:
+                    # Se há pareceres de peritos OU advogados especialistas, compilar resposta integradora
                     resposta_final = self.agente_advogado.compilar_resposta(
                         pareceres_peritos=pareceres_peritos,
+                        pareceres_advogados_especialistas=pareceres_advogados_especialistas,  # NOVO TAREFA-024
                         contexto_rag=contexto_rag,
                         pergunta_original=prompt,
                         metadados_adicionais=metadados_adicionais
                     )
                 else:
-                    # Se não há peritos, advogado responde diretamente
+                    # Se não há peritos nem advogados especialistas, advogado coordenador responde diretamente
                     resposta_final = self.agente_advogado.processar(
                         contexto_de_documentos=contexto_rag,
                         pergunta_do_usuario=prompt,
@@ -476,19 +568,31 @@ class OrquestradorMultiAgent:
                 self._registrar_erro_consulta(id_consulta, mensagem_erro, timestamp_inicio)
                 raise RuntimeError(mensagem_erro)
             
-            # ===== ETAPA 5: RETORNAR RESULTADO =====
+            # ===== ETAPA 6: RETORNAR RESULTADO =====
             
             timestamp_fim = datetime.now()
             tempo_total = (timestamp_fim - timestamp_inicio).total_seconds()
             
             self._atualizar_status_consulta(id_consulta, StatusConsulta.CONCLUIDA)
             
-            # Montar lista de pareceres individuais (apenas os bem-sucedidos)
+            # Montar lista de pareceres individuais dos peritos (apenas os bem-sucedidos)
             pareceres_individuais = []
             for identificador_perito, parecer in pareceres_peritos.items():
                 if not parecer.get("erro", False):
                     pareceres_individuais.append({
                         "agente": parecer.get("agente", identificador_perito),
+                        "parecer": parecer.get("parecer", ""),
+                        "confianca": parecer.get("confianca", 0.0),
+                        "timestamp": parecer.get("timestamp", "")
+                    })
+            
+            # Montar lista de pareceres dos advogados especialistas (apenas os bem-sucedidos) [NOVO TAREFA-024]
+            pareceres_advogados = []
+            for identificador_advogado, parecer in pareceres_advogados_especialistas.items():
+                if not parecer.get("erro", False):
+                    pareceres_advogados.append({
+                        "agente": parecer.get("agente", identificador_advogado),
+                        "area_especializacao": parecer.get("area_especializacao", ""),
                         "parecer": parecer.get("parecer", ""),
                         "confianca": parecer.get("confianca", 0.0),
                         "timestamp": parecer.get("timestamp", "")
@@ -505,10 +609,12 @@ class OrquestradorMultiAgent:
                 "id_consulta": id_consulta,
                 "status": "concluida",
                 "resposta_compilada": resposta_final.get("parecer", ""),
-                "pareceres_individuais": pareceres_individuais,
+                "pareceres_individuais": pareceres_individuais,  # Peritos
+                "pareceres_advogados": pareceres_advogados,  # NOVO TAREFA-024: Advogados especialistas
                 "documentos_consultados": documentos_consultados,
                 "numero_documentos_rag": len(contexto_rag),
-                "agentes_utilizados": ["advogado"] + agentes_selecionados,
+                "agentes_utilizados": ["advogado"] + agentes_selecionados,  # Peritos
+                "advogados_utilizados": advogados_selecionados,  # NOVO TAREFA-024: Advogados especialistas
                 "timestamp_inicio": timestamp_inicio.isoformat(),
                 "timestamp_fim": timestamp_fim.isoformat(),
                 "tempo_total_segundos": round(tempo_total, 2),
@@ -522,7 +628,8 @@ class OrquestradorMultiAgent:
                 f"🎉 CONSULTA CONCLUÍDA COM SUCESSO | "
                 f"ID: {id_consulta} | "
                 f"Tempo: {tempo_total:.2f}s | "
-                f"Agentes: {len(pareceres_individuais)} peritos + advogado"
+                f"Peritos: {len(pareceres_individuais)} | "
+                f"Advogados especialistas: {len(pareceres_advogados)}"
             )
             
             return resultado
