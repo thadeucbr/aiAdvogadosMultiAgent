@@ -471,18 +471,42 @@ def criar_advogado_especialista_factory(
     Raises:
         ValueError: Se o tipo de advogado não for reconhecido
     """
-    # Mapear tipos para classes (será expandido nas TAREFAS 025-028)
-    # Por enquanto, apenas estrutura preparada
-    registry_advogados = {
-        # "trabalhista": AgenteAdvogadoTrabalhista,  # TAREFA-025
-        # "previdenciario": AgenteAdvogadoPrevidenciario,  # TAREFA-026
-        # "civel": AgenteAdvogadoCivel,  # TAREFA-027
-        # "tributario": AgenteAdvogadoTributario,  # TAREFA-028
-    }
+    # Mapear tipos para classes
+    # Importações dinâmicas para evitar dependências circulares
+    registry_advogados = {}
+    
+    # Tentar importar cada advogado especialista disponível
+    # TAREFA-025: Advogado Trabalhista
+    try:
+        from src.agentes.agente_advogado_trabalhista import AgenteAdvogadoTrabalhista
+        registry_advogados["trabalhista"] = AgenteAdvogadoTrabalhista
+    except ImportError:
+        pass
+    
+    # TAREFA-026: Advogado Previdenciário (futuro)
+    try:
+        from src.agentes.agente_advogado_previdenciario import AgenteAdvogadoPrevidenciario
+        registry_advogados["previdenciario"] = AgenteAdvogadoPrevidenciario
+    except ImportError:
+        pass
+    
+    # TAREFA-027: Advogado Cível (futuro)
+    try:
+        from src.agentes.agente_advogado_civel import AgenteAdvogadoCivel
+        registry_advogados["civel"] = AgenteAdvogadoCivel
+    except ImportError:
+        pass
+    
+    # TAREFA-028: Advogado Tributário (futuro)
+    try:
+        from src.agentes.agente_advogado_tributario import AgenteAdvogadoTributario
+        registry_advogados["tributario"] = AgenteAdvogadoTributario
+    except ImportError:
+        pass
     
     # Validar tipo
     if tipo_advogado not in registry_advogados:
-        tipos_disponiveis = ", ".join(registry_advogados.keys())
+        tipos_disponiveis = ", ".join(registry_advogados.keys()) if registry_advogados else "nenhum"
         raise ValueError(
             f"Tipo de advogado '{tipo_advogado}' não reconhecido. "
             f"Tipos disponíveis: {tipos_disponiveis}"
@@ -523,17 +547,37 @@ def listar_advogados_disponiveis() -> List[Dict[str, Any]]:
     ]
     ```
     """
-    # Lista de advogados disponíveis (será expandida nas TAREFAS 025-028)
-    # Por enquanto, retornar lista vazia
+    # Lista de advogados disponíveis
+    # Criar instâncias temporárias para obter informações
     advogados = []
     
-    # Quando os advogados forem implementados, algo como:
-    # advogados = [
-    #     AgenteAdvogadoTrabalhista().obter_informacoes_agente(),
-    #     AgenteAdvogadoPrevidenciario().obter_informacoes_agente(),
-    #     AgenteAdvogadoCivel().obter_informacoes_agente(),
-    #     AgenteAdvogadoTributario().obter_informacoes_agente(),
-    # ]
+    # TAREFA-025: Advogado Trabalhista
+    try:
+        from src.agentes.agente_advogado_trabalhista import AgenteAdvogadoTrabalhista
+        advogados.append(AgenteAdvogadoTrabalhista().obter_informacoes_agente())
+    except ImportError:
+        pass
+    
+    # TAREFA-026: Advogado Previdenciário (futuro)
+    try:
+        from src.agentes.agente_advogado_previdenciario import AgenteAdvogadoPrevidenciario
+        advogados.append(AgenteAdvogadoPrevidenciario().obter_informacoes_agente())
+    except ImportError:
+        pass
+    
+    # TAREFA-027: Advogado Cível (futuro)
+    try:
+        from src.agentes.agente_advogado_civel import AgenteAdvogadoCivel
+        advogados.append(AgenteAdvogadoCivel().obter_informacoes_agente())
+    except ImportError:
+        pass
+    
+    # TAREFA-028: Advogado Tributário (futuro)
+    try:
+        from src.agentes.agente_advogado_tributario import AgenteAdvogadoTributario
+        advogados.append(AgenteAdvogadoTributario().obter_informacoes_agente())
+    except ImportError:
+        pass
     
     logger.info(f"Listando {len(advogados)} advogados especialistas disponíveis")
     return advogados

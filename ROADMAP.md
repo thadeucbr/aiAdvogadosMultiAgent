@@ -47,8 +47,10 @@ Aqui está o **Roadmap v2.0** atualizado:
 - ✅ TAREFA-021: Página de Histórico de Documentos
 - ✅ TAREFA-022: Atualizar API de Análise para Seleção de Documentos
 - ✅ TAREFA-023: Componente de Seleção de Documentos na Análise (Frontend)
+- ✅ TAREFA-024: Refatorar Infraestrutura de Agentes para Advogados Especialistas
+- ✅ TAREFA-025: Criar Agente Advogado Especialista - Direito do Trabalho
 
-**Próximo passo:** TAREFA-024 (Refatorar Infra de Agentes para Advogados Especialistas)
+**Próximo passo:** TAREFA-026 (Criar Agente Advogado Especialista - Direito Previdenciário)
 
 ---
 
@@ -143,43 +145,46 @@ Aqui está o **Roadmap v2.0** atualizado:
 
 ---
 
-#### 🟡 TAREFA-024: Refatorar Infra de Agentes para Advogados Especialistas
+#### ✅ TAREFA-024: Refatorar Infra de Agentes para Advogados Especialistas
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-013  
 **Estimativa:** 3-4 horas  
-**Status:** 🟡 PENDENTE
+**Status:** ✅ CONCLUÍDA (2025-10-24)
 
 **Escopo:**
-- [ ] Criar `backend/src/agentes/agente_advogado_base.py` (similar ao `agente_base.py` mas para advogados).
-- [ ] Atualizar `OrquestradorMultiAgent` (TAREFA-013) para aceitar uma *segunda lista* de agentes: `advogados_selecionados: list[str]`.
-- [ ] Atualizar `AgenteAdvogadoCoordenador` (TAREFA-010):
-  - [ ] O Coordenador agora irá delegar para Peritos *E* para Advogados Especialistas (em paralelo).
-  - [ ] O método `compilar_resposta` agora deve compilar os pareceres dos peritos + os pareceres dos advogados especialistas.
-- [ ] Criar endpoint `GET /api/analise/advogados` para listar especialistas disponíveis.
+- [x] Criar `backend/src/agentes/agente_advogado_base.py` (similar ao `agente_base.py` mas para advogados).
+- [x] Atualizar `OrquestradorMultiAgent` (TAREFA-013) para aceitar uma *segunda lista* de agentes: `advogados_selecionados: list[str]`.
+- [x] Atualizar `AgenteAdvogadoCoordenador` (TAREFA-010):
+  - [x] O Coordenador agora irá delegar para Peritos *E* para Advogados Especialistas (em paralelo).
+  - [x] O método `compilar_resposta` agora deve compilar os pareceres dos peritos + os pareceres dos advogados especialistas.
+- [x] Criar endpoint `GET /api/analise/advogados` para listar especialistas disponíveis.
 
 **Entregáveis:**
-- Infraestrutura de orquestração capaz de lidar com dois tipos de agentes (Peritos e Advogados).
+- ✅ Infraestrutura de orquestração capaz de lidar com dois tipos de agentes (Peritos e Advogados).
+- ✅ Changelog completo: `changelogs/TAREFA-024_refatorar-infra-agentes-advogados.md`
 
 ---
 
-#### 🟡 TAREFA-025: Criar Agente Advogado Especialista - Direito do Trabalho
+#### ✅ TAREFA-025: Criar Agente Advogado Especialista - Direito do Trabalho
 **Prioridade:** 🟡 ALTA  
 **Dependências:** TAREFA-024  
 **Estimativa:** 2-3 horas  
-**Status:** 🟡 PENDENTE
+**Status:** ✅ CONCLUÍDA (2025-10-24)
 
 **Escopo:**
-- [ ] Criar `backend/src/agentes/agente_advogado_trabalhista.py`
-- [ ] Herdar de `AgenteAdvogadoBase`.
-- [ ] Criar prompt focado na análise jurídica (visão do advogado) de:
+- [x] Criar `backend/src/agentes/agente_advogado_trabalhista.py`
+- [x] Herdar de `AgenteAdvogadoBase`.
+- [x] Criar prompt focado na análise jurídica (visão do advogado) de:
   - Verbas rescisórias, justa causa.
   - Horas extras, adicional noturno, intrajornada.
   - Dano moral, assédio.
   - Análise de conformidade com CLT e Súmulas do TST.
-- [ ] Registrar agente no `OrquestradorMultiAgent`.
+- [x] Registrar agente no `OrquestradorMultiAgent`.
 
 **Entregáveis:**
-- Agente Advogado Trabalhista funcional.
+- ✅ Agente Advogado Trabalhista funcional.
+- ✅ Testes unitários completos (test_agente_advogado_trabalhista.py)
+- ✅ Changelog completo: `changelogs/TAREFA-025_agente-advogado-trabalhista.md`
 
 ---
 

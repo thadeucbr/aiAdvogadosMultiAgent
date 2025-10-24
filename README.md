@@ -169,7 +169,7 @@ npm run dev
 
 ## 📋 Status do Projeto
 
-**Versão Atual:** 0.7.0 (Infraestrutura para Advogados Especialistas)  
+**Versão Atual:** 0.8.0 (Agente Advogado Trabalhista)  
 **Última Atualização:** 2025-10-24
 
 ### ✅ Concluído
@@ -206,6 +206,12 @@ npm run dev
   - Modelos API para pareceres de advogados
   - Endpoint `GET /api/analise/advogados`
   - Sistema pronto para TAREFAS 025-028 (implementar advogados específicos)
+- [x] **Agente Advogado Trabalhista (TAREFA-025)**
+  - Implementação completa do `AgenteAdvogadoTrabalhista`
+  - Prompt especializado em Direito do Trabalho (CLT, TST, Reforma Trabalhista)
+  - Análise de rescisão, justa causa, verbas, horas extras, estabilidades
+  - Registro automático no Coordenador
+  - Testes unitários completos
 - [x] Backend: Seleção de Documentos para Análise (documento_ids na API)
 - [x] Frontend: Componente de Seleção de Documentos para Análise
 - [x] Seleção Granular de Documentos para Análise (Backend API)

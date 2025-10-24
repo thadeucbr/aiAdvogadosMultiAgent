@@ -65,14 +65,17 @@
 | **022** | 2025-10-24 | Atualizar API de Análise para Seleção de Documentos | modelos.py, agente_advogado_coordenador.py, orquestrador_multi_agent.py, rotas_analise.py, ARQUITETURA.md | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-022_selecao-documentos-analise.md) |
 | **023** | 2025-10-24 | Componente de Seleção de Documentos na Análise (Frontend) | ComponenteSelecionadorDocumentos.tsx, PaginaAnalise.tsx, tiposAgentes.ts | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-023_componente-selecao-documentos-analise.md) |
 | **024** | 2025-10-24 | Refatorar Infraestrutura de Agentes para Advogados Especialistas | modelos.py, rotas_analise.py (agente_advogado_base.py, agente_advogado_coordenador.py, orquestrador_multi_agent.py já existiam) | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-024_refatorar-infra-agentes-advogados.md) |
+| **025** | 2025-10-24 | Criar Agente Advogado Especialista - Direito do Trabalho | agente_advogado_trabalhista.py, agente_advogado_base.py, test_agente_advogado_trabalhista.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-025_agente-advogado-trabalhista.md) |
 
 ---
 
 ## 🎯 Última Tarefa Concluída
 
-**TAREFA-024** - Refatorar Infraestrutura de Agentes para Advogados Especialistas  
+**TAREFA-025** - Criar Agente Advogado Especialista - Direito do Trabalho  
 **Data:** 2025-10-24  
 **IA:** GitHub Copilot  
+**Status:** ✅ CONCLUÍDA  
+**Resumo:** Implementação completa do primeiro agente advogado especialista do sistema multi-agent. Criado `AgenteAdvogadoTrabalhista` herdando de `AgenteAdvogadoBase` com prompt altamente especializado em Direito do Trabalho. O agente analisa questões trabalhistas sob ótica da CLT, Súmulas do TST e Reforma Trabalhista (Lei 13.467/2017). Expertise em: (1) Vínculos empregatícios e caracterização de relação de emprego; (2) Rescisão e verbas rescisórias (com cálculos e prazos); (3) Justa causa (art. 482 e 483 CLT) com análise de requisitos (gravidade, atualidade, nexo causal); (4) Jornada e horas extras (CLT art. 58-75, adicional 50%, adicional noturno 20%); (5) Estabilidades provisórias (gestante, acidente, CIPA, dirigente sindical); (6) Dano moral e assédio trabalhista; (7) Acordos e convenções coletivas. Prompt especializado com 4 seções principais: (a) Aspectos Trabalhistas a Examinar (7 tópicos detalhados); (b) Legislação Específica Aplicável (CLT, TST, Reforma); (c) Pontos de Atenção Críticos (prescrição, ônus da prova, cálculos); (d) Estrutura de Parecer (introdução, fundamentação, conclusão). Atributos configurados: `legislacao_principal` com 7 leis, `palavras_chave_especializacao` com 50+ termos trabalhistas, `temperatura_padrao=0.3` para precisão jurídica. Validação de relevância implementada (verifica palavras-chave na pergunta). Registro automático no `AgenteAdvogadoCoordenador` via try/except (import dinâmico). Factory `criar_advogado_trabalhista()` criada. Atualizada função `criar_advogado_especialista_factory()` e `listar_advogados_disponiveis()` em `agente_advogado_base.py` para incluir trabalhista dinamicamente. Testes unitários completos criados (test_agente_advogado_trabalhista.py) com 11 casos de teste cobrindo: criação, atributos, prompts, validação de relevância, informações do agente, factory, integração com LLM. Informações em `INFORMACOES_ADVOGADOS` (rotas_analise.py) já estavam presentes desde TAREFA-024. Sistema agora possui PRIMEIRO advogado especialista funcional. **PRÓXIMA TAREFA:** TAREFA-026 (Criar Agente Advogado Previdenciário) - seguir mesmo padrão. **MARCO:** 🎉 Primeiro advogado especialista implementado! Sistema multi-agent agora pode fornecer análises jurídicas trabalhistas especializadas além das análises técnicas dos peritos!
 **Status:** ✅ CONCLUÍDA  
 **Resumo:** Refatoração da infraestrutura multi-agent para suportar advogados especialistas além dos peritos técnicos. **Descoberta importante:** 80% da infraestrutura já estava implementada em tarefas anteriores! O trabalho focou em completar a API pública. Verificado que `agente_advogado_base.py` (540 linhas) já existia com classe abstrata completa, factory e métodos de validação. Verificado que `agente_advogado_coordenador.py` já tinha método `delegar_para_advogados_especialistas()` (linhas 578-750) com execução em paralelo via asyncio, e método `compilar_resposta()` já atualizado para incluir pareceres de advogados. Verificado que `orquestrador_multi_agent.py` já tinha parâmetro `advogados_selecionados` em `processar_consulta()`, validação de advogados, e enum `StatusConsulta.DELEGANDO_ADVOGADOS`. Implementado nesta tarefa: (1) Criados modelos Pydantic: `ParecerIndividualAdvogado` (com campos area_especializacao e legislacao_citada), `InformacaoAdvogado`, `RespostaListarAdvogados`; (2) Atualizado `RequestAnaliseMultiAgent` com campo `advogados_selecionados` e validator; (3) Atualizado `RespostaAnaliseMultiAgent` com campos `pareceres_advogados` e `advogados_utilizados`; (4) Criado endpoint `GET /api/analise/advogados` em rotas_analise.py; (5) Criado dicionário estático `INFORMACOES_ADVOGADOS` com 4 advogados (trabalhista, previdenciario, civel, tributario); (6) Atualizada documentação do módulo rotas_analise.py descrevendo fluxo completo: RAG → Peritos (técnica) → Advogados (jurídica) → Compilação. Sistema agora orquestra DOIS TIPOS de agentes: Peritos (análise técnica: médico, segurança) e Advogados Especialistas (análise jurídica: trabalhista, previdenciário, cível, tributário). Fluxo completo: (1) Frontend seleciona peritos E advogados; (2) Orquestrador valida ambos; (3) Coordenador consulta RAG; (4) Coordenador delega para peritos (paralelo); (5) Coordenador delega para advogados (paralelo); (6) Coordenador compila TODOS os pareceres (técnicos + jurídicos); (7) API retorna resposta com pareceres_individuais (peritos) E pareceres_advogados (advogados). Changelog detalhado criado (1300+ linhas) em changelogs/TAREFA-024_refatorar-infra-agentes-advogados.md documentando: infraestrutura descoberta, implementações, decisões técnicas, hierarquia de agentes, 4 casos de uso, template para TAREFAS 025-028, estatísticas (80% já existia!). Infraestrutura 100% funcional e pronta para implementação dos 4 advogados especialistas nas próximas tarefas. **PRÓXIMA TAREFA:** TAREFA-025 (Criar Agente Advogado Trabalhista) - primeira implementação concreta usando AgenteAdvogadoBase. **MARCO:** 🎉 Sistema multi-agent agora suporta análise técnica (peritos) E análise jurídica (advogados) de forma integrada!
 
@@ -80,16 +83,20 @@
 
 ## 🚀 Próxima Tarefa Sugerida
 
-**TAREFA-024:** Refatorar Infraestrutura de Agentes para Advogados Especialistas
+**TAREFA-026:** Criar Agente Advogado Especialista - Direito Previdenciário
 
 **Escopo:**
-- Criar `backend/src/agentes/agente_advogado_base.py` (similar ao `agente_base.py` mas para advogados)
-- Atualizar `OrquestradorMultiAgent` para aceitar segunda lista: `advogados_selecionados: list[str]`
-- Atualizar `AgenteAdvogadoCoordenador` para delegar para Peritos E Advogados Especialistas
-- Criar endpoint `GET /api/analise/advogados` para listar especialistas disponíveis
-- Refatorar infraestrutura de orquestração para lidar com dois tipos de agentes
+- Criar `backend/src/agentes/agente_advogado_previdenciario.py`
+- Herdar de `AgenteAdvogadoBase`
+- Criar prompt focado na análise jurídica previdenciária de:
+  - Concessão de benefícios (Auxílio-doença, Aposentadoria por Invalidez, BPC/LOAS)
+  - Análise de nexo causal (visão jurídica) para fins de benefício acidentário
+  - Tempo de contribuição, carência, qualidade de segurado
+  - Legislação: Lei 8.213/91, Decreto 3.048/99, Lei 8.742/93 (LOAS)
+- Registrar agente no Coordenador (import dinâmico já configurado)
+- Criar testes unitários
 
-**Objetivo:** Preparar infraestrutura para suportar múltiplos agentes advogados especialistas (Trabalhista, Previdenciário, Cível, Tributário).
+**Objetivo:** Implementar segundo advogado especialista seguindo o padrão estabelecido na TAREFA-025.
 
 ---
 
