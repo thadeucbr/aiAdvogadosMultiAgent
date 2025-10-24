@@ -59,29 +59,31 @@
 | **016** | 2025-10-23 | Componente de Upload de Documentos | ComponenteUploadDocumentos.tsx, tiposDocumentos.ts, servicoApiDocumentos.ts, PaginaUpload.tsx | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-016_componente-upload-documentos.md) |
 | **017** | 2025-10-24 | Exibição de Shortcuts Sugeridos | ComponenteBotoesShortcut.tsx, modelos.py, rotas_documentos.py, tailwind.config.js | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-017_exibicao-shortcuts-sugeridos.md) |
 | **018** | 2025-10-24 | Componente de Seleção de Agentes | ComponenteSelecionadorAgentes.tsx, tiposAgentes.ts, servicoApiAnalise.ts, armazenamentoAgentes.ts | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-018_componente-selecao-agentes.md) |
+| **019** | 2025-10-24 | Interface de Consulta e Análise | PaginaAnalise.tsx | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-019_interface-consulta-analise.md) |
 
 ---
 
 ## 🎯 Última Tarefa Concluída
 
-**TAREFA-018** - Componente de Seleção de Agentes  
+**TAREFA-019** - Interface de Consulta e Análise  
 **Data:** 2025-10-24  
 **IA:** GitHub Copilot  
-**Resumo:** Implementado sistema completo de seleção de agentes peritos para análise multi-agent. Criados 4 arquivos principais: (1) tiposAgentes.ts (~430 linhas): tipos (IdPerito, InformacaoPerito, RespostaListarPeritos, ParecerIndividualPerito, RespostaAnaliseMultiAgent, RequestAnaliseMultiAgent, RespostaErroAnalise), constantes de validação (TAMANHO_MINIMO_PROMPT=10, TAMANHO_MAXIMO_PROMPT=2000, MINIMO_AGENTES_SELECIONADOS=1), tipos utilitários (EstadoCarregamento, EstadoSelecaoAgentes); (2) servicoApiAnalise.ts (~390 linhas): listarPeritosDisponiveis() GET /api/analise/peritos, realizarAnaliseMultiAgent() POST /api/analise/multi-agent com timeout 120s, verificarHealthAnalise() GET /api/analise/health, funções utilitárias (validarPrompt, validarAgentesSelecionados, obterMensagemErroAmigavel type-safe); (3) armazenamentoAgentes.ts (~310 linhas): Zustand store com middlewares devtools+persist, estado (agentesSelecionados: string[]), 8 ações (alternarAgente, selecionarAgente, desselecionarAgente, definirAgentesSelecionados, limparSelecao, estaAgenteSelecionado, obterTotalSelecionados, isSelecaoValida), hooks derivados (useAgentesSelecionados, useAlternarAgente, useIsSelecaoValida), persistência em localStorage (chave: 'armazenamento-agentes'); (4) ComponenteSelecionadorAgentes.tsx (~450 linhas): busca de peritos da API ao montar, estados (loading/success/error), grid responsivo 1-2 colunas, cards clicáveis com toggle, indicação visual de selecionado (borda azul, bg azul claro, shadow), ícones específicos (User para Médico, Shield para Seg. Trabalho), checkboxes visuais (CheckCircle2/Circle), descrição sempre visível (line-clamp-2), especialidades expandíveis com botão "Ver/Ocultar", botões de ação ("Todos" e "Limpar" com estados disabled), validação visual (mensagem vermelha se nenhum selecionado), resumo da seleção (box azul com nomes), animação fade-in, callback aoAlterarSelecao, prop exibirValidacao. Total: ~1.580 linhas de código, 47% documentação. Integração: Backend endpoint GET /api/analise/peritos já implementado (TAREFA-014), tipos sincronizados com modelos Pydantic, store persiste seleção entre sessões. **MARCO ALCANÇADO:** COMPONENTE DE SELEÇÃO DE AGENTES COMPLETO! Usuários podem selecionar peritos para análise multi-agent com UI intuitiva e estado persistido. Próximo: TAREFA-019 (Interface de Consulta e Análise).
+**Resumo:** Implementada página completa de análise multi-agent (~550 linhas). Funcionalidades: (1) Integração com ComponenteSelecionadorAgentes (TAREFA-018) para seleção de peritos; (2) Textarea para prompt do usuário com validação client-side (10-2000 caracteres), contador de caracteres em tempo real, feedback visual (borda vermelha se inválido), placeholder explicativo; (3) Validações completas usando funções do servicoApiAnalise (validarPrompt, validarAgentesSelecionados), mensagens de erro específicas para cada caso, validação progressive (só exibe erros após primeira tentativa); (4) Botão "Analisar" dinâmico (texto "Analisar com N Perito(s)", ícone Send/Loader2, desabilitado durante loading); (5) Loading state robusto (spinner animado, contador de tempo decorrido atualizado a cada segundo, mensagem adicional após 10s "pode levar até 2 minutos", clearInterval ao finalizar); (6) Chamada à API POST /api/analise/multi-agent via realizarAnaliseMultiAgent() (timeout 120s já configurado no serviço); (7) Exibição de resultados (card verde de confirmação com metadados: tempo execução, confiança geral, documentos consultados, botão "Nova Análise"; resposta compilada destacada com formatação whitespace-pre-wrap; pareceres individuais em cards separados com nome perito, badge de confiança colorido [verde ≥90%, amarelo 70-89%, vermelho <70%], texto do parecer, número de documentos); (8) Tratamento de erros (card vermelho com mensagem amigável via obterMensagemErroAmigavel(), casos: Network Error, Timeout, 400/500 HTTP, botão "Tentar Novamente"); (9) Handler handleEnviarAnalise (ativa validações, valida formulário, limpa estados, inicia loading + contador, faz requisição, processa resposta, trata exceções); (10) Handler handleLimparResultados (reseta todos estados, limpa intervalo). Estados: 7 locais (textoPrompt, estadoCarregamento, resultadoAnalise, mensagemErro, exibirValidacao, tempoDecorrido, intervalId) + 1 store Zustand (agentesSelecionados). Integração: rota /analise já existente no App.tsx (TAREFA-015), serviço e tipos já implementados (TAREFA-018), ComponenteSelecionadorAgentes (TAREFA-018). Design: cores semânticas (verde sucesso, vermelho erro, azul loading), ícones Lucide (Send, Loader2, AlertCircle, CheckCircle2, Clock, TrendingUp), animação fade-in, responsivo (botão full-width mobile, auto desktop). **MARCO ALCANÇADO:** 🎉 PRIMEIRA FUNCIONALIDADE END-TO-END COMPLETA! Frontend + Backend + Multi-Agent + RAG tudo funcionando integrado. Usuários podem realizar análises jurídicas completas com múltiplos peritos especializados. Próximo: TAREFA-020 (Componente dedicado de exibição de pareceres com Markdown/PDF/Clipboard).
 
 ---
 
 ## 🚀 Próxima Tarefa Sugerida
 
-**TAREFA-019:** Interface de Consulta e Análise
+**TAREFA-020:** Componente de Exibição de Pareceres
 
 **Escopo:**
-- Criar PaginaAnalise.tsx com campo de prompt
-- Integrar ComponenteSelecionadorAgentes
-- Botão "Analisar" com loading states
-- Chamar servicoApiAnalise.realizarAnaliseMultiAgent()
-- Integrar com ComponenteExibicaoPareceres (TAREFA-020)
-- Tratamento de erros e timeout (2 minutos)
+- Criar ComponenteExibicaoPareceres.tsx dedicado
+- Tabs ou Accordions para pareceres individuais
+- Markdown rendering para formatação avançada
+- Exportar parecer como PDF (jsPDF)
+- Copiar parecer para clipboard
+- Animações de entrada/saída
+- Substituir exibição básica da TAREFA-019
 
 ---
 
