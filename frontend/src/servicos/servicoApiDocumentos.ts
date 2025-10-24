@@ -421,3 +421,51 @@ export async function verificarHealthDocumentos(): Promise<boolean> {
     return false;
   }
 }
+
+
+// ===== FUNÇÕES DE GERENCIAMENTO =====
+
+/**
+ * Deleta um documento do sistema
+ * 
+ * CONTEXTO DE NEGÓCIO:
+ * Remove permanentemente um documento do sistema, incluindo:
+ * - Arquivo físico do disco
+ * - Chunks vetorizados do ChromaDB
+ * - Metadados de processamento
+ * 
+ * ATENÇÃO: Esta ação é irreversível!
+ * 
+ * IMPLEMENTAÇÃO:
+ * Chama DELETE /api/documentos/{idDocumento}
+ * 
+ * @param idDocumento - UUID do documento a deletar
+ * @returns Promise<void>
+ * 
+ * @throws {Error} Se documento não for encontrado ou houver erro no servidor
+ * 
+ * @example
+ * try {
+ *   await deletarDocumento('abc-123');
+ *   alert('Documento deletado com sucesso');
+ * } catch (erro) {
+ *   alert('Erro ao deletar documento');
+ * }
+ */
+export async function deletarDocumento(idDocumento: string): Promise<void> {
+  if (!idDocumento) {
+    throw new Error('ID do documento não fornecido');
+  }
+
+  try {
+    await clienteApi.delete(`/api/documentos/${idDocumento}`);
+  } catch (erro: unknown) {
+    const erroAxios = erro as { response?: { status: number }; message: string };
+    
+    if (erroAxios.response?.status === 404) {
+      throw new Error(`Documento ${idDocumento} não encontrado`);
+    }
+    
+    throw new Error(`Erro ao deletar documento: ${erroAxios.message}`);
+  }
+}

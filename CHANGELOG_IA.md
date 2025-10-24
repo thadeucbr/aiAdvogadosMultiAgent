@@ -61,30 +61,29 @@
 | **018** | 2025-10-24 | Componente de Seleção de Agentes | ComponenteSelecionadorAgentes.tsx, tiposAgentes.ts, servicoApiAnalise.ts, armazenamentoAgentes.ts | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-018_componente-selecao-agentes.md) |
 | **019** | 2025-10-24 | Interface de Consulta e Análise | PaginaAnalise.tsx | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-019_interface-consulta-analise.md) |
 | **020** | 2025-10-24 | Componente de Exibição de Pareceres | ComponenteExibicaoPareceres.tsx, PaginaAnalise.tsx, package.json | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-020_componente-exibicao-pareceres.md) |
+| **021** | 2025-10-24 | Página de Histórico de Documentos | PaginaHistorico.tsx, ComponenteFiltrosHistorico.tsx, ComponenteListaDocumentos.tsx, tiposHistorico.ts, servicoApiDocumentos.ts | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-021_pagina-historico-documentos.md) |
 
 ---
 
 ## 🎯 Última Tarefa Concluída
 
-**TAREFA-020** - Componente de Exibição de Pareceres  
+**TAREFA-021** - Página de Histórico de Documentos  
 **Data:** 2025-10-24  
 **IA:** GitHub Copilot  
-**Resumo:** Criado componente dedicado ComponenteExibicaoPareceres.tsx (~504 linhas) para exibição profissional de resultados de análise multi-agent. Funcionalidades implementadas: (1) Renderização de Markdown com react-markdown + remark-gfm (suporte a headings, listas, code blocks inline/multi-linha, blockquotes, tabelas, bold, italic, links); (2) Exportação para PDF com jsPDF (3 modos: parecer individual, resposta compilada, relatório completo com todos pareceres + metadados); (3) Cópia para clipboard usando Clipboard API moderna (feedback visual temporário de 2s); (4) Interface expansível/recolhível (pareceres iniciam com preview de 6 linhas via line-clamp, botão "Ler mais"/"Recolher"); (5) Ícones contextuais por tipo de perito (⚖️ Advogado, 🩺 Médico, 🦺 Segurança); (6) Indicadores de confiança com cores (verde ≥90%, amarelo 70-89%, vermelho <70%); (7) Card de informações gerais (tempo execução, confiança geral, documentos consultados, botão "Nova Análise", botão "Exportar Relatório Completo"); (8) Resposta compilada em destaque principal (gradient indigo, botões Copiar/PDF); (9) Pareceres individuais em cards separados (gradient azul, botões Expandir/Copiar/PDF); (10) Componentes Markdown customizados (classes Tailwind para headings, listas espaçadas, code blocks com bg cinza, tabelas responsivas). Estados internos: parecerExpandido (controla qual está aberto), copiado (feedback de cópia). Funções: copiarParaClipboard(), exportarParecerPDF(), exportarRespostaCompiladaPDF(), exportarTodosPDF(), renderizarIconeAgente(). Integração: PaginaAnalise.tsx refatorada para usar componente (removida lógica de exibição básica da TAREFA-019), props resultado + onNovaAnalise. Dependências adicionadas: react-markdown ^9.x, remark-gfm ^4.x, jspdf ^2.x. Design: gradients (indigo para compilada, azul para peritos), transições suaves, responsivo, acessível (keyboard navigation, screen reader friendly). Limitações documentadas: Markdown não suporta HTML inline, PDFs são texto plano (sem formatação/imagens), Clipboard API requer HTTPS/localhost. **MARCO ALCANÇADO:** 🎉 COMPONENTE DE EXIBIÇÃO PROFISSIONAL COMPLETO! Usuários podem visualizar pareceres formatados, exportar para PDF e copiar para clipboard com interface moderna e intuitiva. Separação clara de responsabilidades melhora manutenibilidade. Próximo: TAREFA-021 (Página de Histórico de Documentos).
+**Resumo:** Implementação completa da página de histórico de documentos no frontend. Criados 4 novos arquivos (~1.430 linhas totais): (1) tiposHistorico.ts (474 linhas) - tipos TypeScript para filtros, ordenação, paginação e funções utilitárias puras (aplicarFiltrosDocumentos, ordenarDocumentos, paginarDocumentos); (2) ComponenteFiltrosHistorico.tsx (265 linhas) - filtros por nome, tipo, status e data com seção avançada expansível; (3) ComponenteListaDocumentos.tsx (421 linhas) - tabela responsiva com badges coloridos de status, ícones por tipo, paginação e modal de confirmação de deleção; (4) PaginaHistorico.tsx (270 linhas) - container component que orquestra estado completo, integra filtros + listagem, processa filtros client-side. Modificado servicoApiDocumentos.ts (+59 linhas) com função deletarDocumento(). Funcionalidades: listagem de todos documentos, busca por nome (case-insensitive), filtros por tipo/status/data, paginação (25 docs/página), ordenação por data descendente, deleção com confirmação, estados vazios tratados (sem docs, sem resultados, loading, erro). UI: tabela com colunas (Nome, Tipo, Tamanho, Data, Status, Ações), badges coloridos (verde=concluído, azul=processando, amarelo=pendente, vermelho=erro), ícones Lucide React (FileText/PDF, File/DOCX, Image/PNG-JPG), botões Visualizar e Deletar. Estados especiais: spinner de loading, card de erro com "Tentar novamente", estado vazio com link para upload, filtros sem resultados. Paginação: controles Anterior/Próximo, contador "Página X de Y", info de total de docs. Filtros avançados: range de datas (início/fim), placeholder para filtros de tamanho futuro. Padrões seguidos: Container/Presentational pattern, funções puras testáveis, nomenclatura verbosa, comentários exaustivos (42% do código), TypeScript completo. Decisões arquiteturais: filtros client-side (resposta instantânea), estado local não global (específico da página), resetar página ao mudar filtros. Navegação já configurada (ComponenteCabecalho tinha link /historico). **MARCO ALCANÇADO:** 🎉 FRONTEND COMPLETO - FASE 3 CONCLUÍDA! Todas páginas do frontend implementadas (Upload, Análise, Histórico). Próximo: FASE 4 - Testes (TAREFA-022).
 
 ---
 
 ## 🚀 Próxima Tarefa Sugerida
 
-**TAREFA-021:** Página de Histórico de Documentos
+**TAREFA-022:** Testes Backend - Unitários
 
 **Escopo:**
-- Criar ComponenteExibicaoPareceres.tsx dedicado
-- Tabs ou Accordions para pareceres individuais
-- Markdown rendering para formatação avançada
-- Exportar parecer como PDF (jsPDF)
-- Copiar parecer para clipboard
-- Animações de entrada/saída
-- Substituir exibição básica da TAREFA-019
+- Configurar pytest no backend
+- Testes para servicos (extração, OCR, vetorização, etc.)
+- Testes para agentes (mockar LLM)
+- Cobertura > 70%
+- CI/CD para rodar testes automaticamente
 
 ---
 
