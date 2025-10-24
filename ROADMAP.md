@@ -49,8 +49,9 @@ Aqui está o **Roadmap v2.0** atualizado:
 - ✅ TAREFA-023: Componente de Seleção de Documentos na Análise (Frontend)
 - ✅ TAREFA-024: Refatorar Infraestrutura de Agentes para Advogados Especialistas
 - ✅ TAREFA-025: Criar Agente Advogado Especialista - Direito do Trabalho
+- ✅ TAREFA-026: Criar Agente Advogado Especialista - Direito Previdenciário
 
-**Próximo passo:** TAREFA-026 (Criar Agente Advogado Especialista - Direito Previdenciário)
+**Próximo passo:** TAREFA-027 (Criar Agente Advogado Especialista - Direito Cível)
 
 ---
 
@@ -188,23 +189,27 @@ Aqui está o **Roadmap v2.0** atualizado:
 
 ---
 
-#### 🟡 TAREFA-026: Criar Agente Advogado Especialista - Direito Previdenciário
+#### ✅ TAREFA-026: Criar Agente Advogado Especialista - Direito Previdenciário
 **Prioridade:** 🟡 ALTA  
 **Dependências:** TAREFA-024  
 **Estimativa:** 2-3 horas  
-**Status:** 🟡 PENDENTE
+**Status:** ✅ CONCLUÍDA (2025-10-24)
 
 **Escopo:**
-- [ ] Criar `backend/src/agentes/agente_advogado_previdenciario.py`
-- [ ] Herdar de `AgenteAdvogadoBase`.
-- [ ] Criar prompt focado na análise jurídica de:
-  - Concessão de benefícios (Auxílio-doença, Aposentadoria por Invalidez, BPC/LOAS).
-  - Análise de nexo causal (visão jurídica) para fins de benefício acidentário.
-  - Tempo de contribuição, carência.
-- [ ] Registrar agente no `OrquestradorMultiAgent`.
+- [x] Criar `backend/src/agentes/agente_advogado_previdenciario.py`
+- [x] Herdar de `AgenteAdvogadoBase`
+- [x] Criar prompt focado na análise jurídica de:
+  - Concessão de benefícios (Auxílio-doença, Aposentadoria por Invalidez, BPC/LOAS)
+  - Análise de nexo causal (visão jurídica) para fins de benefício acidentário
+  - Tempo de contribuição, carência, qualidade de segurado
+  - Legislação: Lei 8.213/91, Decreto 3.048/99, Lei 8.742/93 (LOAS)
+- [x] Registrar agente no Coordenador (via import dinâmico)
+- [x] Criar testes unitários completos
 
 **Entregáveis:**
-- Agente Advogado Previdenciário funcional.
+- ✅ Agente Advogado Previdenciário funcional
+- ✅ Testes unitários completos (test_agente_advogado_previdenciario.py)
+- ✅ Changelog completo: `changelogs/TAREFA-026_agente-advogado-previdenciario.md`
 
 ---
 

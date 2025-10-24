@@ -169,7 +169,7 @@ npm run dev
 
 ## 📋 Status do Projeto
 
-**Versão Atual:** 0.8.0 (Agente Advogado Trabalhista)  
+**Versão Atual:** 0.9.0 (Agente Advogado Previdenciário)  
 **Última Atualização:** 2025-10-24
 
 ### ✅ Concluído
@@ -198,6 +198,11 @@ npm run dev
 - [x] Interface de Consulta e Análise (Frontend)
 - [x] Componente de Exibição de Pareceres (Markdown + PDF + Clipboard)
 - [x] Página de Histórico de Documentos (Listagem, Filtros, Deleção)
+- [x] API de Seleção de Documentos para Análise (Backend)
+- [x] Componente de Seleção de Documentos (Frontend)
+- [x] Refatoração da Infraestrutura para Advogados Especialistas
+- [x] Agente Advogado Trabalhista (Direito do Trabalho)
+- [x] Agente Advogado Previdenciário (Direito Previdenciário)
 - [x] Seleção de Documentos Específicos para Análise (Backend + Frontend)
 - [x] **Infraestrutura para Advogados Especialistas (TAREFA-024)**
   - Classe base `AgenteAdvogadoBase` para advogados especialistas
