@@ -169,7 +169,7 @@ npm run dev
 
 ## 📋 Status do Projeto
 
-**Versão Atual:** 0.5.0 (Análise com Seleção Granular de Documentos)  
+**Versão Atual:** 0.6.0 (Seleção de Documentos para Análise - Frontend)  
 **Última Atualização:** 2025-10-24
 
 ### ✅ Concluído
@@ -198,6 +198,8 @@ npm run dev
 - [x] Interface de Consulta e Análise (Frontend)
 - [x] Componente de Exibição de Pareceres (Markdown + PDF + Clipboard)
 - [x] Página de Histórico de Documentos (Listagem, Filtros, Deleção)
+- [x] Backend: Seleção de Documentos para Análise (documento_ids na API)
+- [x] Frontend: Componente de Seleção de Documentos para Análise
 - [x] Seleção Granular de Documentos para Análise (Backend API)
 
 ### 🚧 Em Desenvolvimento

@@ -46,8 +46,9 @@ Aqui está o **Roadmap v2.0** atualizado:
 - ✅ TAREFA-020: Componente de Exibição de Pareceres
 - ✅ TAREFA-021: Página de Histórico de Documentos
 - ✅ TAREFA-022: Atualizar API de Análise para Seleção de Documentos
+- ✅ TAREFA-023: Componente de Seleção de Documentos na Análise (Frontend)
 
-**Próximo passo:** TAREFA-023 (Componente de Seleção de Documentos na Análise)
+**Próximo passo:** TAREFA-024 (Refatorar Infra de Agentes para Advogados Especialistas)
 
 ---
 
@@ -123,21 +124,22 @@ Aqui está o **Roadmap v2.0** atualizado:
 
 ---
 
-#### 🟡 TAREFA-023: Componente de Seleção de Documentos na Análise
+#### ✅ TAREFA-023: Componente de Seleção de Documentos na Análise
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-021, TAREFA-022  
 **Estimativa:** 3-4 horas  
-**Status:** 🟡 PENDENTE
+**Status:** ✅ CONCLUÍDA (2025-10-24)
 
 **Escopo:**
-- [ ] Criar `frontend/src/componentes/analise/ComponenteSelecionadorDocumentos.tsx`
-- [ ] Na `PaginaAnalise.tsx`, antes do campo de prompt, buscar a lista de documentos (usando `servicoApiDocumentos.listarDocumentos()`, da TAREFA-021).
-- [ ] Exibir uma lista de checkboxes com os documentos disponíveis.
-- [ ] Adicionar botões "Selecionar Todos" / "Limpar Seleção".
-- [ ] Modificar `PaginaAnalise.tsx` para passar a lista de `documento_ids` selecionados na chamada da API `realizarAnaliseMultiAgent`.
+- [x] Criar `frontend/src/componentes/analise/ComponenteSelecionadorDocumentos.tsx`
+- [x] Na `PaginaAnalise.tsx`, antes do campo de prompt, buscar a lista de documentos (usando `servicoApiDocumentos.listarDocumentos()`, da TAREFA-021).
+- [x] Exibir uma lista de checkboxes com os documentos disponíveis.
+- [x] Adicionar botões "Selecionar Todos" / "Limpar Seleção".
+- [x] Modificar `PaginaAnalise.tsx` para passar a lista de `documento_ids` selecionados na chamada da API `realizarAnaliseMultiAgent`.
 
 **Entregáveis:**
-- UI que permite ao usuário selecionar quais arquivos específicos serão usados na análise.
+- ✅ UI que permite ao usuário selecionar quais arquivos específicos serão usados na análise.
+- ✅ Changelog completo: `changelogs/TAREFA-023_componente-selecao-documentos-analise.md`
 
 ---
 

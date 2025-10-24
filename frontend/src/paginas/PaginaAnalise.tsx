@@ -5,16 +5,18 @@
  * Página principal para realizar análises jurídicas usando sistema multi-agent.
  * Permite ao usuário:
  * 1. Selecionar agentes peritos especializados (médico, segurança do trabalho, etc.)
- * 2. Digitar um prompt/pergunta sobre os documentos
- * 3. Enviar para análise multi-agent
- * 4. Visualizar resposta compilada + pareceres individuais
+ * 2. Selecionar documentos específicos para análise (opcional - TAREFA-023)
+ * 3. Digitar um prompt/pergunta sobre os documentos
+ * 4. Enviar para análise multi-agent
+ * 5. Visualizar resposta compilada + pareceres individuais
  * 
  * FLUXO COMPLETO:
  * 1. Usuário seleciona agentes (ComponenteSelecionadorAgentes)
- * 2. Usuário digita prompt ou clica em shortcut
- * 3. Usuário clica "Analisar"
- * 4. Sistema mostra loading (pode demorar 30s-2min)
- * 5. Sistema exibe resultados:
+ * 2. Usuário seleciona documentos específicos ou deixa vazio para usar todos (ComponenteSelecionadorDocumentos - TAREFA-023)
+ * 3. Usuário digita prompt ou clica em shortcut
+ * 4. Usuário clica "Analisar"
+ * 5. Sistema mostra loading (pode demorar 30s-2min)
+ * 6. Sistema exibe resultados:
  *    - Resposta compilada (destaque principal)
  *    - Pareceres individuais (tabs/accordions)
  *    - Documentos consultados
@@ -23,21 +25,29 @@
  * INTEGRAÇÃO:
  * - API: POST /api/analise/multi-agent (via servicoApiAnalise.ts)
  * - Zustand: armazenamentoAgentes (estado de seleção de agentes)
- * - Componentes: ComponenteSelecionadorAgentes
+ * - Componentes: ComponenteSelecionadorAgentes, ComponenteSelecionadorDocumentos
  * 
  * VALIDAÇÕES:
  * - Prompt: mínimo 10 caracteres, máximo 2000 caracteres
  * - Agentes: pelo menos 1 deve ser selecionado
+ * - Documentos: opcional (se vazio, usa todos)
+ * 
+ * ATUALIZAÇÃO TAREFA-023:
+ * Adicionado seletor de documentos para permitir análise focada em documentos específicos.
+ * Campo documento_ids é enviado ao backend apenas se houver documentos selecionados.
  * 
  * RELACIONADO COM:
  * - TAREFA-018: ComponenteSelecionadorAgentes (seleção de agentes)
- * - TAREFA-020: ComponenteExibicaoPareceres (visualização de resultados - futura)
+ * - TAREFA-020: ComponenteExibicaoPareceres (visualização de resultados)
+ * - TAREFA-022: Backend - Suporte a documento_ids na API
+ * - TAREFA-023: Frontend - Componente de seleção de documentos
  * - backend/src/api/rotas_analise.py (endpoint de análise)
  */
 
 import { useState } from 'react';
 import { Send, Loader2, AlertCircle, Clock } from 'lucide-react';
 import { ComponenteSelecionadorAgentes } from '../componentes/analise/ComponenteSelecionadorAgentes';
+import { ComponenteSelecionadorDocumentos } from '../componentes/analise/ComponenteSelecionadorDocumentos';
 import { ComponenteExibicaoPareceres } from '../componentes/ComponenteExibicaoPareceres';
 import { useArmazenamentoAgentes } from '../contextos/armazenamentoAgentes';
 import {
@@ -82,6 +92,15 @@ export function PaginaAnalise() {
    * Texto do prompt digitado pelo usuário
    */
   const [textoPrompt, setTextoPrompt] = useState<string>('');
+
+  /**
+   * IDs de documentos selecionados para filtrar análise (TAREFA-023)
+   * 
+   * CONTEXTO:
+   * Se vazio, análise busca em todos os documentos (comportamento padrão).
+   * Se preenchido, análise busca apenas nos documentos especificados.
+   */
+  const [documentosSelecionados, setDocumentosSelecionados] = useState<string[]>([]);
 
   /**
    * Estado de carregamento da requisição
@@ -195,9 +214,11 @@ export function PaginaAnalise() {
 
     try {
       // Fazer requisição ao backend
+      // TAREFA-023: Incluir documento_ids se houver documentos selecionados
       const resposta = await realizarAnaliseMultiAgent({
         prompt: textoPrompt.trim(),
         agentes_selecionados: agentesSelecionados,
+        documento_ids: documentosSelecionados.length > 0 ? documentosSelecionados : undefined,
       });
 
       // Parar contador
@@ -274,10 +295,25 @@ export function PaginaAnalise() {
         />
       </div>
 
+      {/* Card: Seleção de Documentos (TAREFA-023) */}
+      <div className="card">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">
+          2. Selecione os Documentos (Opcional)
+        </h2>
+        <p className="text-gray-600 text-sm mb-4">
+          Escolha quais documentos devem ser considerados na análise. 
+          Se nenhum for selecionado, todos os documentos disponíveis serão usados.
+        </p>
+        <ComponenteSelecionadorDocumentos
+          aoAlterarSelecao={setDocumentosSelecionados}
+          exibirValidacao={exibirValidacao}
+        />
+      </div>
+
       {/* Card: Prompt do Usuário */}
       <div className="card">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">
-          2. Digite sua Pergunta ou Consulta
+          3. Digite sua Pergunta ou Consulta
         </h2>
 
         {/* Textarea para prompt */}

@@ -312,6 +312,9 @@ export interface RespostaAnaliseMultiAgent {
  * CONTEXTO:
  * Estrutura enviada por POST /api/analise/multi-agent
  * Define o que o usuário quer analisar e quais peritos usar
+ * 
+ * ATUALIZAÇÃO TAREFA-023:
+ * Adicionado campo opcional documento_ids para seleção granular de documentos
  */
 export interface RequestAnaliseMultiAgent {
   /**
@@ -346,6 +349,32 @@ export interface RequestAnaliseMultiAgent {
    * EXEMPLO: ["medico", "seguranca_trabalho"]
    */
   agentes_selecionados: string[];
+
+  /**
+   * Lista opcional de IDs de documentos específicos para usar como contexto RAG
+   * 
+   * CONTEXTO (TAREFA-023):
+   * Permite seleção granular de quais documentos devem ser considerados na análise.
+   * Conecta com backend implementado na TAREFA-022.
+   * 
+   * COMPORTAMENTO:
+   * - Se None/undefined/vazio: análise busca em TODOS os documentos (comportamento padrão)
+   * - Se fornecido: análise busca APENAS nos documentos especificados
+   * 
+   * USO:
+   * Quando usuário quer focar a análise em documentos específicos (ex: apenas laudos médicos,
+   * excluindo outros documentos irrelevantes para a consulta).
+   * 
+   * VALIDAÇÃO:
+   * - IDs devem corresponder a documentos existentes e processados
+   * - Backend valida se documentos existem
+   * 
+   * EXEMPLOS:
+   * - undefined: busca em todos os documentos
+   * - []: busca em todos os documentos (equivalente a undefined)
+   * - ["doc-uuid-123", "doc-uuid-456"]: busca apenas nesses 2 documentos
+   */
+  documento_ids?: string[];
 }
 
 

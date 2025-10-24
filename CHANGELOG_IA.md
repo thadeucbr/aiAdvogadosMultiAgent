@@ -63,32 +63,32 @@
 | **020** | 2025-10-24 | Componente de Exibição de Pareceres | ComponenteExibicaoPareceres.tsx, PaginaAnalise.tsx, package.json | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-020_componente-exibicao-pareceres.md) |
 | **021** | 2025-10-24 | Página de Histórico de Documentos | PaginaHistorico.tsx, ComponenteFiltrosHistorico.tsx, ComponenteListaDocumentos.tsx, tiposHistorico.ts, servicoApiDocumentos.ts | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-021_pagina-historico-documentos.md) |
 | **022** | 2025-10-24 | Atualizar API de Análise para Seleção de Documentos | modelos.py, agente_advogado_coordenador.py, orquestrador_multi_agent.py, rotas_analise.py, ARQUITETURA.md | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-022_selecao-documentos-analise.md) |
+| **023** | 2025-10-24 | Componente de Seleção de Documentos na Análise (Frontend) | ComponenteSelecionadorDocumentos.tsx, PaginaAnalise.tsx, tiposAgentes.ts | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-023_componente-selecao-documentos-analise.md) |
 
 ---
 
 ## 🎯 Última Tarefa Concluída
 
-**TAREFA-022** - Atualizar API de Análise para Seleção de Documentos  
+**TAREFA-023** - Componente de Seleção de Documentos na Análise (Frontend)  
 **Data:** 2025-10-24  
 **IA:** GitHub Copilot  
 **Status:** ✅ CONCLUÍDA  
-**Resumo:** Implementação completa de seleção granular de documentos para análise multi-agent. Adicionado campo opcional `documento_ids: Optional[List[str]]` ao request de análise (`RequestAnaliseMultiAgent`), permitindo que usuários especifiquem quais documentos devem ser usados como contexto RAG. Modificados 4 arquivos backend: (1) modelos.py - novo campo documento_ids com descrição completa e exemplo atualizado; (2) agente_advogado_coordenador.py - método consultar_rag() aceita documento_ids e implementa filtro ChromaDB usando operador `$in` ({"documento_id": {"$in": [...]}}), mantém comportamento padrão se None/vazio; (3) orquestrador_multi_agent.py - método processar_consulta() aceita documento_ids e passa para consultar_rag(), logging aprimorado mostrando quantidade de documentos filtrados; (4) rotas_analise.py - endpoint POST /api/analise/multi-agent passa documento_ids ao orquestrador, descrição atualizada com exemplos de uso. Documentação completa atualizada em ARQUITETURA.md (endpoint marcado como ATUALIZADO TAREFA-022, nova seção NOVIDADE explicando seleção granular, fluxo atualizado, exemplos request com/sem filtro). Changelog detalhado criado (500+ linhas) em changelogs/TAREFA-022_selecao-documentos-analise.md com detalhes técnicos, casos de uso, testes sugeridos, decisões de design. Projeto atualizado para versão 0.5.0 (Análise com Seleção Granular de Documentos). Funcionalidade 100% retrocompatível: requests sem documento_ids continuam funcionando (busca em todos), requests com documento_ids filtram apenas documentos especificados. Filtro aplicado no nível do ChromaDB (performance), não em Python. Logging completo em todas as camadas para rastreabilidade. **PRÓXIMA TAREFA:** TAREFA-023 (Componente de Seleção de Documentos na Análise - Frontend) pronta para implementação. **MARCO:** 🎉 Backend agora suporta análise focada em documentos específicos!
+**Resumo:** Implementação completa do componente frontend para seleção granular de documentos durante análise multi-agent. Criado `ComponenteSelecionadorDocumentos.tsx` (493 linhas) que: (1) Busca documentos disponíveis via GET /api/documentos/listar ao montar; (2) Filtra automaticamente apenas documentos com status "concluido"; (3) Exibe checkboxes interativos com metadados (nome, data, tamanho, tipo, ID); (4) Implementa botões "Selecionar Todos" e "Limpar Seleção" com estados desabilitados inteligentes; (5) Gerencia seleção usando Set<string> para performance O(1); (6) Notifica componente pai via callback useEffect automático; (7) Estados completos de UI (loading com spinner, error com retry, empty state orientado); (8) Formatação de dados (data PT-BR, tamanho KB/MB). Modificado `PaginaAnalise.tsx` para: (1) Adicionar estado documentosSelecionados; (2) Integrar ComponenteSelecionadorDocumentos entre seleção de agentes e prompt (ordem lógica); (3) Passar documento_ids na chamada da API apenas se houver documentos selecionados (documento_ids: documentosSelecionados.length > 0 ? documentosSelecionados : undefined); (4) Atualizar numeração de passos (1. Agentes, 2. Documentos, 3. Prompt). Atualizado `tiposAgentes.ts` adicionando campo opcional documento_ids?: string[] ao RequestAnaliseMultiAgent com documentação extensa explicando comportamento (undefined/vazio = todos os documentos, array preenchido = apenas selecionados). Integração perfeita com backend TAREFA-022: frontend envia documento_ids, backend filtra ChromaDB usando operador $in. Changelog detalhado criado (700+ linhas) em changelogs/TAREFA-023_componente-selecao-documentos-analise.md com decisões técnicas (Set vs Array, filtro client-side, callback automático), decisões de UX (feedback visual, botões de atalho, metadados visíveis), fluxo completo frontend-backend, 7 casos de uso documentados, 7 testes manuais sugeridos. Funcionalidade 100% retrocompatível: se nenhum documento selecionado, comportamento é exatamente igual ao anterior (busca em todos). Usuário agora pode focar análises em documentos específicos (ex: apenas laudos médicos), economizando tokens OpenAI e aumentando relevância dos resultados. **PRÓXIMA TAREFA:** TAREFA-024 (Refatorar Infra de Agentes para Advogados Especialistas) pronta para implementação. **MARCO:** 🎉 Seleção granular de documentos implementada end-to-end (frontend + backend)!
 
 ---
 
 ## 🚀 Próxima Tarefa Sugerida
 
-**TAREFA-023:** Componente de Seleção de Documentos na Análise (Frontend)
+**TAREFA-024:** Refatorar Infraestrutura de Agentes para Advogados Especialistas
 
 **Escopo:**
-- Criar `frontend/src/componentes/analise/ComponenteSelecionadorDocumentos.tsx`
-- Buscar lista de documentos usando `GET /api/documentos/listar`
-- Exibir checkboxes com documentos disponíveis
-- Botões "Selecionar Todos" / "Limpar Seleção"
-- Modificar `PaginaAnalise.tsx` para passar `documento_ids` selecionados para API
-- Integrar com novo campo `documento_ids` da TAREFA-022
+- Criar `backend/src/agentes/agente_advogado_base.py` (similar ao `agente_base.py` mas para advogados)
+- Atualizar `OrquestradorMultiAgent` para aceitar segunda lista: `advogados_selecionados: list[str]`
+- Atualizar `AgenteAdvogadoCoordenador` para delegar para Peritos E Advogados Especialistas
+- Criar endpoint `GET /api/analise/advogados` para listar especialistas disponíveis
+- Refatorar infraestrutura de orquestração para lidar com dois tipos de agentes
 
-**Objetivo:** Permitir que usuário selecione visualmente quais documentos usar na análise.
+**Objetivo:** Preparar infraestrutura para suportar múltiplos agentes advogados especialistas (Trabalhista, Previdenciário, Cível, Tributário).
 
 ---
 
@@ -135,6 +135,6 @@
 
 ---
 
-**Última Atualização deste Índice:** 2025-10-23  
-**Total de Tarefas Registradas:** 15  
+**Última Atualização deste Índice:** 2025-10-24  
+**Total de Tarefas Registradas:** 23  
 **Mantido por:** IAs seguindo o padrão "Manutenibilidade por LLM"
