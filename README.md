@@ -169,7 +169,7 @@ npm run dev
 
 ## 📋 Status do Projeto
 
-**Versão Atual:** 0.3.0 (Exibição Profissional de Pareceres)  
+**Versão Atual:** 0.4.0 (Gerenciamento Completo de Documentos)  
 **Última Atualização:** 2025-10-24
 
 ### ✅ Concluído
@@ -197,6 +197,7 @@ npm run dev
 - [x] Componente de Seleção de Agentes (Frontend)
 - [x] Interface de Consulta e Análise (Frontend)
 - [x] Componente de Exibição de Pareceres (Markdown + PDF + Clipboard)
+- [x] Página de Histórico de Documentos (Listagem, Filtros, Deleção)
 
 ### 🚧 Em Desenvolvimento
 

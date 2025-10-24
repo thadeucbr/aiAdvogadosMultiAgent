@@ -46,6 +46,7 @@ from src.api.modelos import (
     RespostaErro,
     StatusDocumento,
     RespostaListarDocumentos,
+    RespostaDeletarDocumento,
     ResultadoProcessamentoDocumento
 )
 
@@ -833,4 +834,164 @@ async def endpoint_listar_documentos() -> RespostaListarDocumentos:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao listar documentos: {str(erro)}"
+        )
+
+
+@router.delete(
+    "/{documento_id}",
+    response_model=RespostaDeletarDocumento,
+    summary="Deletar documento",
+    description="""
+    Deleta um documento específico do sistema.
+    
+    **Operação realizada:**
+    1. Remove todos os chunks do ChromaDB (banco vetorial)
+    2. Remove o arquivo físico do disco (uploads_temp/)
+    3. Remove o documento do cache de status
+    
+    **ATENÇÃO:** Esta operação é IRREVERSÍVEL.
+    
+    **Retorna:**
+    - Confirmação de deleção
+    - Número de chunks removidos
+    - Informações do documento deletado
+    """,
+    responses={
+        200: {
+            "description": "Documento deletado com sucesso",
+            "model": RespostaDeletarDocumento
+        },
+        404: {
+            "description": "Documento não encontrado",
+            "model": RespostaErro
+        },
+        500: {
+            "description": "Erro ao deletar documento",
+            "model": RespostaErro
+        }
+    }
+)
+async def endpoint_deletar_documento(documento_id: str) -> RespostaDeletarDocumento:
+    """
+    Deleta um documento do sistema.
+    
+    CONTEXTO:
+    Permite ao usuário remover documentos que não são mais necessários
+    ou foram enviados por engano. A deleção é completa: remove do banco
+    vetorial, do disco e do cache.
+    
+    IMPLEMENTAÇÃO:
+    1. Valida se documento existe no ChromaDB
+    2. Remove chunks do ChromaDB
+    3. Tenta remover arquivo físico (se existir)
+    4. Remove do cache de status
+    5. Retorna confirmação com número de chunks removidos
+    
+    Args:
+        documento_id: UUID do documento a ser deletado
+    
+    Returns:
+        RespostaDeletarDocumento com confirmação da operação
+    
+    Raises:
+        HTTPException 404: Se documento não for encontrado
+        HTTPException 500: Se erro durante deleção
+    """
+    logger.info(f"🗑️ Requisição para deletar documento: {documento_id}")
+    
+    try:
+        # Obter collection do ChromaDB
+        cliente_chroma, collection = servico_banco_vetorial.inicializar_chromadb()
+        
+        # Antes de deletar, buscar informações do documento
+        documento_info = None
+        chunks_removidos = 0
+        
+        # Tentar obter informações do documento antes de deletar
+        try:
+            resultados = collection.get(
+                where={"documento_id": documento_id},
+                include=["metadatas"],
+                limit=1
+            )
+            
+            if resultados["ids"] and len(resultados["ids"]) > 0:
+                metadados = resultados["metadatas"][0]
+                documento_info = {
+                    "nome_arquivo": metadados.get("nome_arquivo", "desconhecido"),
+                }
+                
+                # Contar total de chunks antes de deletar
+                todos_chunks = collection.get(
+                    where={"documento_id": documento_id},
+                    include=[]
+                )
+                chunks_removidos = len(todos_chunks["ids"])
+        except Exception as erro_busca:
+            logger.warning(f"Não foi possível obter informações do documento antes de deletar: {erro_busca}")
+        
+        # Deletar documento do ChromaDB
+        documento_deletado = servico_banco_vetorial.deletar_documento(
+            collection=collection,
+            documento_id=documento_id
+        )
+        
+        if not documento_deletado:
+            logger.warning(f"⚠️ Documento {documento_id} não encontrado no ChromaDB")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Documento {documento_id} não encontrado no sistema"
+            )
+        
+        # Tentar remover arquivo físico (se existir)
+        # Procurar em uploads_temp/ por arquivo com esse UUID
+        pasta_uploads = configuracoes.PASTA_UPLOADS_TEMP
+        arquivo_deletado = False
+        
+        for extensao in EXTENSOES_PERMITIDAS:
+            caminho_arquivo = pasta_uploads / f"{documento_id}{extensao}"
+            if caminho_arquivo.exists():
+                try:
+                    caminho_arquivo.unlink()  # Deleta arquivo
+                    arquivo_deletado = True
+                    logger.info(f"✅ Arquivo físico deletado: {caminho_arquivo}")
+                    break
+                except Exception as erro_arquivo:
+                    logger.warning(f"⚠️ Não foi possível deletar arquivo físico: {erro_arquivo}")
+        
+        if not arquivo_deletado:
+            logger.warning(f"⚠️ Arquivo físico do documento {documento_id} não foi encontrado")
+        
+        # Remover do cache de status (se existir)
+        if documento_id in documentos_status_cache:
+            del documentos_status_cache[documento_id]
+            logger.info(f"✅ Documento removido do cache de status")
+        
+        # Preparar resposta
+        nome_arquivo = documento_info["nome_arquivo"] if documento_info else "desconhecido"
+        
+        resposta = RespostaDeletarDocumento(
+            sucesso=True,
+            mensagem=f"Documento '{nome_arquivo}' deletado com sucesso",
+            documento_id=documento_id,
+            nome_arquivo=nome_arquivo,
+            chunks_removidos=chunks_removidos
+        )
+        
+        logger.info(
+            f"✅ Documento deletado com sucesso: {documento_id} "
+            f"({chunks_removidos} chunks removidos)"
+        )
+        
+        return resposta
+    
+    except HTTPException:
+        # Re-raise HTTPException (404, etc)
+        raise
+    
+    except Exception as erro:
+        logger.error(f"❌ Erro ao deletar documento {documento_id}: {erro}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao deletar documento: {str(erro)}"
         )

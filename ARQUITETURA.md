@@ -574,6 +574,86 @@ Este endpoint consulta diretamente o ChromaDB, retornando apenas documentos que 
 
 ---
 
+#### `DELETE /api/documentos/{documento_id}`
+**Status:** ✅ IMPLEMENTADO (TAREFA-021)
+
+**Descrição:** Deleta um documento específico do sistema. Remove completamente todos os vestígios do documento: chunks do ChromaDB, arquivo físico do disco e cache de status.
+
+**Contexto:**
+Permite ao usuário remover documentos que não são mais necessários, foram enviados por engano, ou contêm informações incorretas. A deleção é completa e irreversível.
+
+**ATENÇÃO:** Esta operação é IRREVERSÍVEL. Uma vez deletado, o documento precisa ser re-processado completamente para ser adicionado novamente ao sistema.
+
+**Path Parameters:**
+- `documento_id` (string, required): UUID do documento a ser deletado
+
+**Request:** Nenhum parâmetro adicional necessário
+
+**Response (Sucesso):**
+```json
+{
+  "sucesso": true,
+  "mensagem": "Documento 'processo_123.pdf' deletado com sucesso",
+  "documento_id": "550e8400-e29b-41d4-a716-446655440000",
+  "nome_arquivo": "processo_123.pdf",
+  "chunks_removidos": 42
+}
+```
+
+**Response (Documento Não Encontrado):**
+```json
+{
+  "detail": "Documento 550e8400-e29b-41d4-a716-446655440000 não encontrado no sistema"
+}
+```
+
+**Response (Erro Interno):**
+```json
+{
+  "detail": "Erro ao deletar documento: [mensagem de erro técnico]"
+}
+```
+
+**Status HTTP:**
+- `200 OK`: Documento deletado com sucesso
+- `404 Not Found`: Documento não encontrado no ChromaDB
+- `500 Internal Server Error`: Erro durante processo de deleção
+
+**Operações Realizadas:**
+1. Busca todas os chunks do documento no ChromaDB
+2. Remove todos os chunks do banco vetorial
+3. Tenta remover arquivo físico de `dados/uploads_temp/` (se existir)
+4. Remove documento do cache de status em memória
+5. Retorna confirmação com número de chunks removidos
+
+**Uso Típico:**
+```javascript
+// Frontend: Deletar documento com confirmação
+const confirmar = confirm(`Tem certeza que deseja deletar "${nomeArquivo}"?`);
+if (confirmar) {
+  try {
+    const response = await fetch(`/api/documentos/${documentoId}`, {
+      method: 'DELETE'
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      alert(`Documento deletado! ${data.chunks_removidos} chunks removidos.`);
+      // Atualizar lista de documentos
+    } else if (response.status === 404) {
+      alert('Documento não encontrado');
+    }
+  } catch (erro) {
+    alert('Erro ao deletar documento');
+  }
+}
+```
+
+**Nota Importante:**
+Se o arquivo físico não for encontrado em disco (por exemplo, já foi deletado manualmente), a operação continua e remove apenas os chunks do ChromaDB. Um aviso é registrado nos logs, mas a operação é considerada bem-sucedida.
+
+---
+
 ### Análise Multi-Agent
 
 #### `POST /api/analise/multi-agent`

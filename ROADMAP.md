@@ -31,8 +31,9 @@
 - ✅ TAREFA-018: Componente de Seleção de Agentes
 - ✅ TAREFA-019: Interface de Consulta e Análise
 - ✅ TAREFA-020: Componente de Exibição de Pareceres
+- ✅ TAREFA-021: Página de Histórico de Documentos
 
-**Próximo passo:** TAREFA-021 (Página de Histórico de Documentos)
+**Próximo passo:** TAREFA-022 (Testes Backend - Unitários)
 
 ---
 
@@ -719,24 +720,31 @@
 #### ✅ TAREFA-021: Página de Histórico de Documentos
 **Prioridade:** 🟢 MÉDIA  
 **Dependências:** TAREFA-020  
-**Estimativa:** 2-3 horas
+**Estimativa:** 2-3 horas  
+**Status:** ✅ CONCLUÍDA (2025-10-24)
 
 **Escopo:**
-- [ ] Criar `frontend/src/paginas/PaginaHistorico.tsx`
-- [ ] Chamar `GET /api/documentos/listar`
-- [ ] Exibir lista de documentos processados
-- [ ] Informações: nome, data upload, tipo, status
-- [ ] Filtros: tipo de arquivo, data
-- [ ] Busca por nome de arquivo
-- [ ] Ação: deletar documento
-- [ ] Confirmação antes de deletar
-- [ ] Paginação (se muitos documentos)
+- [x] Criar `frontend/src/paginas/PaginaHistorico.tsx`
+- [x] Chamar `GET /api/documentos/listar`
+- [x] Exibir lista de documentos processados
+- [x] Informações: nome, data upload, tipo, status
+- [x] Filtros: tipo de arquivo, data
+- [x] Busca por nome de arquivo
+- [x] Ação: deletar documento (endpoint DELETE implementado no backend)
+- [x] Confirmação antes de deletar
+- [x] Paginação (se muitos documentos)
 
 **Entregáveis:**
-- Histórico de documentos funcional
-- Gerenciamento básico de documentos
+- ✅ Histórico de documentos funcional (~312 linhas)
+- ✅ Componente de filtros completo (~344 linhas)
+- ✅ Componente de listagem com paginação (~455 linhas)
+- ✅ Tipos TypeScript completos (~477 linhas)
+- ✅ Endpoint DELETE /api/documentos/{documento_id} implementado
+- ✅ Gerenciamento completo de documentos
 
-**Marco:** 🎉 **FRONTEND COMPLETO** - Interface web funcional ponta a ponta
+**Changelog:** [Ver detalhes completos](changelogs/TAREFA-021_pagina-historico-documentos.md)
+
+**Marco:** 🎉 **FRONTEND COMPLETO** - Interface web funcional ponta a ponta. Todas as funcionalidades principais implementadas!
 
 ---
 

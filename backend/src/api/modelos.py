@@ -494,6 +494,61 @@ class RespostaListarDocumentos(BaseModel):
         }
 
 
+class RespostaDeletarDocumento(BaseModel):
+    """
+    Resposta do endpoint de deleção de documento.
+    
+    CONTEXTO:
+    Quando um documento é deletado, retornamos confirmação da operação.
+    A deleção remove o documento do ChromaDB (chunks vetorizados),
+    o arquivo físico do disco e o cache de status.
+    
+    CAMPOS:
+    - sucesso: Indica se deleção foi bem-sucedida
+    - mensagem: Mensagem descritiva da operação
+    - documento_id: ID do documento que foi deletado
+    - nome_arquivo: Nome do arquivo deletado
+    - chunks_removidos: Número de chunks removidos do ChromaDB
+    """
+    sucesso: bool = Field(
+        ...,
+        description="Indica se a deleção foi bem-sucedida"
+    )
+    
+    mensagem: str = Field(
+        ...,
+        description="Mensagem descritiva sobre o resultado da operação"
+    )
+    
+    documento_id: str = Field(
+        ...,
+        description="UUID do documento que foi deletado"
+    )
+    
+    nome_arquivo: str = Field(
+        ...,
+        description="Nome original do arquivo deletado"
+    )
+    
+    chunks_removidos: int = Field(
+        ...,
+        ge=0,
+        description="Número de chunks removidos do ChromaDB"
+    )
+    
+    class Config:
+        """Exemplo para documentação Swagger"""
+        json_schema_extra = {
+            "example": {
+                "sucesso": True,
+                "mensagem": "Documento deletado com sucesso",
+                "documento_id": "550e8400-e29b-41d4-a716-446655440000",
+                "nome_arquivo": "processo_123.pdf",
+                "chunks_removidos": 42
+            }
+        }
+
+
 # ===== MODELOS PARA ANÁLISE MULTI-AGENT =====
 
 class RequestAnaliseMultiAgent(BaseModel):

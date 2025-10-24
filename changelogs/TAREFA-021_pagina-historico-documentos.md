@@ -704,24 +704,43 @@ Usuário → Clica "Próximo"
 
 ### Backend - Endpoint de Deleção:
 
-**ATENÇÃO:** Esta tarefa assume que o endpoint `DELETE /api/documentos/{id}` está implementado no backend.
+**✅ IMPLEMENTADO (2025-10-24):**
 
-**Verificação Necessária:**
-1. Verificar se `backend/src/api/rotas_documentos.py` tem endpoint DELETE
-2. Verificar se `servico_banco_vetorial.deletar_documento()` funciona
-3. Testar deleção completa (arquivo + chunks + metadados)
+O endpoint `DELETE /api/documentos/{documento_id}` foi implementado como parte desta tarefa.
 
-**Se o endpoint não existir:**
-Criar endpoint seguindo padrões do backend:
-```python
-@router.delete("/{documento_id}")
-async def deletar_documento_endpoint(documento_id: str):
-    """Deleta documento e seus chunks do sistema"""
-    # 1. Deletar chunks do ChromaDB
-    # 2. Deletar arquivo do disco
-    # 3. Deletar metadados do cache
-    return {"sucesso": True, "mensagem": "Documento deletado"}
-```
+**Arquivos Modificados:**
+1. `backend/src/api/modelos.py`:
+   - Adicionado `RespostaDeletarDocumento` (modelo Pydantic)
+   - Campos: sucesso, mensagem, documento_id, nome_arquivo, chunks_removidos
+
+2. `backend/src/api/rotas_documentos.py`:
+   - Adicionado endpoint `DELETE /{documento_id}`
+   - Operações: remove chunks do ChromaDB, deleta arquivo físico, limpa cache
+   - Tratamento de erros: 404 (não encontrado), 500 (erro interno)
+   - ~180 linhas de código + documentação
+
+3. `ARQUITETURA.md`:
+   - Documentação completa do endpoint DELETE
+   - Exemplos de request/response
+   - Fluxo de operações detalhado
+
+**Funcionalidades do Endpoint:**
+- Remove todos os chunks do documento do ChromaDB
+- Deleta arquivo físico de `dados/uploads_temp/` (se existir)
+- Remove documento do cache de status em memória
+- Retorna confirmação com número de chunks removidos
+- Operação irreversível (não há undo)
+
+**Integração Frontend-Backend:**
+✅ Frontend chama `DELETE /api/documentos/{id}` via `servicoApiDocumentos.deletarDocumento()`  
+✅ Backend deleta documento completamente do sistema  
+✅ Frontend atualiza lista localmente (optimistic update)  
+✅ Feedback visual ao usuário (alert de sucesso/erro)
+
+**Código Adicionado:**
+- Backend: ~250 linhas (modelo + endpoint)
+- Documentação: ~90 linhas (ARQUITETURA.md)
+- Total: ~340 linhas
 
 ### Melhorias de Performance:
 
