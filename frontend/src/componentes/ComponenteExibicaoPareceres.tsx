@@ -164,7 +164,7 @@ export const ComponenteExibicaoPareceres: React.FC<PropsExibicaoPareceres> = ({ 
       // Título do Agente
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
-      doc.text(parecer.nome_perito, margemEsquerda, y);
+      doc.text(parecer.nome_perito || 'Perito', margemEsquerda, y);
       y += 8;
 
       // Separador
@@ -196,7 +196,11 @@ export const ComponenteExibicaoPareceres: React.FC<PropsExibicaoPareceres> = ({ 
   };
 
   // Renderizar ícone baseado no agente
-  const renderizarIconeAgente = (nomeAgente: string) => {
+  const renderizarIconeAgente = (nomeAgente: string | undefined) => {
+    if (!nomeAgente) {
+      return '📋';
+    }
+    
     if (nomeAgente.toLowerCase().includes('advogado')) {
       return '⚖️';
     } else if (nomeAgente.toLowerCase().includes('médico')) {
@@ -360,7 +364,7 @@ export const ComponenteExibicaoPareceres: React.FC<PropsExibicaoPareceres> = ({ 
                   <div className="flex items-center gap-3">
                     <span className="text-3xl">{renderizarIconeAgente(parecer.nome_perito)}</span>
                     <div>
-                      <h3 className="text-xl font-bold text-white">{parecer.nome_perito}</h3>
+                      <h3 className="text-xl font-bold text-white">{parecer.nome_perito || 'Perito'}</h3>
                       <p className="text-blue-100 text-sm">Análise Especializada</p>
                     </div>
                   </div>
@@ -411,7 +415,7 @@ export const ComponenteExibicaoPareceres: React.FC<PropsExibicaoPareceres> = ({ 
                     </button>
                     {/* Botão Exportar PDF */}
                     <button
-                      onClick={() => exportarParecerPDF(parecer.nome_perito, parecer.parecer)}
+                      onClick={() => exportarParecerPDF(parecer.nome_perito || 'Perito', parecer.parecer)}
                       className="px-3 py-2 bg-white/20 text-white rounded hover:bg-white/30 transition-colors text-sm flex items-center gap-1"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

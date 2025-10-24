@@ -207,10 +207,10 @@ def mock_resposta_openai_embeddings() -> Dict[str, Any]:
 @pytest.fixture(scope="function")
 def mock_resposta_openai_chat_completion() -> Dict[str, Any]:
     """
-    Mock da resposta da API OpenAI para chat completion (GPT-4).
+    Mock da resposta da API OpenAI para chat completion (GPT-5-nano).
     
     CONTEXTO DE NEGÓCIO:
-    Similar aos embeddings, mas para chamadas de chat completion (GPT-4).
+    Similar aos embeddings, mas para chamadas de chat completion.
     Usado para testar agentes sem fazer chamadas reais à API.
     
     Returns:
@@ -227,7 +227,7 @@ def mock_resposta_openai_chat_completion() -> Dict[str, Any]:
         "id": "chatcmpl-teste123",
         "object": "chat.completion",
         "created": 1234567890,
-        "model": "gpt-4",
+        "model": "gpt-5-nano-2025-08-07",
         "choices": [
             {
                 "index": 0,
@@ -440,7 +440,7 @@ def variaveis_ambiente_teste(monkeypatch) -> Dict[str, str]:
         
         # Configurações de modelos OpenAI
         "MODELO_EMBEDDINGS": "text-embedding-ada-002",
-        "MODELO_GPT": "gpt-4",
+        "MODELO_GPT": "gpt-5-nano-2025-08-07",
         
         # Configurações de agentes
         "TEMPERATURA_AGENTE_ADVOGADO": "0.3",

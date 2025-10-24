@@ -83,7 +83,7 @@ class AgenteBase(ABC):
         
         # Modelo de LLM padrão a ser usado por este agente
         # Subclasses podem sobrescrever se precisarem de modelos diferentes
-        self.modelo_llm_padrao: str = "gpt-4"
+        self.modelo_llm_padrao: str = "gpt-5-nano-2025-08-07"
         
         # Temperatura padrão (controla aleatoriedade/criatividade)
         # 0.7 é um bom equilíbrio entre criatividade e consistência
@@ -112,7 +112,7 @@ class AgenteBase(ABC):
         baseada em sua especialidade.
         
         CONTEXTO:
-        O prompt é a "pergunta" enviada ao GPT-4. A qualidade do prompt
+        O prompt é a "pergunta" enviada ao LLM (GPT-5-nano). A qualidade do prompt
         determina diretamente a qualidade da resposta. Cada agente deve
         formular prompts que reflitam sua expertise.
         

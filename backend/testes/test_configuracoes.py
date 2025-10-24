@@ -97,7 +97,7 @@ class TestCarregamentoConfiguracoes:
         configuracoes = Configuracoes()
         
         # ASSERT: Deve usar valores padrão
-        assert configuracoes.OPENAI_MODEL_ANALISE == "gpt-4"  # Valor padrão
+        assert configuracoes.OPENAI_MODEL_ANALISE == "gpt-5-nano-2025-08-07"  # Valor padrão
         assert configuracoes.OPENAI_TEMPERATURE == 0.2  # Valor padrão
         assert configuracoes.PORT == 8000  # Valor padrão
         assert configuracoes.AMBIENTE == "development"  # Valor padrão

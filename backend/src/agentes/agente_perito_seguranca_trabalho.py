@@ -112,7 +112,7 @@ class AgentePeritoSegurancaTrabalho(AgenteBase):
         
         Configura as características específicas deste agente:
         - Nome e descrição
-        - Modelo de LLM (GPT-4 para análises técnicas)
+        - Modelo de LLM (GPT-5-nano para análises técnicas)
         - Temperatura (0.2 - análises de segurança devem ser objetivas e consistentes)
         
         Args:

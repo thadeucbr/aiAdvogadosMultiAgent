@@ -66,6 +66,7 @@ from chromadb.config import Settings
 from chromadb.api.models.Collection import Collection
 
 from src.configuracao.configuracoes import obter_configuracoes
+from src.servicos import servico_vetorizacao
 
 
 # ===== CONFIGURAÇÃO DE LOGGING =====
@@ -647,14 +648,19 @@ def buscar_chunks_similares(
     
     IMPLEMENTAÇÃO:
     1. Valida a query e parâmetros
-    2. ChromaDB automaticamente gera embedding da query
-    3. Busca usando similaridade de cosseno
+    2. Gera embedding da query usando OpenAI (1536 dimensões)
+    3. Busca usando similaridade de cosseno no ChromaDB
     4. Aplica filtros de metadados (opcional)
     5. Retorna os k resultados mais relevantes
     
+    IMPORTANTE:
+    - Usa OpenAI para gerar embedding da query (mesmo modelo dos chunks)
+    - Garante compatibilidade de dimensões (1536) com chunks armazenados
+    - Evita erro de incompatibilidade com modelo interno do ChromaDB (384 dimensões)
+    
     ARGS:
         collection: Collection do ChromaDB onde buscar
-        query: Texto da pergunta/busca (será vetorizado automaticamente)
+        query: Texto da pergunta/busca (será vetorizado usando OpenAI)
         k: Número de resultados a retornar (padrão: 5)
         filtro_metadados: (Opcional) Filtrar por metadados específicos
             Exemplo: {"tipo_documento": "pdf", "nome_arquivo": "laudo.pdf"}
@@ -690,6 +696,7 @@ def buscar_chunks_similares(
     - Busca semântica (não keyword) é mais poderosa
     - Interface simples: query texto → resultados relevantes
     - Filtros opcionais permitem refinamento
+    - Usa OpenAI para embeddings consistentes com armazenamento
     """
     logger.info(f"🔍 Buscando chunks similares para query: '{query[:100]}...'")
     
@@ -727,12 +734,17 @@ def buscar_chunks_similares(
     
     # Realizar busca no ChromaDB
     try:
-        # ChromaDB query() automaticamente:
-        # 1. Gera embedding da query usando o mesmo modelo
-        # 2. Calcula similaridade com todos os chunks
-        # 3. Retorna os k mais similares
+        # Gerar embedding da query usando OpenAI (mesma dimensão dos chunks armazenados)
+        logger.debug("Gerando embedding da query usando OpenAI...")
+        embeddings_query = servico_vetorizacao.gerar_embeddings([query], usar_cache=False)
+        embedding_query = embeddings_query[0]  # Pegar o primeiro (e único) embedding
+        logger.debug(f"Embedding gerado. Dimensão: {len(embedding_query)}")
+        
+        # ChromaDB query() com embedding pré-gerado:
+        # Usamos query_embeddings ao invés de query_texts para garantir
+        # que estamos usando o mesmo modelo (OpenAI) dos chunks armazenados
         resultados_chromadb = collection.query(
-            query_texts=[query],  # ChromaDB aceita lista de queries (aqui só temos uma)
+            query_embeddings=[embedding_query],  # Passar embedding já gerado
             n_results=k_ajustado,
             where=filtro_metadados,  # Filtro opcional por metadados
             include=["documents", "metadatas", "distances"]  # O que incluir nos resultados

@@ -71,7 +71,7 @@ class Configuracoes(BaseSettings):
     )
     
     OPENAI_MODEL_ANALISE: str = Field(
-        default="gpt-4",
+        default="gpt-5-nano-2025-08-07",
         description="Modelo de LLM usado para análise jurídica pelos agentes"
     )
     

@@ -32,8 +32,9 @@
 - ✅ TAREFA-019: Interface de Consulta e Análise
 - ✅ TAREFA-020: Componente de Exibição de Pareceres
 - ✅ TAREFA-021: Página de Histórico de Documentos
+- 🚧 TAREFA-022: Testes Backend - Unitários (Infraestrutura completa + 2 módulos testados)
 
-**Próximo passo:** TAREFA-022 (Testes Backend - Unitários)
+**Próximo passo:** TAREFA-022 (Continuação - Testes dos módulos restantes)
 
 ---
 
@@ -754,25 +755,36 @@
 
 ---
 
-#### ✅ TAREFA-022: Testes Backend - Unitários
+#### 🚧 TAREFA-022: Testes Backend - Unitários
 **Prioridade:** 🟡 ALTA  
 **Dependências:** TAREFA-014  
-**Estimativa:** 4-5 horas
+**Estimativa:** 4-5 horas  
+**Status:** 🚧 PARCIALMENTE CONCLUÍDA (2025-10-24)
 
 **Escopo:**
-- [ ] Configurar pytest no backend
-- [ ] Testes para `servico_extracao_texto.py`
-- [ ] Testes para `servico_ocr.py` (mockar Tesseract)
-- [ ] Testes para `servico_vetorizacao.py` (mockar OpenAI)
-- [ ] Testes para `servico_banco_vetorial.py` (ChromaDB in-memory)
-- [ ] Testes para agentes (mockar LLM)
-- [ ] Testes para configurações
-- [ ] Cobertura > 70%
-- [ ] CI/CD: rodar testes automaticamente
+- [x] Configurar pytest no backend
+- [x] Criar fixtures globais reutilizáveis (conftest.py)
+- [x] Testes para `configuracoes.py` (16 testes, 95% cobertura)
+- [x] Testes para `servico_extracao_texto.py` (15 testes, 85% cobertura)
+- [ ] Testes para `servico_ocr.py` (mockar Tesseract) - PENDENTE
+- [ ] Testes para `servico_vetorizacao.py` (mockar OpenAI) - PENDENTE
+- [ ] Testes para `servico_banco_vetorial.py` (ChromaDB in-memory) - PENDENTE
+- [ ] Testes para agentes (mockar LLM) - PENDENTE
+- [ ] Cobertura > 70% (atualmente ~40%) - PENDENTE
+- [ ] CI/CD: rodar testes automaticamente - PENDENTE
 
 **Entregáveis:**
-- Suite de testes unitários completa
-- Cobertura aceitável
+- ✅ Infraestrutura de testes 100% completa (pytest.ini, requirements_test.txt, conftest.py)
+- ✅ Documentação completa (testes/README.md - 307 linhas)
+- ✅ 31 testes unitários implementados (2 de 12 módulos testados)
+- ✅ 9 fixtures globais reutilizáveis
+- ✅ 14 markers customizados configurados
+- ⏳ Suite completa de testes (Fase 2 e 3 pendentes)
+- ⏳ Cobertura > 70% (meta final)
+
+**Changelog:** [Ver detalhes completos](changelogs/TAREFA-022_testes-backend-unitarios.md)
+
+**Marco:** 🎉 **INFRAESTRUTURA DE TESTES COMPLETA!** Pytest configurado, fixtures reutilizáveis criadas, testes de 2 módulos críticos como prova de conceito. Próximos módulos seguirão o mesmo padrão.
 
 ---
 

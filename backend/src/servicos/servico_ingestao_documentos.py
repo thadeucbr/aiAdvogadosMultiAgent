@@ -547,7 +547,8 @@ def processar_documento_completo(
     caminho_arquivo: str,
     documento_id: str,
     nome_arquivo_original: str,
-    tipo_documento: str
+    tipo_documento: str,
+    data_upload: str = None
 ) -> Dict[str, Any]:
     """
     Processa um documento jurídico completamente, desde upload até ChromaDB.
@@ -595,6 +596,8 @@ def processar_documento_completo(
                               (Ex: "peticao_inicial.pdf")
         tipo_documento: Tipo do documento como string
                        (Ex: "pdf", "docx", "png")
+        data_upload: Data e hora do upload em formato ISO
+                    (Ex: "2025-10-24T10:00:00")
     
     Returns:
         dict com estrutura completa:
@@ -704,11 +707,15 @@ def processar_documento_completo(
             # Cada chunk terá metadados individuais + metadados do documento
             data_processamento_iso = datetime.now().isoformat()
             
+            # Se data_upload não foi fornecida, usar data_processamento
+            data_upload_iso = data_upload if data_upload else data_processamento_iso
+            
             metadados_documento = {
                 "documento_id": documento_id,
                 "nome_arquivo": nome_arquivo_original,
                 "tipo_documento": tipo_documento,
                 "numero_paginas": numero_paginas,
+                "data_upload": data_upload_iso,
                 "data_processamento": data_processamento_iso,
                 "metodo_extracao": metodo_usado,
                 "confianca_media": confianca_media

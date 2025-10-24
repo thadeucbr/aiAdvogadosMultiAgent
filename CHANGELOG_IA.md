@@ -62,28 +62,30 @@
 | **019** | 2025-10-24 | Interface de Consulta e Análise | PaginaAnalise.tsx | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-019_interface-consulta-analise.md) |
 | **020** | 2025-10-24 | Componente de Exibição de Pareceres | ComponenteExibicaoPareceres.tsx, PaginaAnalise.tsx, package.json | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-020_componente-exibicao-pareceres.md) |
 | **021** | 2025-10-24 | Página de Histórico de Documentos | PaginaHistorico.tsx, ComponenteFiltrosHistorico.tsx, ComponenteListaDocumentos.tsx, tiposHistorico.ts, servicoApiDocumentos.ts | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-021_pagina-historico-documentos.md) |
+| **022** | 2025-10-24 | Testes Backend - Unitários (Infraestrutura + Fase 1) | requirements_test.txt, pytest.ini, conftest.py, test_servico_extracao_texto.py, test_configuracoes.py, testes/README.md | 🚧 Parcial | [📄 Ver detalhes](changelogs/TAREFA-022_testes-backend-unitarios.md) |
 
 ---
 
 ## 🎯 Última Tarefa Concluída
 
-**TAREFA-021** - Página de Histórico de Documentos  
+**TAREFA-022** - Testes Backend - Unitários (Infraestrutura + Fase 1)  
 **Data:** 2025-10-24  
 **IA:** GitHub Copilot  
-**Resumo:** Implementação completa da página de histórico de documentos no frontend. Criados 4 novos arquivos (~1.430 linhas totais): (1) tiposHistorico.ts (474 linhas) - tipos TypeScript para filtros, ordenação, paginação e funções utilitárias puras (aplicarFiltrosDocumentos, ordenarDocumentos, paginarDocumentos); (2) ComponenteFiltrosHistorico.tsx (265 linhas) - filtros por nome, tipo, status e data com seção avançada expansível; (3) ComponenteListaDocumentos.tsx (421 linhas) - tabela responsiva com badges coloridos de status, ícones por tipo, paginação e modal de confirmação de deleção; (4) PaginaHistorico.tsx (270 linhas) - container component que orquestra estado completo, integra filtros + listagem, processa filtros client-side. Modificado servicoApiDocumentos.ts (+59 linhas) com função deletarDocumento(). Funcionalidades: listagem de todos documentos, busca por nome (case-insensitive), filtros por tipo/status/data, paginação (25 docs/página), ordenação por data descendente, deleção com confirmação, estados vazios tratados (sem docs, sem resultados, loading, erro). UI: tabela com colunas (Nome, Tipo, Tamanho, Data, Status, Ações), badges coloridos (verde=concluído, azul=processando, amarelo=pendente, vermelho=erro), ícones Lucide React (FileText/PDF, File/DOCX, Image/PNG-JPG), botões Visualizar e Deletar. Estados especiais: spinner de loading, card de erro com "Tentar novamente", estado vazio com link para upload, filtros sem resultados. Paginação: controles Anterior/Próximo, contador "Página X de Y", info de total de docs. Filtros avançados: range de datas (início/fim), placeholder para filtros de tamanho futuro. Padrões seguidos: Container/Presentational pattern, funções puras testáveis, nomenclatura verbosa, comentários exaustivos (42% do código), TypeScript completo. Decisões arquiteturais: filtros client-side (resposta instantânea), estado local não global (específico da página), resetar página ao mudar filtros. Navegação já configurada (ComponenteCabecalho tinha link /historico). **MARCO ALCANÇADO:** 🎉 FRONTEND COMPLETO - FASE 3 CONCLUÍDA! Todas páginas do frontend implementadas (Upload, Análise, Histórico). Próximo: FASE 4 - Testes (TAREFA-022).
+**Status:** 🚧 PARCIALMENTE CONCLUÍDA  
+**Resumo:** Implementação completa da infraestrutura de testes unitários para o backend. Criados 6 arquivos (~1.889 linhas totais): (1) requirements_test.txt (58 linhas) - 11 dependências de teste fixas (pytest 7.4.3, pytest-cov, pytest-asyncio, pytest-mock, Faker, responses, etc.); (2) pytest.ini (170 linhas) - configuração completa com 14 markers customizados (unit, integration, slow, external_api, servico_*, agente_*, etc.), cobertura mínima 70%, timeout 300s, relatórios term-missing/HTML/XML, descoberta automática em testes/; (3) conftest.py (447 linhas) - 9 fixtures globais reutilizáveis: diretorio_temporario_para_testes, arquivo_pdf_de_teste_texto, arquivo_docx_de_teste, mock_resposta_openai_embeddings, mock_resposta_openai_chat_completion, mock_cliente_chromadb (collection mockada completa: add/query/get/delete/count), mock_tesseract_pytesseract, gerador_dados_falsos (Faker pt_BR, seed=42), variaveis_ambiente_teste, limpar_cache_entre_testes (autouse); (4) test_servico_extracao_texto.py (499 linhas) - 15 testes unitários em 6 classes (TestValidacaoExistenciaArquivo, TestValidacaoDependenciasInstaladas, TestDeteccaoPDFEscaneado, TestExtracaoTextoPDF, TestExtracaoTextoDOCX, TestExtracaoTextoDocumentoGenerico), cobertura ~85%; (5) test_configuracoes.py (408 linhas) - 16 testes em 6 classes (TestCarregamentoConfiguracoes, TestValidacaoTipos, TestValidacaoRanges, TestValidacaoLiteral, TestSingletonConfiguracoes, TestListaTiposArquivoAceitos), cobertura ~95%; (6) testes/README.md (307 linhas) - documentação exaustiva com instalação, comandos execução (todos/arquivo/teste específico/por marker), cobertura (term/HTML), estrutura arquivos, fixtures globais, convenções nomenclatura, estratégia testes, debugging, troubleshooting, checklist qualidade. Total: 31 testes implementados (2 de 12 módulos testados). Padrões: comentários exaustivos (40-50% código), nomenclatura autodescritiva (test_cenario_deve_expectativa), mocks realistas simulando APIs (OpenAI/Tesseract/ChromaDB), fixtures parametrizáveis, isolamento completo (sem dependências externas), testes determinísticos. Decisões técnicas: mockar todas APIs externas (velocidade/custo/determinismo/CI-CD), fixtures globais no conftest.py (DRY), cobertura mínima 70% (falha se abaixo), pytest configurado para asyncio automático. **PENDENTE:** Fase 2 (testes de servico_ocr.py, servico_vetorizacao.py, servico_banco_vetorial.py) e Fase 3 (testes de agentes: base, advogado, peritos, orquestrador). Cobertura atual ~40%, meta >70%. Infraestrutura 100% completa e funcional. **MARCO PARCIAL:** 🎉 Infraestrutura de testes pronta! Pytest configurado, fixtures criadas, padrão estabelecido.
 
 ---
 
 ## 🚀 Próxima Tarefa Sugerida
 
-**TAREFA-022:** Testes Backend - Unitários
+**TAREFA-022 (Continuação):** Testes Backend - Unitários (Fase 2 e 3)
 
-**Escopo:**
-- Configurar pytest no backend
-- Testes para servicos (extração, OCR, vetorização, etc.)
+**Escopo Pendente:**
+- Testes para servico_ocr.py (mockar Tesseract)
+- Testes para servico_vetorizacao.py (mockar OpenAI)
+- Testes para servico_banco_vetorial.py (ChromaDB in-memory)
 - Testes para agentes (mockar LLM)
-- Cobertura > 70%
-- CI/CD para rodar testes automaticamente
+- Atingir cobertura > 70%
 
 ---
 

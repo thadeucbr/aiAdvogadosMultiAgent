@@ -170,7 +170,7 @@ export interface ParecerIndividualPerito {
    * 
    * EXEMPLO: "Perito Médico"
    */
-  nome_perito: string;
+  nome_perito?: string;
 
   /**
    * ID do perito que gerou este parecer

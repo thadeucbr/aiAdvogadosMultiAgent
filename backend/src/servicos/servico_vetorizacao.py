@@ -251,7 +251,7 @@ def obter_tokenizer_openai() -> tiktoken.Encoding:
     CONTEXTO:
     O tokenizer é necessário para contar quantos tokens um texto possui.
     Diferentes modelos da OpenAI usam diferentes encodings:
-    - GPT-4, GPT-3.5: cl100k_base
+    - GPT-5-nano, GPT-4, GPT-3.5: cl100k_base
     - text-embedding-ada-002: cl100k_base
     
     @lru_cache garante que o tokenizer é carregado apenas uma vez (singleton).
@@ -265,7 +265,7 @@ def obter_tokenizer_openai() -> tiktoken.Encoding:
     if tiktoken is None:
         raise DependenciaNaoInstaladaError("tiktoken não está instalado")
     
-    # cl100k_base é o encoding usado por GPT-4 e text-embedding-ada-002
+    # cl100k_base é o encoding usado por GPT-5-nano, GPT-4 e text-embedding-ada-002
     encoding = tiktoken.get_encoding("cl100k_base")
     logger.debug("Tokenizer OpenAI (cl100k_base) carregado com sucesso")
     

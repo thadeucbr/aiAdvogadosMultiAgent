@@ -560,7 +560,8 @@ async def endpoint_upload_documentos(
                 caminho_arquivo=str(caminho_arquivo),
                 documento_id=id_documento,
                 nome_arquivo_original=nome_original,
-                tipo_documento=tipo_documento.value  # Converter enum para string
+                tipo_documento=tipo_documento.value,  # Converter enum para string
+                data_upload=data_hora_atual.isoformat()  # Passar data de upload em formato ISO
             )
             
             logger.info(
@@ -671,7 +672,8 @@ def processar_documento_background(
     caminho_arquivo: str,
     documento_id: str,
     nome_arquivo_original: str,
-    tipo_documento: str
+    tipo_documento: str,
+    data_upload: str = None
 ) -> None:
     """
     Processa um documento em background (tarefa assíncrona).
@@ -691,6 +693,7 @@ def processar_documento_background(
         documento_id: UUID do documento
         nome_arquivo_original: Nome original do arquivo
         tipo_documento: Tipo do documento (pdf, docx, etc)
+        data_upload: Data e hora do upload em formato ISO
     """
     logger.info(f"[BACKGROUND] Iniciando processamento de {documento_id}")
     
@@ -703,7 +706,8 @@ def processar_documento_background(
             caminho_arquivo=caminho_arquivo,
             documento_id=documento_id,
             nome_arquivo_original=nome_arquivo_original,
-            tipo_documento=tipo_documento
+            tipo_documento=tipo_documento,
+            data_upload=data_upload
         )
         
         # Atualizar status para concluído
@@ -816,15 +820,32 @@ async def endpoint_listar_documentos() -> RespostaListarDocumentos:
     logger.info("Listando todos os documentos do sistema")
     
     try:
-        # Obter lista de documentos do ChromaDB
-        documentos = servico_banco_vetorial.listar_documentos()
+        # Inicializar ChromaDB
+        _, collection = servico_banco_vetorial.inicializar_chromadb()
         
-        logger.info(f"Encontrados {len(documentos)} documentos no sistema")
+        # Obter lista de documentos do ChromaDB
+        documentos_chromadb = servico_banco_vetorial.listar_documentos(collection)
+        
+        # Transformar para formato esperado pelo frontend (camelCase)
+        documentos_formatados = []
+        for doc in documentos_chromadb:
+            doc_formatado = {
+                "idDocumento": doc.get("documento_id", ""),
+                "nomeArquivo": doc.get("nome_arquivo", "Desconhecido"),
+                "tipoDocumento": doc.get("tipo_documento", "pdf"),
+                "tamanhoEmBytes": 0,  # ChromaDB não armazena tamanho
+                "dataHoraUpload": doc.get("data_upload", ""),
+                "statusProcessamento": "concluido",  # Se está no ChromaDB, foi processado
+                "numeroChunks": doc.get("numero_chunks", 0)
+            }
+            documentos_formatados.append(doc_formatado)
+        
+        logger.info(f"Encontrados {len(documentos_formatados)} documentos no sistema")
         
         resposta = RespostaListarDocumentos(
             sucesso=True,
-            total_documentos=len(documentos),
-            documentos=documentos
+            total_documentos=len(documentos_formatados),
+            documentos=documentos_formatados
         )
         
         return resposta
@@ -945,7 +966,7 @@ async def endpoint_deletar_documento(documento_id: str) -> RespostaDeletarDocume
         
         # Tentar remover arquivo físico (se existir)
         # Procurar em uploads_temp/ por arquivo com esse UUID
-        pasta_uploads = configuracoes.PASTA_UPLOADS_TEMP
+        pasta_uploads = Path(configuracoes.CAMINHO_UPLOADS_TEMP)
         arquivo_deletado = False
         
         for extensao in EXTENSOES_PERMITIDAS:

@@ -116,7 +116,7 @@ class AgenteAdvogadoCoordenador(AgenteBase):
         )
         
         # Configurações específicas do advogado
-        self.modelo_llm_padrao = "gpt-4"  # Usar GPT-4 para análises jurídicas (mais preciso)
+        self.modelo_llm_padrao = "gpt-5-nano-2025-08-07"  # Usar GPT-5-nano para análises jurídicas (mais preciso)
         self.temperatura_padrao = 0.3  # Temperatura baixa = mais objetivo e consistente
         
         # Inicializar ChromaDB para consultas RAG
@@ -324,7 +324,7 @@ Agora, proceda com sua análise jurídica:
             )
             
             # Extrair apenas os textos dos chunks (ignorar metadados e distâncias)
-            chunks_texto = [resultado["texto"] for resultado in resultados]
+            chunks_texto = [resultado["documento"] for resultado in resultados]
             
             logger.info(
                 f"✅ RAG retornou {len(chunks_texto)} chunks relevantes | "
@@ -559,7 +559,7 @@ Agora, proceda com sua análise jurídica:
         IMPLEMENTAÇÃO:
         1. Extrai os pareceres de cada perito
         2. Monta um prompt específico para compilação
-        3. Usa GPT-4 para gerar resposta jurídica integradora
+        3. Usa GPT-5-nano para gerar resposta jurídica integradora
         4. Retorna resposta estruturada com metadados
         
         DIFERENÇA ENTRE compilar_resposta() E processar():

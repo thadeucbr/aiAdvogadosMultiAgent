@@ -136,6 +136,10 @@ estatisticas_globais_llm = EstatisticasGlobaisLLM()
 # FONTE: https://openai.com/pricing (última atualização: 2025-10-23)
 # IMPORTANTE: Atualize estes valores periodicamente conforme a OpenAI muda seus preços
 TABELA_DE_CUSTOS_POR_MODELO = {
+    "gpt-5-nano-2025-08-07": {
+        "input": 0.01,   # Custos estimados para GPT-5-nano
+        "output": 0.02,
+    },
     "gpt-4": {
         "input": 0.03,   # $0.03 por 1K tokens de input
         "output": 0.06,  # $0.06 por 1K tokens de output
@@ -217,7 +221,7 @@ class GerenciadorLLM:
     def chamar_llm(
         self,
         prompt: str,
-        modelo: str = "gpt-4",
+        modelo: str = "gpt-5-nano-2025-08-07",
         temperatura: float = 0.7,
         max_tokens: Optional[int] = None,
         mensagens_de_sistema: Optional[str] = None,
@@ -238,7 +242,7 @@ class GerenciadorLLM:
         
         Args:
             prompt: O prompt/pergunta a ser enviada ao modelo
-            modelo: Nome do modelo OpenAI (ex: "gpt-4", "gpt-3.5-turbo")
+            modelo: Nome do modelo OpenAI (ex: "gpt-5-nano-2025-08-07", "gpt-4", "gpt-3.5-turbo")
             temperatura: Controla aleatoriedade da resposta (0.0 a 2.0)
             max_tokens: Limite máximo de tokens na resposta (None = sem limite)
             mensagens_de_sistema: Mensagem de sistema para contextualizar o modelo
@@ -288,14 +292,28 @@ class GerenciadorLLM:
                     f"{NUMERO_MAXIMO_DE_TENTATIVAS_RETRY}"
                 )
                 
+                # Preparar parâmetros para a chamada à API
+                parametros_api = {
+                    "model": modelo,
+                    "messages": mensagens_para_api,
+                    "timeout": timeout_segundos,
+                }
+                
+                # GPT-5-nano só aceita temperature=1 (padrão)
+                # Para outros modelos, usar temperature customizada
+                if modelo == "gpt-5-nano-2025-08-07":
+                    # Não incluir temperature para usar o padrão (1)
+                    logger.debug(f"Modelo {modelo} usa temperature padrão (1)")
+                else:
+                    parametros_api["temperature"] = temperatura
+                
+                # Adicionar max_tokens apenas se não for None
+                # OpenAI API não aceita max_tokens=null
+                if max_tokens is not None:
+                    parametros_api["max_tokens"] = max_tokens
+                
                 # Fazer a chamada à API OpenAI
-                resposta_da_api = self.cliente_openai.chat.completions.create(
-                    model=modelo,
-                    messages=mensagens_para_api,
-                    temperature=temperatura,
-                    max_tokens=max_tokens,
-                    timeout=timeout_segundos,
-                )
+                resposta_da_api = self.cliente_openai.chat.completions.create(**parametros_api)
                 
                 # Calcular tempo de resposta
                 tempo_de_resposta_segundos = time.time() - timestamp_inicio
@@ -451,10 +469,10 @@ class GerenciadorLLM:
             float: Custo estimado em USD
         """
         # Buscar custos para o modelo na tabela
-        # Se o modelo não estiver na tabela, usar custos do gpt-4 como padrão
+        # Se o modelo não estiver na tabela, usar custos do gpt-5-nano como padrão
         custos_do_modelo = TABELA_DE_CUSTOS_POR_MODELO.get(
             modelo,
-            TABELA_DE_CUSTOS_POR_MODELO["gpt-4"]
+            TABELA_DE_CUSTOS_POR_MODELO["gpt-5-nano-2025-08-07"]
         )
         
         # Calcular custo (preços são por 1000 tokens)
