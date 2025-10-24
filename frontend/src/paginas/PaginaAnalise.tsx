@@ -36,8 +36,9 @@
  */
 
 import { useState } from 'react';
-import { Send, Loader2, AlertCircle, CheckCircle2, Clock, TrendingUp } from 'lucide-react';
+import { Send, Loader2, AlertCircle, Clock } from 'lucide-react';
 import { ComponenteSelecionadorAgentes } from '../componentes/analise/ComponenteSelecionadorAgentes';
+import { ComponenteExibicaoPareceres } from '../componentes/ComponenteExibicaoPareceres';
 import { useArmazenamentoAgentes } from '../contextos/armazenamentoAgentes';
 import {
   realizarAnaliseMultiAgent,
@@ -386,106 +387,10 @@ export function PaginaAnalise() {
 
       {/* Resultados da Análise */}
       {estadoCarregamento === 'success' && resultadoAnalise && (
-        <div className="space-y-6">
-          {/* Card: Informações Gerais */}
-          <div className="card bg-green-50 border-green-300">
-            <div className="flex items-start gap-3">
-              <CheckCircle2 size={24} className="text-green-600 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <h3 className="text-green-900 font-semibold mb-1">
-                  Análise Concluída com Sucesso!
-                </h3>
-                <div className="text-sm text-green-700 space-y-1">
-                  <p>
-                    <Clock size={14} className="inline mr-1" />
-                    Tempo de execução:{' '}
-                    {resultadoAnalise.tempo_execucao_segundos
-                      ? `${resultadoAnalise.tempo_execucao_segundos.toFixed(1)}s`
-                      : 'N/A'}
-                  </p>
-                  {resultadoAnalise.confianca_geral !== undefined && (
-                    <p>
-                      <TrendingUp size={14} className="inline mr-1" />
-                      Confiança geral: {(resultadoAnalise.confianca_geral * 100).toFixed(0)}%
-                    </p>
-                  )}
-                  <p>
-                    Documentos consultados: {resultadoAnalise.documentos_consultados.length}
-                  </p>
-                </div>
-                <button
-                  onClick={handleLimparResultados}
-                  className="btn-secondary mt-3 text-sm"
-                >
-                  Nova Análise
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Card: Resposta Compilada */}
-          <div className="card">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              Resposta Compilada
-            </h2>
-            <div className="prose prose-sm max-w-none">
-              <div className="whitespace-pre-wrap text-gray-700 leading-relaxed">
-                {resultadoAnalise.resposta_compilada}
-              </div>
-            </div>
-          </div>
-
-          {/* Card: Pareceres Individuais */}
-          {resultadoAnalise.pareceres_individuais &&
-            resultadoAnalise.pareceres_individuais.length > 0 && (
-              <div className="card">
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                  Pareceres Individuais dos Peritos
-                </h2>
-                <div className="space-y-4">
-                  {resultadoAnalise.pareceres_individuais.map((parecer, index) => (
-                    <div
-                      key={parecer.id_perito || index}
-                      className="border border-gray-200 rounded-lg p-4 bg-gray-50"
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <h3 className="text-lg font-semibold text-gray-900">
-                          {parecer.nome_perito}
-                        </h3>
-                        {parecer.confianca !== undefined && (
-                          <span
-                            className={`
-                              text-sm px-3 py-1 rounded-full font-medium
-                              ${
-                                parecer.confianca >= 0.9
-                                  ? 'bg-green-100 text-green-800'
-                                  : parecer.confianca >= 0.7
-                                  ? 'bg-yellow-100 text-yellow-800'
-                                  : 'bg-red-100 text-red-800'
-                              }
-                            `}
-                          >
-                            Confiança: {(parecer.confianca * 100).toFixed(0)}%
-                          </span>
-                        )}
-                      </div>
-                      <div className="prose prose-sm max-w-none">
-                        <div className="whitespace-pre-wrap text-gray-700 leading-relaxed">
-                          {parecer.parecer}
-                        </div>
-                      </div>
-                      {parecer.documentos_consultados &&
-                        parecer.documentos_consultados.length > 0 && (
-                          <div className="mt-3 text-xs text-gray-500">
-                            Documentos consultados: {parecer.documentos_consultados.length}
-                          </div>
-                        )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-        </div>
+        <ComponenteExibicaoPareceres 
+          resultado={resultadoAnalise}
+          onNovaAnalise={handleLimparResultados}
+        />
       )}
     </div>
   );

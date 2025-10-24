@@ -30,8 +30,9 @@
 - ✅ TAREFA-017: Exibição de Shortcuts Sugeridos
 - ✅ TAREFA-018: Componente de Seleção de Agentes
 - ✅ TAREFA-019: Interface de Consulta e Análise
+- ✅ TAREFA-020: Componente de Exibição de Pareceres
 
-**Próximo passo:** TAREFA-020 (Componente de Exibição de Pareceres)
+**Próximo passo:** TAREFA-021 (Página de Histórico de Documentos)
 
 ---
 
