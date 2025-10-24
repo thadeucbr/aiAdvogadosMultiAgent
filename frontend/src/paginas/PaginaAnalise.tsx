@@ -218,12 +218,22 @@ export function PaginaAnalise() {
       // Fazer requisição ao backend
       // TAREFA-023: Incluir documento_ids se houver documentos selecionados
       // TAREFA-029: Enviar peritos e advogados em listas separadas
-      const resposta = await realizarAnaliseMultiAgent({
+      // NOTA: Backend usa agentes_selecionados para peritos (manter compatibilidade)
+      const payload = {
         prompt: textoPrompt.trim(),
-        peritos_selecionados: peritosSelecionados,
+        agentes_selecionados: peritosSelecionados,  // Backend espera agentes_selecionados (peritos)
         advogados_selecionados: advogadosSelecionados,
         documento_ids: documentosSelecionados.length > 0 ? documentosSelecionados : undefined,
+      };
+      
+      console.log('📤 Enviando requisição:', {
+        peritos: peritosSelecionados,
+        advogados: advogadosSelecionados,
+        documentos: documentosSelecionados.length,
+        payload
       });
+      
+      const resposta = await realizarAnaliseMultiAgent(payload);
 
       // Parar contador
       if (intervalId !== null) {

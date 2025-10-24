@@ -496,10 +496,10 @@ export interface RequestAnaliseMultiAgent {
    * 
    * EXEMPLO: ["medico", "seguranca_trabalho"]
    * 
-   * TAREFA-029: Renomeado de agentes_selecionados para peritos_selecionados
-   * para refletir a separação entre peritos técnicos e advogados especialistas
+   * NOTA: Backend usa o nome agentes_selecionados por compatibilidade
+   * com versões anteriores. Frontend deve enviar peritos como agentes_selecionados.
    */
-  peritos_selecionados: string[];
+  agentes_selecionados?: string[];
 
   /**
    * Lista de IDs dos advogados especialistas a serem consultados (TAREFA-029)

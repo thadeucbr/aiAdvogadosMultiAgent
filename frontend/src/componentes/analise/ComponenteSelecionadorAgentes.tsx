@@ -157,16 +157,20 @@ export function ComponenteSelecionadorAgentes({
   const [peritoExpandido, setPeritoExpandido] = useState<string | null>(null);
   const [advogadoExpandido, setAdvogadoExpandido] = useState<string | null>(null);
   
-  // ===== ZUSTAND STORE =====
+  // ===== ZUSTAND STORE (ATUALIZADO TAREFA-029) =====
   
   const {
-    agentesSelecionados,
-    alternarAgente,
-    limparSelecao,
-    estaAgenteSelecionado,
-    obterTotalSelecionados,
+    peritosSelecionados,
+    advogadosSelecionados,
+    alternarPerito,
+    alternarAdvogado,
+    limparTodasSelecoes,
+    estaPeritoSelecionado,
+    estaAdvogadoSelecionado,
+    definirPeritosSelecionados,
+    definirAdvogadosSelecionados,
+    obterTotalAgentesSelecionados,
     isSelecaoValida,
-    definirAgentesSelecionados,
   } = useArmazenamentoAgentes();
   
   
@@ -245,12 +249,9 @@ export function ComponenteSelecionadorAgentes({
    */
   useEffect(() => {
     if (aoAlterarSelecaoPeritos) {
-      const peritosSelecionados = agentesSelecionados.filter(id => 
-        peritosDisponiveis.some(p => p.id_perito === id)
-      );
       aoAlterarSelecaoPeritos(peritosSelecionados);
     }
-  }, [agentesSelecionados, aoAlterarSelecaoPeritos, peritosDisponiveis]);
+  }, [peritosSelecionados, aoAlterarSelecaoPeritos]);
   
   
   /**
@@ -258,12 +259,9 @@ export function ComponenteSelecionadorAgentes({
    */
   useEffect(() => {
     if (aoAlterarSelecaoAdvogados) {
-      const advogadosSelecionados = agentesSelecionados.filter(id => 
-        advogadosDisponiveis.some(a => a.id_advogado === id)
-      );
       aoAlterarSelecaoAdvogados(advogadosSelecionados);
     }
-  }, [agentesSelecionados, aoAlterarSelecaoAdvogados, advogadosDisponiveis]);
+  }, [advogadosSelecionados, aoAlterarSelecaoAdvogados]);
   
   
   // ===== HANDLERS =====
@@ -272,14 +270,14 @@ export function ComponenteSelecionadorAgentes({
    * Handler para alternar seleção de um perito
    */
   function handleAlternarPerito(idPerito: string) {
-    alternarAgente(idPerito);
+    alternarPerito(idPerito);
   }
   
   /**
    * Handler para alternar seleção de um advogado (TAREFA-029)
    */
   function handleAlternarAdvogado(idAdvogado: string) {
-    alternarAgente(idAdvogado);
+    alternarAdvogado(idAdvogado);
   }
   
   /**
@@ -287,7 +285,7 @@ export function ComponenteSelecionadorAgentes({
    */
   function handleSelecionarTodosPeritos() {
     const todosIds = peritosDisponiveis.map(p => p.id_perito);
-    definirAgentesSelecionados(todosIds);
+    definirPeritosSelecionados(todosIds);
   }
   
   /**
@@ -295,10 +293,7 @@ export function ComponenteSelecionadorAgentes({
    */
   function handleSelecionarTodosAdvogados() {
     const todosIds = advogadosDisponiveis.map(a => a.id_advogado);
-    const idsAtuais = agentesSelecionados.filter(id => 
-      !advogadosDisponiveis.some(a => a.id_advogado === id)
-    );
-    definirAgentesSelecionados([...idsAtuais, ...todosIds]);
+    definirAdvogadosSelecionados(todosIds);
   }
   
   /**
@@ -342,7 +337,7 @@ export function ComponenteSelecionadorAgentes({
   
   // ===== RENDERIZAÇÃO PRINCIPAL (ATUALIZADO TAREFA-029) =====
   
-  const totalSelecionados = obterTotalSelecionados();
+  const totalSelecionados = obterTotalAgentesSelecionados();
   const selecaoValida = isSelecaoValida();
   
   return (
@@ -380,7 +375,7 @@ export function ComponenteSelecionadorAgentes({
           </button>
           
           <button
-            onClick={limparSelecao}
+            onClick={limparTodasSelecoes}
             disabled={totalSelecionados === 0}
             className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 
                      bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 
@@ -408,7 +403,7 @@ export function ComponenteSelecionadorAgentes({
       {/* ===== GRID DE PERITOS ===== */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {peritosDisponiveis.map((perito) => {
-          const estaSelecionado = estaAgenteSelecionado(perito.id_perito);
+          const estaSelecionado = estaPeritoSelecionado(perito.id_perito);
           const estaExpandido = peritoExpandido === perito.id_perito;
           const IconePerito = obterIconePerito(perito.id_perito);
           
@@ -512,7 +507,7 @@ export function ComponenteSelecionadorAgentes({
             </p>
             <p className="text-sm text-blue-700 mt-1">
               {peritosDisponiveis
-                .filter(p => estaAgenteSelecionado(p.id_perito))
+                .filter(p => estaPeritoSelecionado(p.id_perito))
                 .map(p => p.nome_exibicao)
                 .join(', ')}
             </p>
@@ -529,12 +524,12 @@ export function ComponenteSelecionadorAgentes({
               Selecione os Advogados Especialistas
             </h3>
             <p className="text-sm text-gray-600 mt-1">
-              {advogadosDisponiveis.filter(a => estaAgenteSelecionado(a.id_advogado)).length === 0 ? (
+              {advogadosDisponiveis.filter(a => estaAdvogadoSelecionado(a.id_advogado)).length === 0 ? (
                 'Nenhum advogado selecionado'
-              ) : advogadosDisponiveis.filter(a => estaAgenteSelecionado(a.id_advogado)).length === 1 ? (
+              ) : advogadosDisponiveis.filter(a => estaAdvogadoSelecionado(a.id_advogado)).length === 1 ? (
                 '1 advogado selecionado'
               ) : (
-                `${advogadosDisponiveis.filter(a => estaAgenteSelecionado(a.id_advogado)).length} advogados selecionados`
+                `${advogadosDisponiveis.filter(a => estaAdvogadoSelecionado(a.id_advogado)).length} advogados selecionados`
               )}
             </p>
           </div>
@@ -543,7 +538,7 @@ export function ComponenteSelecionadorAgentes({
           <div className="flex gap-2">
             <button
               onClick={handleSelecionarTodosAdvogados}
-              disabled={advogadosDisponiveis.every(a => estaAgenteSelecionado(a.id_advogado))}
+              disabled={advogadosDisponiveis.every(a => estaAdvogadoSelecionado(a.id_advogado))}
               className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-green-700 
                        bg-green-50 rounded-lg hover:bg-green-100 disabled:opacity-50 
                        disabled:cursor-not-allowed transition-colors"
@@ -554,7 +549,7 @@ export function ComponenteSelecionadorAgentes({
             </button>
             
             <button
-              onClick={limparSelecao}
+              onClick={limparTodasSelecoes}
               disabled={totalSelecionados === 0}
               className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-700 
                        bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 
@@ -596,7 +591,7 @@ export function ComponenteSelecionadorAgentes({
         {estadoCarregamentoAdvogados === 'success' && advogadosDisponiveis.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {advogadosDisponiveis.map((advogado) => {
-              const estaSelecionado = estaAgenteSelecionado(advogado.id_advogado);
+              const estaSelecionado = estaAdvogadoSelecionado(advogado.id_advogado);
               const estaExpandido = advogadoExpandido === advogado.id_advogado;
               const IconeAdvogado = obterIconeAdvogado(advogado.id_advogado);
               
@@ -690,7 +685,7 @@ export function ComponenteSelecionadorAgentes({
         )}
         
         {/* Resumo advogados selecionados */}
-        {advogadosDisponiveis.filter(a => estaAgenteSelecionado(a.id_advogado)).length > 0 && (
+        {advogadosDisponiveis.filter(a => estaAdvogadoSelecionado(a.id_advogado)).length > 0 && (
           <div className="flex items-start gap-2 p-3 bg-green-50 border border-green-200 rounded-lg mt-4">
             <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
@@ -699,7 +694,7 @@ export function ComponenteSelecionadorAgentes({
               </p>
               <p className="text-sm text-green-700 mt-1">
                 {advogadosDisponiveis
-                  .filter(a => estaAgenteSelecionado(a.id_advogado))
+                  .filter(a => estaAdvogadoSelecionado(a.id_advogado))
                   .map(a => a.nome_exibicao)
                   .join(', ')}
               </p>

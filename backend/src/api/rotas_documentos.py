@@ -701,6 +701,10 @@ def processar_documento_background(
     documentos_status_cache[documento_id]["status"] = StatusProcessamentoEnum.PROCESSANDO
     
     try:
+        logger.info(f"[BACKGROUND] Iniciando processamento completo do documento {documento_id}")
+        logger.info(f"[BACKGROUND] Arquivo: {caminho_arquivo}")
+        logger.info(f"[BACKGROUND] Tipo: {tipo_documento}")
+        
         # Processar documento completo
         resultado = servico_ingestao_documentos.processar_documento_completo(
             caminho_arquivo=caminho_arquivo,
@@ -710,22 +714,30 @@ def processar_documento_background(
             data_upload=data_upload
         )
         
+        logger.info(f"[BACKGROUND] ✅ Processamento de {documento_id} concluído com sucesso!")
+        logger.info(f"[BACKGROUND] Resultado: {resultado}")
+        
         # Atualizar status para concluído
         documentos_status_cache[documento_id]["status"] = StatusProcessamentoEnum.CONCLUIDO
         documentos_status_cache[documento_id]["resultado_processamento"] = resultado
         
-        logger.info(f"[BACKGROUND] Processamento de {documento_id} concluído com sucesso")
+        logger.info(f"[BACKGROUND] Status atualizado para CONCLUIDO: {documento_id}")
     
     except Exception as erro:
         # Atualizar status para erro
+        logger.error(f"[BACKGROUND] ❌ ERRO ao processar {documento_id}!")
+        logger.error(f"[BACKGROUND] Tipo do erro: {type(erro).__name__}")
+        logger.error(f"[BACKGROUND] Mensagem: {str(erro)}", exc_info=True)
+        
         documentos_status_cache[documento_id]["status"] = StatusProcessamentoEnum.ERRO
         documentos_status_cache[documento_id]["resultado_processamento"] = {
             "sucesso": False,
             "documento_id": documento_id,
-            "mensagem_erro": str(erro)
+            "mensagem_erro": str(erro),
+            "tipo_erro": type(erro).__name__
         }
         
-        logger.error(f"[BACKGROUND] Erro ao processar {documento_id}: {erro}", exc_info=True)
+        logger.error(f"[BACKGROUND] Status atualizado para ERRO: {documento_id}")
 
 
 # ===== NOVOS ENDPOINTS =====
@@ -1016,3 +1028,35 @@ async def endpoint_deletar_documento(documento_id: str) -> RespostaDeletarDocume
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao deletar documento: {str(erro)}"
         )
+
+
+@router.get(
+    "/debug/status-cache",
+    summary="[DEBUG] Visualizar cache de status de processamento",
+    description="""
+    **ENDPOINT DE DEBUG**
+    
+    Retorna o conteúdo completo do cache de status de documentos.
+    Útil para depuração quando documentos não aparecem no frontend.
+    
+    **Retorna:**
+    - Total de documentos no cache
+    - Status de cada documento
+    - Erros de processamento (se houver)
+    """
+)
+async def endpoint_debug_status_cache() -> dict:
+    """
+    Retorna o cache completo de status de documentos (para debug).
+    
+    CONTEXTO:
+    Quando um documento não aparece no frontend após upload,
+    este endpoint permite verificar se o processamento falhou e qual foi o erro.
+    """
+    logger.info("📊 Consultando cache de status para debug")
+    
+    return {
+        "total_documentos_em_cache": len(documentos_status_cache),
+        "documentos": documentos_status_cache
+    }
+

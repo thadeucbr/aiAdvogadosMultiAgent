@@ -64,6 +64,27 @@ import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 
 
+// ===== MIGRAÇÃO DE DADOS ANTIGOS =====
+
+/**
+ * Limpa localStorage de versões antigas do store
+ * 
+ * CONTEXTO:
+ * Antes da TAREFA-029, usávamos 'armazenamento-agentes'.
+ * Após TAREFA-029, usamos 'armazenamento-agentes-v2' com estrutura diferente.
+ * Este código garante que dados antigos não causem conflitos.
+ */
+if (typeof window !== 'undefined') {
+  const chaveAntiga = 'armazenamento-agentes';
+  const dadosAntigos = localStorage.getItem(chaveAntiga);
+  
+  if (dadosAntigos) {
+    console.warn('🧹 Removendo localStorage antigo:', chaveAntiga);
+    localStorage.removeItem(chaveAntiga);
+  }
+}
+
+
 // ===== INTERFACES DO STORE =====
 
 /**
@@ -373,14 +394,16 @@ export const useArmazenamentoAgentes = create<ArmazenamentoAgentes>()(
             const estaAtualmenteSelecionado = state.peritosSelecionados.includes(idPerito);
 
             if (estaAtualmenteSelecionado) {
+              const novosPeritos = state.peritosSelecionados.filter((id) => id !== idPerito);
+              console.log('🔵 Perito removido:', idPerito, '| Peritos restantes:', novosPeritos);
               return {
-                peritosSelecionados: state.peritosSelecionados.filter(
-                  (id) => id !== idPerito
-                ),
+                peritosSelecionados: novosPeritos,
               };
             } else {
+              const novosPeritos = [...state.peritosSelecionados, idPerito];
+              console.log('🟢 Perito adicionado:', idPerito, '| Peritos totais:', novosPeritos);
               return {
-                peritosSelecionados: [...state.peritosSelecionados, idPerito],
+                peritosSelecionados: novosPeritos,
               };
             }
           });
@@ -433,14 +456,16 @@ export const useArmazenamentoAgentes = create<ArmazenamentoAgentes>()(
             const estaAtualmenteSelecionado = state.advogadosSelecionados.includes(idAdvogado);
 
             if (estaAtualmenteSelecionado) {
+              const novosAdvogados = state.advogadosSelecionados.filter((id) => id !== idAdvogado);
+              console.log('🔵 Advogado removido:', idAdvogado, '| Advogados restantes:', novosAdvogados);
               return {
-                advogadosSelecionados: state.advogadosSelecionados.filter(
-                  (id) => id !== idAdvogado
-                ),
+                advogadosSelecionados: novosAdvogados,
               };
             } else {
+              const novosAdvogados = [...state.advogadosSelecionados, idAdvogado];
+              console.log('🟢 Advogado adicionado:', idAdvogado, '| Advogados totais:', novosAdvogados);
               return {
-                advogadosSelecionados: [...state.advogadosSelecionados, idAdvogado],
+                advogadosSelecionados: novosAdvogados,
               };
             }
           });
@@ -535,6 +560,58 @@ export const useArmazenamentoAgentes = create<ArmazenamentoAgentes>()(
       }),
       {
         name: 'armazenamento-agentes-v2', // Chave do localStorage (mudada para v2)
+        version: 2, // Versão do schema
+        migrate: (persistedState: unknown, version: number) => {
+          // Se versão antiga ou dados corrompidos, limpar
+          if (version < 2 || !persistedState) {
+            console.warn('🔄 Migrando armazenamento de agentes para v2 - limpando dados antigos');
+            return {
+              peritosSelecionados: [],
+              advogadosSelecionados: [],
+              agentesSelecionados: [],
+            };
+          }
+          
+          // Validar e limpar dados corrompidos
+          const state = persistedState as Partial<EstadoAgentes>;
+          
+          // Peritos válidos: apenas "medico" e "seguranca_trabalho"
+          const peritosValidos = ['medico', 'seguranca_trabalho'];
+          const peritosSelecionados = Array.isArray(state.peritosSelecionados)
+            ? state.peritosSelecionados.filter(id => peritosValidos.includes(id))
+            : [];
+          
+          // Advogados válidos: "trabalhista", "previdenciario", "civel", "tributario"
+          const advogadosValidos = ['trabalhista', 'previdenciario', 'civel', 'tributario'];
+          const advogadosSelecionados = Array.isArray(state.advogadosSelecionados)
+            ? state.advogadosSelecionados.filter(id => advogadosValidos.includes(id))
+            : [];
+          
+          // Se tinha dados misturados no array antigo, separar
+          const agentesSelecionados = Array.isArray(state.agentesSelecionados)
+            ? state.agentesSelecionados
+            : [];
+          
+          if (agentesSelecionados.length > 0) {
+            console.warn('🔄 Separando agentes do array deprecated em peritos e advogados');
+            
+            // Separar peritos e advogados do array antigo
+            const peritosDoArray = agentesSelecionados.filter(id => peritosValidos.includes(id));
+            const advogadosDoArray = agentesSelecionados.filter(id => advogadosValidos.includes(id));
+            
+            return {
+              peritosSelecionados: [...new Set([...peritosSelecionados, ...peritosDoArray])],
+              advogadosSelecionados: [...new Set([...advogadosSelecionados, ...advogadosDoArray])],
+              agentesSelecionados: [], // Limpar array deprecated
+            };
+          }
+          
+          return {
+            peritosSelecionados,
+            advogadosSelecionados,
+            agentesSelecionados: [],
+          };
+        },
       }
     ),
     {
