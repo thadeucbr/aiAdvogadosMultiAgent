@@ -50,6 +50,7 @@ import {
   TAMANHO_MAXIMO_ARQUIVO_MB,
   TIPOS_MIME_ACEITOS,
   formatarTamanhoArquivo,
+  obterExtensaoArquivo,
 } from '../../tipos/tiposDocumentos';
 import { ComponenteBotoesShortcut } from '../analise/ComponenteBotoesShortcut';
 
