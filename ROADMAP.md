@@ -28,8 +28,9 @@
 - ✅ TAREFA-015: Setup do Frontend (React + Vite)
 - ✅ TAREFA-016: Componente de Upload de Documentos
 - ✅ TAREFA-017: Exibição de Shortcuts Sugeridos
+- ✅ TAREFA-018: Componente de Seleção de Agentes
 
-**Próximo passo:** TAREFA-018 (Componente de Seleção de Agentes)
+**Próximo passo:** TAREFA-019 (Interface de Consulta e Análise)
 
 ---
 
@@ -598,29 +599,46 @@
 
 ---
 
-#### TAREFA-018: Componente de Seleção de Agentes
+#### ✅ TAREFA-018: Componente de Seleção de Agentes
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-017  
-**Estimativa:** 2-3 horas
+**Estimativa:** 2-3 horas  
+**Status:** ✅ CONCLUÍDA (2025-10-24)
 
 **Escopo:**
-- [ ] Criar `frontend/src/componentes/analise/ComponenteSelecionadorAgentes.tsx`
-- [ ] Checkboxes para cada agente:
-  - [ ] Perito Médico
-  - [ ] Perito Segurança do Trabalho
-- [ ] Indicação visual de agentes selecionados
-- [ ] Permitir seleção múltipla
-- [ ] Validação (pelo menos 1 agente deve ser selecionado)
-- [ ] Descrição de cada agente (tooltip)
-- [ ] Estado global (Zustand) para agentes selecionados
+- [x] Criar `frontend/src/componentes/analise/ComponenteSelecionadorAgentes.tsx`
+- [x] Criar `frontend/src/tipos/tiposAgentes.ts`
+- [x] Criar `frontend/src/servicos/servicoApiAnalise.ts`
+- [x] Criar `frontend/src/contextos/armazenamentoAgentes.ts` (Zustand store)
+- [x] Checkboxes para cada agente:
+  - [x] Perito Médico
+  - [x] Perito Segurança do Trabalho
+- [x] Indicação visual de agentes selecionados
+- [x] Permitir seleção múltipla
+- [x] Validação (pelo menos 1 agente deve ser selecionado)
+- [x] Descrição de cada agente (tooltip/expansível)
+- [x] Estado global (Zustand) para agentes selecionados
+- [x] Botões "Selecionar todos" e "Limpar seleção"
+- [x] Persistência no localStorage
+- [x] Integração com API GET /api/analise/peritos
+- [x] Estados de loading/error/success
+- [x] Animações de entrada (fade in)
 
 **Entregáveis:**
-- Seleção de agentes funcional
-- UI intuitiva e clara
+- ✅ Seleção de agentes funcional (~450 linhas)
+- ✅ UI intuitiva e clara com cards clicáveis
+- ✅ Zustand store completo (~310 linhas)
+- ✅ Serviço de API de análise (~390 linhas)
+- ✅ Tipos TypeScript completos (~430 linhas)
+- ✅ Documentação exaustiva (47% do código)
+
+**Changelog:** [Ver detalhes completos](changelogs/TAREFA-018_componente-selecao-agentes.md)
+
+**Marco:** 🎉 **Componente de Seleção de Agentes Completo!** Usuários agora podem selecionar peritos para análise multi-agent com UI intuitiva e estado persistido.
 
 ---
 
-#### ✅ TAREFA-019: Interface de Consulta e Análise
+#### TAREFA-019: Interface de Consulta e Análise
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-018  
 **Estimativa:** 3-4 horas

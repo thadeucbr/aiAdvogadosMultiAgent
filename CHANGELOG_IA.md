@@ -57,30 +57,31 @@
 | **014** | 2025-10-23 | Endpoint de Análise Multi-Agent | rotas_analise.py, modelos.py, main.py, ARQUITETURA.md | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-014_endpoint-analise-multi-agent.md) |
 | **015** | 2025-10-23 | Setup do Frontend (React + Vite) | frontend/* (10 arquivos TS/TSX), package.json, README.md | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-015_setup-frontend.md) |
 | **016** | 2025-10-23 | Componente de Upload de Documentos | ComponenteUploadDocumentos.tsx, tiposDocumentos.ts, servicoApiDocumentos.ts, PaginaUpload.tsx | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-016_componente-upload-documentos.md) |
+| **017** | 2025-10-24 | Exibição de Shortcuts Sugeridos | ComponenteBotoesShortcut.tsx, modelos.py, rotas_documentos.py, tailwind.config.js | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-017_exibicao-shortcuts-sugeridos.md) |
+| **018** | 2025-10-24 | Componente de Seleção de Agentes | ComponenteSelecionadorAgentes.tsx, tiposAgentes.ts, servicoApiAnalise.ts, armazenamentoAgentes.ts | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-018_componente-selecao-agentes.md) |
 
 ---
 
 ## 🎯 Última Tarefa Concluída
 
-**TAREFA-016** - Componente de Upload de Documentos  
-**Data:** 2025-10-23  
+**TAREFA-018** - Componente de Seleção de Agentes  
+**Data:** 2025-10-24  
 **IA:** GitHub Copilot  
-**Resumo:** Implementado componente completo de upload de documentos jurídicos com funcionalidade de drag-and-drop, validações client-side e progress tracking. Instalada dependência react-dropzone (^14.2.3). Criados 4 arquivos principais: (1) tiposDocumentos.ts (~400 linhas): tipos literais (TipoDocumento, StatusProcessamento), constantes de validação (EXTENSOES_PERMITIDAS, TAMANHO_MAXIMO_50MB), interfaces (InformacaoDocumentoUploadado, RespostaUploadDocumento, ArquivoParaUpload), funções utilitárias (extensaoEhPermitida, formatarTamanhoArquivo, obterExtensaoArquivo); (2) servicoApiDocumentos.ts (~420 linhas): interface ErroAxios type-safe, uploadDocumentos() com FormData/multipart e progress callback, buscarStatusDocumento(), buscarResultadoProcessamento(), listarDocumentos(), validarArquivosParaUpload() client-side, verificarHealthDocumentos(); (3) ComponenteUploadDocumentos.tsx (~620 linhas): drag-and-drop com react-dropzone, estado (arquivosSelecionados, uploadEmAndamento, progressoGlobal, errosValidacao), validações (extensão, tamanho 50MB, duplicatas), lista de arquivos com preview de imagens, progress bar global, tratamento de erros, componente auxiliar ItemArquivo com ícones dinâmicos (File, Loader2, CheckCircle, AlertCircle); (4) PaginaUpload.tsx (~280 linhas modificadas): substituído placeholder por implementação completa, estado (uploadConcluido, idsDocumentosEnviados, mensagemErro), handlers (handleUploadSucesso, handleUploadErro, handleIrParaAnalise, handleEnviarMaisDocumentos), seções (cabeçalho, mensagem de sucesso/erro, componente de upload, informações), integração React Router para navegar a /analise. Total: ~1.720 linhas de código. Validações: extensão (.pdf, .docx, .png, .jpg, .jpeg), tamanho máx 50MB, arquivos duplicados. UI/UX: design responsivo TailwindCSS, cores semânticas (azul/verde/vermelho), ícones Lucide React, transições suaves, feedback visual de estados. Integração: POST /api/documentos/upload com FormData, timeout 5min, progress tracking tempo real, tratamento robusto de erros. **MARCO ALCANÇADO:** PRIMEIRA FUNCIONALIDADE END-TO-END VISÍVEL! Backend processa uploads + Frontend permite uploads + Sistema multi-agent analisa. Próximo: TAREFA-017 (Exibição de Shortcuts Sugeridos).
+**Resumo:** Implementado sistema completo de seleção de agentes peritos para análise multi-agent. Criados 4 arquivos principais: (1) tiposAgentes.ts (~430 linhas): tipos (IdPerito, InformacaoPerito, RespostaListarPeritos, ParecerIndividualPerito, RespostaAnaliseMultiAgent, RequestAnaliseMultiAgent, RespostaErroAnalise), constantes de validação (TAMANHO_MINIMO_PROMPT=10, TAMANHO_MAXIMO_PROMPT=2000, MINIMO_AGENTES_SELECIONADOS=1), tipos utilitários (EstadoCarregamento, EstadoSelecaoAgentes); (2) servicoApiAnalise.ts (~390 linhas): listarPeritosDisponiveis() GET /api/analise/peritos, realizarAnaliseMultiAgent() POST /api/analise/multi-agent com timeout 120s, verificarHealthAnalise() GET /api/analise/health, funções utilitárias (validarPrompt, validarAgentesSelecionados, obterMensagemErroAmigavel type-safe); (3) armazenamentoAgentes.ts (~310 linhas): Zustand store com middlewares devtools+persist, estado (agentesSelecionados: string[]), 8 ações (alternarAgente, selecionarAgente, desselecionarAgente, definirAgentesSelecionados, limparSelecao, estaAgenteSelecionado, obterTotalSelecionados, isSelecaoValida), hooks derivados (useAgentesSelecionados, useAlternarAgente, useIsSelecaoValida), persistência em localStorage (chave: 'armazenamento-agentes'); (4) ComponenteSelecionadorAgentes.tsx (~450 linhas): busca de peritos da API ao montar, estados (loading/success/error), grid responsivo 1-2 colunas, cards clicáveis com toggle, indicação visual de selecionado (borda azul, bg azul claro, shadow), ícones específicos (User para Médico, Shield para Seg. Trabalho), checkboxes visuais (CheckCircle2/Circle), descrição sempre visível (line-clamp-2), especialidades expandíveis com botão "Ver/Ocultar", botões de ação ("Todos" e "Limpar" com estados disabled), validação visual (mensagem vermelha se nenhum selecionado), resumo da seleção (box azul com nomes), animação fade-in, callback aoAlterarSelecao, prop exibirValidacao. Total: ~1.580 linhas de código, 47% documentação. Integração: Backend endpoint GET /api/analise/peritos já implementado (TAREFA-014), tipos sincronizados com modelos Pydantic, store persiste seleção entre sessões. **MARCO ALCANÇADO:** COMPONENTE DE SELEÇÃO DE AGENTES COMPLETO! Usuários podem selecionar peritos para análise multi-agent com UI intuitiva e estado persistido. Próximo: TAREFA-019 (Interface de Consulta e Análise).
 
 ---
 
 ## 🚀 Próxima Tarefa Sugerida
 
-**TAREFA-017:** Exibição de Shortcuts Sugeridos
+**TAREFA-019:** Interface de Consulta e Análise
 
 **Escopo:**
-- Criar ComponenteUploadDocumentos.tsx com drag-and-drop (react-dropzone)
-- Validação de tipos (.pdf, .docx, .png, .jpg) e tamanho (max 50MB)
-- Preview de arquivos selecionados
-- Progress bar durante upload
-- Criar servicoApiDocumentos.ts
-- Integrar com POST /api/documentos/upload
-- Atualizar PaginaUpload.tsx
+- Criar PaginaAnalise.tsx com campo de prompt
+- Integrar ComponenteSelecionadorAgentes
+- Botão "Analisar" com loading states
+- Chamar servicoApiAnalise.realizarAnaliseMultiAgent()
+- Integrar com ComponenteExibicaoPareceres (TAREFA-020)
+- Tratamento de erros e timeout (2 minutos)
 
 ---
 

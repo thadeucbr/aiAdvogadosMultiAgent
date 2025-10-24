@@ -194,10 +194,11 @@ npm run dev
 - [x] Setup do Frontend (React + Vite + TypeScript + TailwindCSS)
 - [x] Componente de Upload de Documentos (Frontend)
 - [x] Exibição de Shortcuts Sugeridos (Frontend)
+- [x] Componente de Seleção de Agentes (Frontend)
 
 ### 🚧 Em Desenvolvimento
 
-- [ ] Componente de Seleção de Agentes (Frontend)
+- [ ] Interface de Consulta e Análise (Frontend)
 - [ ] Interface de Consulta e Análise (Frontend)
 - [ ] Componentes de Exibição de Pareceres (Frontend)
 - [ ] Interface completa de usuário
