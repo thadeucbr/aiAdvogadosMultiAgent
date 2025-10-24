@@ -198,12 +198,16 @@ npm run dev
 - [x] Interface de Consulta e Análise (Frontend)
 - [x] Componente de Exibição de Pareceres (Markdown + PDF + Clipboard)
 - [x] Página de Histórico de Documentos (Listagem, Filtros, Deleção)
+- [x] Infraestrutura de Testes Backend (pytest + fixtures + configuração)
+- [x] Testes Unitários - Serviço de Extração de Texto (15 testes, 85% cobertura)
+- [x] Testes Unitários - Configurações (16 testes, 95% cobertura)
 
 ### 🚧 Em Desenvolvimento
 
-- [ ] Componente de Exibição de Pareceres (aprimoramento com PDF/Markdown)
-- [ ] Página de Histórico de Documentos
-- [ ] Testes automatizados (Backend e Frontend)
+- [ ] Testes Unitários Backend - Serviços Restantes (OCR, Vetorização, ChromaDB)
+- [ ] Testes Unitários Backend - Agentes (Base, Advogado, Peritos, Orquestrador)
+- [ ] Testes de Integração Backend
+- [ ] Testes Frontend (Componentes)
 
 ---
 

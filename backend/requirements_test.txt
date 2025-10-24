@@ -1,0 +1,58 @@
+# ============================================================================
+# DEPENDÊNCIAS DE TESTE - PLATAFORMA JURÍDICA MULTI-AGENT
+# ============================================================================
+# CONTEXTO: Este arquivo contém todas as bibliotecas necessárias para
+#           executar a suite de testes unitários e de integração do backend.
+#
+# IMPORTANTE: Sempre use versões fixas para garantir reprodutibilidade
+#             dos testes em diferentes ambientes.
+# ============================================================================
+
+# Framework de testes principal - pytest com plugins essenciais
+pytest==7.4.3              # Framework de testes para Python
+pytest-cov==4.1.0          # Plugin para gerar relatórios de cobertura de código
+pytest-asyncio==0.21.1     # Suporte para testar código assíncrono (async/await)
+pytest-mock==3.12.0        # Facilita criação de mocks e spies nos testes
+
+# Biblioteca de mocking avançada
+pytest-freezegun==0.4.2    # Mockar datas e horários nos testes
+freezegun==1.2.2           # Biblioteca base para freeze de tempo
+
+# Ferramentas para mockar requisições HTTP
+responses==0.24.1          # Mockar chamadas HTTP (útil para APIs externas)
+requests-mock==1.11.0      # Alternativa para mockar requests
+
+# Faker para geração de dados de teste
+Faker==20.1.0              # Geração de dados falsos realistas (nomes, textos, etc.)
+
+# Validação e comparação de dados
+jsonschema==4.20.0         # Validação de schemas JSON (útil para APIs)
+deepdiff==6.7.1            # Comparação profunda de objetos Python
+
+# Coverage e relatórios
+coverage[toml]==7.3.4      # Ferramenta de cobertura de código
+pytest-html==4.1.1         # Gerar relatórios HTML dos testes
+
+# Performance e profiling
+pytest-benchmark==4.0.0    # Benchmarking de performance em testes
+
+# Linting e quality assurance
+pytest-flake8==1.1.1       # Integração do flake8 com pytest
+flake8==6.1.0              # Linter para código Python
+
+# Fixtures e helpers
+pytest-factoryboy==2.6.0   # Factories para criar objetos de teste complexos
+factory-boy==3.3.0         # Biblioteca base para factories
+
+# Testes de APIs (FastAPI)
+httpx==0.25.2              # Cliente HTTP assíncrono (usado pelo TestClient do FastAPI)
+
+# Utilities
+python-dotenv==1.0.0       # Carregar variáveis de ambiente de .env nos testes
+
+# ============================================================================
+# NOTAS:
+# - Para instalar: pip install -r requirements_test.txt
+# - Para rodar testes: pytest
+# - Para cobertura: pytest --cov=src --cov-report=html
+# ============================================================================
