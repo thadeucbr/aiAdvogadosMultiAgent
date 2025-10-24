@@ -53,7 +53,6 @@ import { useArmazenamentoAgentes } from '../contextos/armazenamentoAgentes';
 import {
   realizarAnaliseMultiAgent,
   validarPrompt,
-  validarAgentesSelecionados,
   obterMensagemErroAmigavel,
 } from '../servicos/servicoApiAnalise';
 import type {
@@ -134,9 +133,10 @@ export function PaginaAnalise() {
   const [intervalId, setIntervalId] = useState<number | null>(null);
 
   /**
-   * Zustand store: agentes selecionados
+   * Zustand store: agentes selecionados (peritos e advogados)
+   * TAREFA-029: Separar peritos e advogados em listas distintas
    */
-  const { agentesSelecionados } = useArmazenamentoAgentes();
+  const { peritosSelecionados, advogadosSelecionados } = useArmazenamentoAgentes();
 
 
   // ===== VALIDAÇÕES =====
@@ -152,9 +152,11 @@ export function PaginaAnalise() {
   const isPromptValido = validarPrompt(textoPrompt);
 
   /**
-   * Validar se pelo menos 1 agente está selecionado
+   * Validar se pelo menos 1 agente (perito ou advogado) está selecionado
+   * TAREFA-029: Considerar ambas as listas
    */
-  const isAgentesSelecionadosValido = validarAgentesSelecionados(agentesSelecionados);
+  const totalAgentesSelecionados = peritosSelecionados.length + advogadosSelecionados.length;
+  const isAgentesSelecionadosValido = totalAgentesSelecionados > 0;
 
   /**
    * Formulário completo é válido?
@@ -215,9 +217,11 @@ export function PaginaAnalise() {
     try {
       // Fazer requisição ao backend
       // TAREFA-023: Incluir documento_ids se houver documentos selecionados
+      // TAREFA-029: Enviar peritos e advogados em listas separadas
       const resposta = await realizarAnaliseMultiAgent({
         prompt: textoPrompt.trim(),
-        agentes_selecionados: agentesSelecionados,
+        peritos_selecionados: peritosSelecionados,
+        advogados_selecionados: advogadosSelecionados,
         documento_ids: documentosSelecionados.length > 0 ? documentosSelecionados : undefined,
       });
 
@@ -282,11 +286,17 @@ export function PaginaAnalise() {
       {/* Card: Seleção de Agentes */}
       <div className="card">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">
-          1. Selecione os Agentes Peritos
+          1. Selecione os Agentes (Peritos e Advogados)
         </h2>
         <ComponenteSelecionadorAgentes
-          aoAlterarSelecao={() => {
-            // Limpar erro de validação quando usuário alterar seleção
+          aoAlterarSelecaoPeritos={() => {
+            // Limpar erro de validação quando usuário alterar seleção de peritos
+            if (exibirValidacao && !isAgentesSelecionadosValido) {
+              setMensagemErro('');
+            }
+          }}
+          aoAlterarSelecaoAdvogados={() => {
+            // Limpar erro de validação quando usuário alterar seleção de advogados
             if (exibirValidacao && !isAgentesSelecionadosValido) {
               setMensagemErro('');
             }
@@ -387,7 +397,7 @@ export function PaginaAnalise() {
             ) : (
               <>
                 <Send size={20} />
-                Analisar com {agentesSelecionados.length} Perito(s)
+                Analisar com {totalAgentesSelecionados} Agente(s)
               </>
             )}
           </button>

@@ -2,15 +2,21 @@
  * Armazenamento Global - Agentes Selecionados (Zustand Store)
  * 
  * CONTEXTO DE NEGÓCIO:
- * Este store gerencia o estado global dos agentes (peritos) selecionados
+ * Este store gerencia o estado global dos agentes (peritos e advogados) selecionados
  * pelo usuário para análise multi-agent. Permite que múltiplos componentes
  * acessem e modifiquem a seleção de agentes de forma sincronizada.
  * 
+ * ATUALIZAÇÃO TAREFA-029:
+ * Refatorado para gerenciar DUAS listas separadas:
+ * 1. Peritos Técnicos (médico, segurança do trabalho)
+ * 2. Advogados Especialistas (trabalhista, previdenciário, cível, tributário)
+ * 
  * RESPONSABILIDADES:
- * - Armazenar lista de IDs de agentes selecionados
- * - Adicionar/remover agentes da seleção
- * - Limpar seleção
- * - Validar se pelo menos 1 agente está selecionado
+ * - Armazenar lista de IDs de peritos selecionados
+ * - Armazenar lista de IDs de advogados selecionados
+ * - Adicionar/remover agentes de cada lista independentemente
+ * - Limpar seleções (individual ou ambas)
+ * - Validar se pelo menos 1 agente (perito OU advogado) está selecionado
  * 
  * POR QUE ZUSTAND?
  * - State management leve e simples
@@ -24,15 +30,25 @@
  * import { useArmazenamentoAgentes } from '@/contextos/armazenamentoAgentes';
  * 
  * function MeuComponente() {
- *   const { agentesSelecionados, alternarAgente, limparSelecao } = useArmazenamentoAgentes();
+ *   const { 
+ *     peritosSelecionados, 
+ *     advogadosSelecionados,
+ *     alternarPerito,
+ *     alternarAdvogado,
+ *     limparTodasSelecoes
+ *   } = useArmazenamentoAgentes();
  *   
  *   return (
  *     <div>
- *       <p>Agentes selecionados: {agentesSelecionados.join(', ')}</p>
- *       <button onClick={() => alternarAgente('medico')}>
+ *       <p>Peritos: {peritosSelecionados.join(', ')}</p>
+ *       <p>Advogados: {advogadosSelecionados.join(', ')}</p>
+ *       <button onClick={() => alternarPerito('medico')}>
  *         Toggle Perito Médico
  *       </button>
- *       <button onClick={limparSelecao}>Limpar</button>
+ *       <button onClick={() => alternarAdvogado('trabalhista')}>
+ *         Toggle Advogado Trabalhista
+ *       </button>
+ *       <button onClick={limparTodasSelecoes}>Limpar Tudo</button>
  *     </div>
  *   );
  * }
@@ -51,125 +67,260 @@ import { devtools, persist } from 'zustand/middleware';
 // ===== INTERFACES DO STORE =====
 
 /**
- * Estado do store de agentes
+ * Estado do store de agentes (ATUALIZADO TAREFA-029)
  * 
  * CAMPOS:
- * - agentesSelecionados: Array de IDs dos agentes atualmente selecionados
+ * - peritosSelecionados: Array de IDs dos peritos atualmente selecionados
+ * - advogadosSelecionados: Array de IDs dos advogados especialistas atualmente selecionados
  */
 interface EstadoAgentes {
   /**
-   * Lista de IDs dos agentes selecionados
+   * Lista de IDs dos peritos selecionados
    * 
    * CONTEXTO:
-   * Array vazio significa nenhum agente selecionado.
+   * Array vazio significa nenhum perito selecionado.
    * IDs correspondem aos valores do backend (ex: "medico", "seguranca_trabalho")
    * 
    * EXEMPLO: ["medico", "seguranca_trabalho"]
+   */
+  peritosSelecionados: string[];
+
+  /**
+   * Lista de IDs dos advogados especialistas selecionados (TAREFA-029)
+   * 
+   * CONTEXTO:
+   * Array vazio significa nenhum advogado selecionado.
+   * IDs correspondem aos valores do backend (ex: "trabalhista", "previdenciario", "civel", "tributario")
+   * 
+   * EXEMPLO: ["trabalhista", "previdenciario"]
+   */
+  advogadosSelecionados: string[];
+
+  /**
+   * DEPRECATED: Mantido por compatibilidade temporária (TAREFA-029)
+   * 
+   * CONTEXTO:
+   * Campo antigo que armazenava todos os agentes juntos.
+   * Agora separado em peritosSelecionados e advogadosSelecionados.
+   * Será removido após migração completa dos componentes.
+   * 
+   * @deprecated Use peritosSelecionados e advogadosSelecionados
    */
   agentesSelecionados: string[];
 }
 
 
 /**
- * Ações disponíveis no store de agentes
+ * Ações disponíveis no store de agentes (ATUALIZADO TAREFA-029)
  * 
- * MÉTODOS:
- * - alternarAgente: Adiciona ou remove um agente da seleção (toggle)
- * - selecionarAgente: Adiciona um agente à seleção (se não estiver)
- * - desselecionarAgente: Remove um agente da seleção (se estiver)
- * - definirAgentesSelecionados: Substitui toda a seleção por um novo array
- * - limparSelecao: Remove todos os agentes da seleção
- * - estaAgenteSelecionado: Verifica se um agente está selecionado
- * - obterTotalSelecionados: Retorna número de agentes selecionados
- * - isSelecaoValida: Verifica se há pelo menos 1 agente selecionado
+ * MÉTODOS PARA PERITOS:
+ * - alternarPerito: Adiciona ou remove um perito da seleção (toggle)
+ * - selecionarPerito: Adiciona um perito à seleção (se não estiver)
+ * - desselecionarPerito: Remove um perito da seleção (se estiver)
+ * - definirPeritosSelecionados: Substitui toda a seleção de peritos por um novo array
+ * - limparSelecaoPeritos: Remove todos os peritos da seleção
+ * - estaPeritoSelecionado: Verifica se um perito está selecionado
+ * - obterTotalPeritosSelecionados: Retorna número de peritos selecionados
+ * 
+ * MÉTODOS PARA ADVOGADOS:
+ * - alternarAdvogado: Adiciona ou remove um advogado da seleção (toggle)
+ * - selecionarAdvogado: Adiciona um advogado à seleção (se não estiver)
+ * - desselecionarAdvogado: Remove um advogado da seleção (se estiver)
+ * - definirAdvogadosSelecionados: Substitui toda a seleção de advogados por um novo array
+ * - limparSelecaoAdvogados: Remove todos os advogados da seleção
+ * - estaAdvogadoSelecionado: Verifica se um advogado está selecionado
+ * - obterTotalAdvogadosSelecionados: Retorna número de advogados selecionados
+ * 
+ * MÉTODOS GERAIS:
+ * - limparTodasSelecoes: Remove todos os peritos E advogados da seleção
+ * - obterTotalAgentesSelecionados: Retorna número total de agentes (peritos + advogados)
+ * - isSelecaoValida: Verifica se há pelo menos 1 agente (perito OU advogado) selecionado
+ * 
+ * MÉTODOS DEPRECATED (compatibilidade):
+ * - alternarAgente: Use alternarPerito ou alternarAdvogado
+ * - selecionarAgente: Use selecionarPerito ou selecionarAdvogado
+ * - desselecionarAgente: Use desselecionarPerito ou desselecionarAdvogado
+ * - definirAgentesSelecionados: Use definirPeritosSelecionados ou definirAdvogadosSelecionados
+ * - limparSelecao: Use limparTodasSelecoes
+ * - estaAgenteSelecionado: Use estaPeritoSelecionado ou estaAdvogadoSelecionado
+ * - obterTotalSelecionados: Use obterTotalAgentesSelecionados
  */
 interface AcoesAgentes {
+  // ===== AÇÕES PARA PERITOS =====
+  
   /**
-   * Alternar seleção de um agente (toggle)
+   * Alternar seleção de um perito (toggle)
    * 
    * COMPORTAMENTO:
-   * - Se agente NÃO está selecionado → adiciona à seleção
-   * - Se agente JÁ está selecionado → remove da seleção
+   * - Se perito NÃO está selecionado → adiciona à seleção
+   * - Se perito JÁ está selecionado → remove da seleção
    * 
    * USO:
    * Usado em checkboxes para toggle on/off
    * 
-   * @param idAgente - ID do agente a ser alternado
+   * @param idPerito - ID do perito a ser alternado
    */
-  alternarAgente: (idAgente: string) => void;
+  alternarPerito: (idPerito: string) => void;
 
   /**
-   * Selecionar um agente (adicionar à seleção)
+   * Selecionar um perito (adicionar à seleção)
    * 
-   * COMPORTAMENTO:
-   * - Se agente NÃO está selecionado → adiciona à seleção
-   * - Se agente JÁ está selecionado → não faz nada (idempotente)
-   * 
-   * @param idAgente - ID do agente a ser selecionado
+   * @param idPerito - ID do perito a ser selecionado
    */
-  selecionarAgente: (idAgente: string) => void;
+  selecionarPerito: (idPerito: string) => void;
 
   /**
-   * Desselecionar um agente (remover da seleção)
+   * Desselecionar um perito (remover da seleção)
    * 
-   * COMPORTAMENTO:
-   * - Se agente JÁ está selecionado → remove da seleção
-   * - Se agente NÃO está selecionado → não faz nada (idempotente)
-   * 
-   * @param idAgente - ID do agente a ser desselecionado
+   * @param idPerito - ID do perito a ser desselecionado
    */
-  desselecionarAgente: (idAgente: string) => void;
+  desselecionarPerito: (idPerito: string) => void;
 
   /**
-   * Definir array completo de agentes selecionados
+   * Definir array completo de peritos selecionados
    * 
-   * COMPORTAMENTO:
-   * Substitui a seleção atual por um novo array.
-   * 
-   * USO:
-   * - Selecionar múltiplos agentes de uma vez
-   * - Restaurar seleção de estado persistido
-   * 
-   * @param agentes - Array de IDs de agentes
+   * @param peritos - Array de IDs de peritos
    */
-  definirAgentesSelecionados: (agentes: string[]) => void;
+  definirPeritosSelecionados: (peritos: string[]) => void;
 
   /**
-   * Limpar toda a seleção de agentes
+   * Limpar toda a seleção de peritos
+   */
+  limparSelecaoPeritos: () => void;
+
+  /**
+   * Verificar se um perito específico está selecionado
+   * 
+   * @param idPerito - ID do perito
+   * @returns true se perito está selecionado, false caso contrário
+   */
+  estaPeritoSelecionado: (idPerito: string) => boolean;
+
+  /**
+   * Obter total de peritos selecionados
+   * 
+   * @returns Número de peritos selecionados
+   */
+  obterTotalPeritosSelecionados: () => number;
+
+  // ===== AÇÕES PARA ADVOGADOS (TAREFA-029) =====
+
+  /**
+   * Alternar seleção de um advogado especialista (toggle)
+   * 
+   * @param idAdvogado - ID do advogado a ser alternado
+   */
+  alternarAdvogado: (idAdvogado: string) => void;
+
+  /**
+   * Selecionar um advogado especialista
+   * 
+   * @param idAdvogado - ID do advogado a ser selecionado
+   */
+  selecionarAdvogado: (idAdvogado: string) => void;
+
+  /**
+   * Desselecionar um advogado especialista
+   * 
+   * @param idAdvogado - ID do advogado a ser desselecionado
+   */
+  desselecionarAdvogado: (idAdvogado: string) => void;
+
+  /**
+   * Definir array completo de advogados selecionados
+   * 
+   * @param advogados - Array de IDs de advogados
+   */
+  definirAdvogadosSelecionados: (advogados: string[]) => void;
+
+  /**
+   * Limpar toda a seleção de advogados
+   */
+  limparSelecaoAdvogados: () => void;
+
+  /**
+   * Verificar se um advogado específico está selecionado
+   * 
+   * @param idAdvogado - ID do advogado
+   * @returns true se advogado está selecionado, false caso contrário
+   */
+  estaAdvogadoSelecionado: (idAdvogado: string) => boolean;
+
+  /**
+   * Obter total de advogados selecionados
+   * 
+   * @returns Número de advogados selecionados
+   */
+  obterTotalAdvogadosSelecionados: () => number;
+
+  // ===== AÇÕES GERAIS =====
+
+  /**
+   * Limpar TODAS as seleções (peritos E advogados)
    * 
    * COMPORTAMENTO:
-   * Define agentesSelecionados como array vazio.
+   * Define peritosSelecionados e advogadosSelecionados como arrays vazios.
    * 
    * USO:
    * - Botão "Desmarcar todos"
    * - Reset após enviar análise
    */
-  limparSelecao: () => void;
+  limparTodasSelecoes: () => void;
 
   /**
-   * Verificar se um agente específico está selecionado
+   * Obter total de agentes selecionados (peritos + advogados)
    * 
-   * @param idAgente - ID do agente
-   * @returns true se agente está selecionado, false caso contrário
+   * @returns Número total de agentes selecionados
    */
-  estaAgenteSelecionado: (idAgente: string) => boolean;
-
-  /**
-   * Obter total de agentes selecionados
-   * 
-   * @returns Número de agentes selecionados
-   */
-  obterTotalSelecionados: () => number;
+  obterTotalAgentesSelecionados: () => number;
 
   /**
    * Verificar se a seleção é válida (pelo menos 1 agente)
    * 
    * VALIDAÇÃO:
-   * Para realizar análise multi-agent, pelo menos 1 agente deve ser selecionado.
+   * Para realizar análise multi-agent, pelo menos 1 agente (perito OU advogado) 
+   * deve ser selecionado.
    * 
    * @returns true se há pelo menos 1 agente selecionado, false caso contrário
    */
   isSelecaoValida: () => boolean;
+
+  // ===== MÉTODOS DEPRECATED (COMPATIBILIDADE) =====
+
+  /**
+   * @deprecated Use alternarPerito ou alternarAdvogado
+   */
+  alternarAgente: (idAgente: string) => void;
+
+  /**
+   * @deprecated Use selecionarPerito ou selecionarAdvogado
+   */
+  selecionarAgente: (idAgente: string) => void;
+
+  /**
+   * @deprecated Use desselecionarPerito ou desselecionarAdvogado
+   */
+  desselecionarAgente: (idAgente: string) => void;
+
+  /**
+   * @deprecated Use definirPeritosSelecionados ou definirAdvogadosSelecionados
+   */
+  definirAgentesSelecionados: (agentes: string[]) => void;
+
+  /**
+   * @deprecated Use limparTodasSelecoes
+   */
+  limparSelecao: () => void;
+
+  /**
+   * @deprecated Use estaPerito Selecionado ou estaAdvogadoSelecionado
+   */
+  estaAgenteSelecionado: (idAgente: string) => boolean;
+
+  /**
+   * @deprecated Use obterTotalAgentesSelecionados
+   */
+  obterTotalSelecionados: () => number;
 }
 
 
@@ -182,19 +333,21 @@ type ArmazenamentoAgentes = EstadoAgentes & AcoesAgentes;
 // ===== CRIAÇÃO DO STORE =====
 
 /**
- * Hook do store de agentes selecionados
+ * Hook do store de agentes selecionados (ATUALIZADO TAREFA-029)
  * 
  * MIDDLEWARES:
  * 1. persist: Persiste estado no localStorage
  *    - Seleção sobrevive a refresh da página
- *    - Chave: 'armazenamento-agentes'
+ *    - Chave: 'armazenamento-agentes-v2' (mudado para evitar conflitos)
  * 
  * 2. devtools: Integração com Redux DevTools
  *    - Facilita debugging em desenvolvimento
  *    - Nome: 'ArmazenamentoAgentes'
  * 
  * ESTADO INICIAL:
- * - agentesSelecionados: [] (nenhum agente selecionado)
+ * - peritosSelecionados: [] (nenhum perito selecionado)
+ * - advogadosSelecionados: [] (nenhum advogado selecionado)
+ * - agentesSelecionados: [] (deprecated, mantido por compatibilidade)
  * 
  * JUSTIFICATIVA PARA PERSISTÊNCIA:
  * Melhor UX: se usuário seleciona agentes, sai da página e volta,
@@ -209,82 +362,179 @@ export const useArmazenamentoAgentes = create<ArmazenamentoAgentes>()(
     persist(
       (set, get) => ({
         // ===== ESTADO INICIAL =====
-        agentesSelecionados: [],
+        peritosSelecionados: [],
+        advogadosSelecionados: [],
+        agentesSelecionados: [], // DEPRECATED
 
-        // ===== AÇÕES =====
+        // ===== AÇÕES PARA PERITOS =====
 
-        alternarAgente: (idAgente: string) => {
+        alternarPerito: (idPerito: string) => {
           set((state) => {
-            const estaAtualmenteSelecionado = state.agentesSelecionados.includes(idAgente);
+            const estaAtualmenteSelecionado = state.peritosSelecionados.includes(idPerito);
 
             if (estaAtualmenteSelecionado) {
-              // Remover agente da seleção
               return {
-                agentesSelecionados: state.agentesSelecionados.filter(
-                  (id) => id !== idAgente
+                peritosSelecionados: state.peritosSelecionados.filter(
+                  (id) => id !== idPerito
                 ),
               };
             } else {
-              // Adicionar agente à seleção
               return {
-                agentesSelecionados: [...state.agentesSelecionados, idAgente],
+                peritosSelecionados: [...state.peritosSelecionados, idPerito],
               };
             }
           });
         },
 
-        selecionarAgente: (idAgente: string) => {
+        selecionarPerito: (idPerito: string) => {
           set((state) => {
-            // Se já está selecionado, não fazer nada (idempotente)
-            if (state.agentesSelecionados.includes(idAgente)) {
+            if (state.peritosSelecionados.includes(idPerito)) {
               return state;
             }
-
-            // Adicionar agente à seleção
             return {
-              agentesSelecionados: [...state.agentesSelecionados, idAgente],
+              peritosSelecionados: [...state.peritosSelecionados, idPerito],
             };
           });
         },
 
-        desselecionarAgente: (idAgente: string) => {
+        desselecionarPerito: (idPerito: string) => {
           set((state) => {
-            // Se não está selecionado, não fazer nada (idempotente)
-            if (!state.agentesSelecionados.includes(idAgente)) {
+            if (!state.peritosSelecionados.includes(idPerito)) {
               return state;
             }
-
-            // Remover agente da seleção
             return {
-              agentesSelecionados: state.agentesSelecionados.filter(
-                (id) => id !== idAgente
+              peritosSelecionados: state.peritosSelecionados.filter(
+                (id) => id !== idPerito
               ),
             };
           });
         },
 
-        definirAgentesSelecionados: (agentes: string[]) => {
-          set({ agentesSelecionados: agentes });
+        definirPeritosSelecionados: (peritos: string[]) => {
+          set({ peritosSelecionados: peritos });
         },
 
-        limparSelecao: () => {
-          set({ agentesSelecionados: [] });
+        limparSelecaoPeritos: () => {
+          set({ peritosSelecionados: [] });
         },
 
-        estaAgenteSelecionado: (idAgente: string) => {
-          return get().agentesSelecionados.includes(idAgente);
+        estaPeritoSelecionado: (idPerito: string) => {
+          return get().peritosSelecionados.includes(idPerito);
         },
 
-        obterTotalSelecionados: () => {
-          return get().agentesSelecionados.length;
+        obterTotalPeritosSelecionados: () => {
+          return get().peritosSelecionados.length;
+        },
+
+        // ===== AÇÕES PARA ADVOGADOS (TAREFA-029) =====
+
+        alternarAdvogado: (idAdvogado: string) => {
+          set((state) => {
+            const estaAtualmenteSelecionado = state.advogadosSelecionados.includes(idAdvogado);
+
+            if (estaAtualmenteSelecionado) {
+              return {
+                advogadosSelecionados: state.advogadosSelecionados.filter(
+                  (id) => id !== idAdvogado
+                ),
+              };
+            } else {
+              return {
+                advogadosSelecionados: [...state.advogadosSelecionados, idAdvogado],
+              };
+            }
+          });
+        },
+
+        selecionarAdvogado: (idAdvogado: string) => {
+          set((state) => {
+            if (state.advogadosSelecionados.includes(idAdvogado)) {
+              return state;
+            }
+            return {
+              advogadosSelecionados: [...state.advogadosSelecionados, idAdvogado],
+            };
+          });
+        },
+
+        desselecionarAdvogado: (idAdvogado: string) => {
+          set((state) => {
+            if (!state.advogadosSelecionados.includes(idAdvogado)) {
+              return state;
+            }
+            return {
+              advogadosSelecionados: state.advogadosSelecionados.filter(
+                (id) => id !== idAdvogado
+              ),
+            };
+          });
+        },
+
+        definirAdvogadosSelecionados: (advogados: string[]) => {
+          set({ advogadosSelecionados: advogados });
+        },
+
+        limparSelecaoAdvogados: () => {
+          set({ advogadosSelecionados: [] });
+        },
+
+        estaAdvogadoSelecionado: (idAdvogado: string) => {
+          return get().advogadosSelecionados.includes(idAdvogado);
+        },
+
+        obterTotalAdvogadosSelecionados: () => {
+          return get().advogadosSelecionados.length;
+        },
+
+        // ===== AÇÕES GERAIS =====
+
+        limparTodasSelecoes: () => {
+          set({ peritosSelecionados: [], advogadosSelecionados: [] });
+        },
+
+        obterTotalAgentesSelecionados: () => {
+          const state = get();
+          return state.peritosSelecionados.length + state.advogadosSelecionados.length;
         },
 
         isSelecaoValida: () => {
-          return get().agentesSelecionados.length >= 1;
+          const state = get();
+          return (state.peritosSelecionados.length + state.advogadosSelecionados.length) >= 1;
+        },
+
+        // ===== MÉTODOS DEPRECATED (COMPATIBILIDADE) =====
+
+        alternarAgente: (idAgente: string) => {
+          // Assume que é perito por compatibilidade
+          get().alternarPerito(idAgente);
+        },
+
+        selecionarAgente: (idAgente: string) => {
+          get().selecionarPerito(idAgente);
+        },
+
+        desselecionarAgente: (idAgente: string) => {
+          get().desselecionarPerito(idAgente);
+        },
+
+        definirAgentesSelecionados: (agentes: string[]) => {
+          get().definirPeritosSelecionados(agentes);
+        },
+
+        limparSelecao: () => {
+          get().limparTodasSelecoes();
+        },
+
+        estaAgenteSelecionado: (idAgente: string) => {
+          return get().estaPeritoSelecionado(idAgente);
+        },
+
+        obterTotalSelecionados: () => {
+          return get().obterTotalAgentesSelecionados();
         },
       }),
       {
-        name: 'armazenamento-agentes', // Chave do localStorage
+        name: 'armazenamento-agentes-v2', // Chave do localStorage (mudada para v2)
       }
     ),
     {
@@ -294,30 +544,54 @@ export const useArmazenamentoAgentes = create<ArmazenamentoAgentes>()(
 );
 
 
-// ===== HOOKS DERIVADOS (OPCIONAL - CONVENÊNCIA) =====
+// ===== HOOKS DERIVADOS (ATUALIZADO TAREFA-029) =====
 
 /**
- * Hook para obter apenas IDs dos agentes selecionados
+ * Hook para obter apenas IDs dos peritos selecionados
  * 
  * USO:
- * Quando componente só precisa ler a seleção (não modificar)
+ * Quando componente só precisa ler a seleção de peritos (não modificar)
  * 
- * @returns Array de IDs de agentes selecionados
+ * @returns Array de IDs de peritos selecionados
  */
-export const useAgentesSelecionados = () =>
-  useArmazenamentoAgentes((state) => state.agentesSelecionados);
+export const usePeritosSelecionados = () =>
+  useArmazenamentoAgentes((state) => state.peritosSelecionados);
 
 
 /**
- * Hook para obter apenas função de alternar agente
+ * Hook para obter apenas IDs dos advogados selecionados (TAREFA-029)
+ * 
+ * USO:
+ * Quando componente só precisa ler a seleção de advogados (não modificar)
+ * 
+ * @returns Array de IDs de advogados selecionados
+ */
+export const useAdvogadosSelecionados = () =>
+  useArmazenamentoAgentes((state) => state.advogadosSelecionados);
+
+
+/**
+ * Hook para obter apenas função de alternar perito
  * 
  * USO:
  * Em checkboxes que só precisam toggle (não ler estado completo)
  * 
- * @returns Função alternarAgente
+ * @returns Função alternarPerito
  */
-export const useAlternarAgente = () =>
-  useArmazenamentoAgentes((state) => state.alternarAgente);
+export const useAlternarPerito = () =>
+  useArmazenamentoAgentes((state) => state.alternarPerito);
+
+
+/**
+ * Hook para obter apenas função de alternar advogado (TAREFA-029)
+ * 
+ * USO:
+ * Em checkboxes que só precisam toggle (não ler estado completo)
+ * 
+ * @returns Função alternarAdvogado
+ */
+export const useAlternarAdvogado = () =>
+  useArmazenamentoAgentes((state) => state.alternarAdvogado);
 
 
 /**
@@ -330,3 +604,17 @@ export const useAlternarAgente = () =>
  */
 export const useIsSelecaoValida = () =>
   useArmazenamentoAgentes((state) => state.isSelecaoValida());
+
+
+/**
+ * @deprecated Use usePeritosSelecionados ou useAdvogadosSelecionados
+ */
+export const useAgentesSelecionados = () =>
+  useArmazenamentoAgentes((state) => state.peritosSelecionados);
+
+
+/**
+ * @deprecated Use useAlternarPerito ou useAlternarAdvogado
+ */
+export const useAlternarAgente = () =>
+  useArmazenamentoAgentes((state) => state.alternarPerito);

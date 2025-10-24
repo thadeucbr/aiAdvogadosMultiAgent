@@ -26,6 +26,7 @@
 import { clienteApi } from './clienteApi';
 import type {
   RespostaListarPeritos,
+  RespostaListarAdvogados,
   RequestAnaliseMultiAgent,
   RespostaAnaliseMultiAgent,
   RespostaErroAnalise,
@@ -87,6 +88,88 @@ import type {
  */
 export async function listarPeritosDisponiveis() {
   return await clienteApi.get<RespostaListarPeritos>('/api/analise/peritos');
+}
+
+
+/**
+ * Listar advogados especialistas disponíveis no sistema (TAREFA-029)
+ * 
+ * CONTEXTO:
+ * Consulta o backend para obter a lista de advogados especialistas que podem ser
+ * selecionados para uma análise. Retorna informações completas sobre cada
+ * advogado (nome, área de especialização, descrição, legislação principal).
+ * 
+ * ENDPOINT:
+ * GET /api/analise/advogados
+ * 
+ * USO:
+ * Componente de seleção de agentes chama esta função ao montar
+ * para popular a lista de checkboxes/cards de advogados especialistas.
+ * 
+ * EXEMPLO:
+ * ```tsx
+ * const { data } = await listarAdvogadosDisponiveis();
+ * console.log(data.advogados); 
+ * // [
+ * //   { id_advogado: "trabalhista", nome_exibicao: "Advogado Trabalhista", ... }, 
+ * //   { id_advogado: "previdenciario", nome_exibicao: "Advogado Previdenciário", ... },
+ * //   { id_advogado: "civel", nome_exibicao: "Advogado Cível", ... },
+ * //   { id_advogado: "tributario", nome_exibicao: "Advogado Tributário", ... }
+ * // ]
+ * ```
+ * 
+ * RETORNO:
+ * Promise com AxiosResponse<RespostaListarAdvogados>
+ * 
+ * ESTRUTURA DA RESPOSTA:
+ * {
+ *   sucesso: true,
+ *   total_advogados: 4,
+ *   advogados: [
+ *     {
+ *       id_advogado: "trabalhista",
+ *       nome_exibicao: "Advogado Trabalhista",
+ *       area_especializacao: "Direito do Trabalho",
+ *       descricao: "Especialista em CLT, verbas rescisórias...",
+ *       legislacao_principal: ["CLT", "Súmulas do TST", "Lei 8.213/91"]
+ *     },
+ *     {
+ *       id_advogado: "previdenciario",
+ *       nome_exibicao: "Advogado Previdenciário",
+ *       area_especializacao: "Direito Previdenciário",
+ *       descricao: "Especialista em benefícios INSS...",
+ *       legislacao_principal: ["Lei 8.213/91", "Decreto 3.048/99", "Lei 8.742/93"]
+ *     },
+ *     {
+ *       id_advogado: "civel",
+ *       nome_exibicao: "Advogado Cível",
+ *       area_especializacao: "Direito Cível",
+ *       descricao: "Especialista em responsabilidade civil...",
+ *       legislacao_principal: ["Código Civil", "CDC", "CC/2002"]
+ *     },
+ *     {
+ *       id_advogado: "tributario",
+ *       nome_exibicao: "Advogado Tributário",
+ *       area_especializacao: "Direito Tributário",
+ *       descricao: "Especialista em tributos e execução fiscal...",
+ *       legislacao_principal: ["CTN", "CF/88", "Lei 6.830/80"]
+ *     }
+ *   ]
+ * }
+ * 
+ * TRATAMENTO DE ERRO:
+ * Se backend estiver indisponível ou houver erro, lança AxiosError.
+ * Componente deve exibir mensagem de erro ao usuário.
+ * 
+ * DIFERENÇA PARA listarPeritosDisponiveis():
+ * - Peritos: análise técnica (médica, segurança do trabalho)
+ * - Advogados: análise jurídica especializada (trabalhista, previdenciário, cível, tributário)
+ * 
+ * @returns Promise<AxiosResponse<RespostaListarAdvogados>>
+ * @throws {AxiosError} Se houver erro na requisição
+ */
+export async function listarAdvogadosDisponiveis() {
+  return await clienteApi.get<RespostaListarAdvogados>('/api/analise/advogados');
 }
 
 

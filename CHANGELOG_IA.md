@@ -67,35 +67,36 @@
 | **024** | 2025-10-24 | Refatorar Infraestrutura de Agentes para Advogados Especialistas | modelos.py, rotas_analise.py (agente_advogado_base.py, agente_advogado_coordenador.py, orquestrador_multi_agent.py já existiam) | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-024_refatorar-infra-agentes-advogados.md) |
 | **025** | 2025-10-24 | Criar Agente Advogado Especialista - Direito do Trabalho | agente_advogado_trabalhista.py, agente_advogado_base.py, test_agente_advogado_trabalhista.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-025_agente-advogado-trabalhista.md) |
 | **026** | 2025-10-24 | Criar Agente Advogado Especialista - Direito Previdenciário | agente_advogado_previdenciario.py, test_agente_advogado_previdenciario.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-026_agente-advogado-previdenciario.md) |
+| **027** | 2025-10-24 | Criar Agente Advogado Especialista - Direito Cível | agente_advogado_civel.py, test_agente_advogado_civel.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-027_agente-advogado-civel.md) |
+| **028** | 2025-10-24 | Criar Agente Advogado Especialista - Direito Tributário | agente_advogado_tributario.py, test_agente_advogado_tributario.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-028_agente-advogado-tributario.md) |
+| **029** | 2025-10-24 | UI de Seleção de Múltiplos Tipos de Agentes | ComponenteSelecionadorAgentes.tsx, armazenamentoAgentes.ts, PaginaAnalise.tsx, tiposAgentes.ts, servicoApiAnalise.ts | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-029_ui-selecao-multiplos-agentes.md) |
 
 ---
 
 ## 🎯 Última Tarefa Concluída
 
-**TAREFA-026** - Criar Agente Advogado Especialista - Direito Previdenciário  
+**TAREFA-029** - UI de Seleção de Múltiplos Tipos de Agentes  
 **Data:** 2025-10-24  
 **IA:** GitHub Copilot  
 **Status:** ✅ CONCLUÍDA  
-**Resumo:** Implementação completa do segundo agente advogado especialista do sistema multi-agent: o **Advogado Previdenciário**. Seguindo o padrão estabelecido na TAREFA-025, criado `AgenteAdvogadoPrevidenciario` herdando de `AgenteAdvogadoBase` com prompt altamente especializado em Direito Previdenciário. O agente analisa questões previdenciárias sob ótica da Lei 8.213/91, Decreto 3.048/99 e Lei 8.742/93 (LOAS). Expertise em: (1) Concessão e revisão de benefícios (auxílio-doença, aposentadorias, pensões, BPC/LOAS); (2) Qualidade de segurado, carência e período de graça; (3) Benefícios por incapacidade (auxílio-doença e aposentadoria por invalidez); (4) Nexo causal previdenciário para benefícios acidentários; (5) Análise de perícias médicas (perspectiva jurídica); (6) Tempo de contribuição, averbação e conversão de tempo especial; (7) Recursos administrativos (INSS) e ações judiciais; (8) Cálculos previdenciários (RMI, salário de benefício, atrasados). Prompt especializado com 4 seções principais: (a) Aspectos Previdenciários a Examinar (8 tópicos: qualidade de segurado, carência, benefícios por incapacidade, aposentadorias, nexo causal, BPC/LOAS, pensão por morte, tempo de contribuição); (b) Legislação Específica Aplicável (Lei 8.213/91, Decreto 3.048/99, LOAS, LC 142/2013, EC 103/2019, IN INSS); (c) Pontos de Atenção Críticos (decadência/prescrição, ônus da prova, perícia médica, cálculos, Reforma da Previdência); (d) Estrutura de Parecer (introdução, fundamentação jurídica, conclusão e recomendações). Atributos configurados: `legislacao_principal` com 8 leis/normas, `palavras_chave_especializacao` com 80+ termos previdenciários organizados em 11 categorias (benefícios por incapacidade, aposentadorias, benefícios acidentários, pensão/auxílios, BPC/LOAS, qualidade de segurado, documentos, processos INSS, cálculos, legislação), `temperatura_padrao=0.3` para precisão jurídica. Validação de relevância implementada (verifica palavras-chave na pergunta). Registro automático no `AgenteAdvogadoCoordenador` via import dinâmico (já implementado em TAREFA-024). Factory `criar_advogado_previdenciario()` criada. Import dinâmico já presente em `agente_advogado_base.py` desde TAREFA-024 (funções `criar_advogado_especialista_factory()` e `listar_advogados_disponiveis()`). Testes unitários completos criados (test_agente_advogado_previdenciario.py) com 14 casos de teste cobrindo: criação, atributos, prompts, validação de relevância, informações do agente, factory, integração com LLM. Informações em `INFORMACOES_ADVOGADOS` (rotas_analise.py) já estavam presentes desde TAREFA-024. Sistema agora possui DOIS advogados especialistas funcionais (Trabalhista + Previdenciário). **PRÓXIMA TAREFA:** TAREFA-027 (Criar Agente Advogado Cível) - seguir mesmo padrão. **MARCO:** 🎉 Segundo advogado especialista implementado! Sistema multi-agent agora oferece análises jurídicas em Direito do Trabalho E Direito Previdenciário, complementando as análises técnicas dos peritos!
+**Resumo:** Implementação completa da **interface de usuário para seleção independente de peritos técnicos e advogados especialistas**. Expandiu a funcionalidade do sistema multi-agent permitindo que usuários selecionem diferentes tipos de agentes simultaneamente, refletindo a arquitetura híbrida implementada nas tarefas anteriores (TAREFA-024 a TAREFA-028). **Principais entregas:** (1) Tipos TypeScript criados para advogados (`InformacaoAdvogado`, `RespostaListarAdvogados`); (2) Função de API `listarAdvogadosDisponiveis()` para consultar advogados especialistas; (3) Store Zustand completamente refatorado com listas separadas (`peritosSelecionados`, `advogadosSelecionados`) e ações duplicadas para cada tipo (10 ações totais); (4) `ComponenteSelecionadorAgentes` completamente refatorado com duas seções visuais independentes: "🔬 Peritos Técnicos" (Médico, Segurança do Trabalho) e "⚖️ Advogados Especialistas" (Trabalhista, Previdenciário, Cível, Tributário); (5) `PaginaAnalise` atualizada para enviar ambas as listas na requisição de análise; (6) Interface `RequestAnaliseMultiAgent` atualizada com campos `peritos_selecionados` (obrigatório) e `advogados_selecionados` (opcional). **Funcionalidades:** Busca paralela de peritos e advogados via API, loading states separados, validação combinada (pelo menos 1 agente total), botões de ação global (Selecionar Todos, Limpar), checkboxes independentes por tipo. **Compatibilidade:** Mantida com TAREFA-023 (seleção de documentos específicos). **Fluxo completo:** Usuário visualiza duas seções → seleciona peritos e/ou advogados → digita prompt → clica "Analisar com X Agente(s)" → backend processa com agentes selecionados → exibe pareceres individuais + resposta compilada. **Arquivos modificados:** 5 principais (tiposAgentes.ts, servicoApiAnalise.ts, armazenamentoAgentes.ts, ComponenteSelecionadorAgentes.tsx, PaginaAnalise.tsx). **PRÓXIMA TAREFA:** TAREFA-030 (a definir no ROADMAP) - possíveis melhorias: testes automatizados (unit, integration, E2E), acessibilidade (ARIA labels, navegação por teclado), performance (lazy loading, virtualização), UX (filtros/busca, agrupamento por categoria). **MARCO:** 🎉 Interface de seleção multi-agent completa! Usuários agora podem combinar livremente peritos técnicos e advogados especialistas para análises personalizadas, aproveitando a expertise de até 6 agentes simultaneamente (2 peritos + 4 advogados)!
 
 ---
 
 ## 🚀 Próxima Tarefa Sugerida
 
-**TAREFA-027:** Criar Agente Advogado Especialista - Direito Cível
+**TAREFA-030:** Testes Unitários do Frontend (Componentes de Análise)
 
 **Escopo:**
-- Criar `backend/src/agentes/agente_advogado_civel.py`
-- Herdar de `AgenteAdvogadoBase`
-- Criar prompt focado na análise jurídica cível de:
-  - Responsabilidade civil (dano material, dano moral)
-  - Análise de contratos (cláusulas, validade, inadimplemento)
-  - Direito do consumidor
-  - Legislação: Código Civil, Lei 8.078/90 (CDC), Código de Processo Civil
-- Registrar agente no Coordenador (import dinâmico já configurado)
-- Criar testes unitários
+- Criar testes unitários para `ComponenteSelecionadorAgentes.tsx`
+- Criar testes unitários para `ComponenteSelecionadorDocumentos.tsx`
+- Criar testes unitários para `PaginaAnalise.tsx`
+- Criar testes unitários para o store `armazenamentoAgentes.ts`
+- Configurar ambiente de testes (Vitest + Testing Library)
+- Criar mocks para chamadas de API
+- Garantir cobertura mínima de 80%
 
-**Objetivo:** Implementar terceiro advogado especialista seguindo o padrão estabelecido nas TAREFAS 025 e 026.
+**Objetivo:** Garantir qualidade e confiabilidade dos componentes críticos da interface de análise multi-agent através de testes automatizados.
 
 ---
 

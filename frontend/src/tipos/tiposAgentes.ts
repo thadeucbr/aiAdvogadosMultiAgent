@@ -48,6 +48,33 @@ export const IdPerito = {
 export type IdPerito = typeof IdPerito[keyof typeof IdPerito];
 
 
+/**
+ * IDs dos advogados especialistas disponíveis no sistema
+ * 
+ * CONTEXTO (TAREFA-029):
+ * Cada advogado especialista tem um ID único usado para referenciá-lo na API.
+ * Estes IDs correspondem aos nomes usados no backend.
+ * 
+ * VALORES ATUAIS:
+ * - trabalhista: Advogado especialista em Direito do Trabalho (CLT, verbas rescisórias, etc.)
+ * - previdenciario: Advogado especialista em Direito Previdenciário (INSS, benefícios, etc.)
+ * - civel: Advogado especialista em Direito Cível (contratos, responsabilidade civil, etc.)
+ * - tributario: Advogado especialista em Direito Tributário (tributos, execução fiscal, etc.)
+ * 
+ * DIFERENÇA PARA IdPerito:
+ * - Peritos: análise técnica (médica, engenharia, segurança)
+ * - Advogados: análise jurídica especializada por área do direito
+ */
+export const IdAdvogado = {
+  TRABALHISTA: 'trabalhista',
+  PREVIDENCIARIO: 'previdenciario',
+  CIVEL: 'civel',
+  TRIBUTARIO: 'tributario',
+} as const;
+
+export type IdAdvogado = typeof IdAdvogado[keyof typeof IdAdvogado];
+
+
 // ===== INTERFACES DE DADOS =====
 
 /**
@@ -150,6 +177,127 @@ export interface RespostaListarPeritos {
    * Array usado para popular checkboxes e cards de seleção.
    */
   peritos: InformacaoPerito[];
+}
+
+
+/**
+ * Informações sobre um advogado especialista disponível (TAREFA-029)
+ * 
+ * CONTEXTO:
+ * Esta interface espelha a classe InformacaoAdvogado do backend (modelos.py).
+ * Contém metadados sobre um advogado especialista que o frontend usa para exibir
+ * informações ao usuário (nome, área de especialização, legislação).
+ * 
+ * USO:
+ * - Exibir nome do advogado em checkboxes
+ * - Mostrar descrição em tooltips
+ * - Listar legislação principal em cards expandidos
+ * 
+ * ORIGEM DOS DADOS:
+ * Retornado pelo endpoint GET /api/analise/advogados
+ * 
+ * DIFERENÇA PARA InformacaoPerito:
+ * - Peritos têm "especialidades" (lista de competências técnicas)
+ * - Advogados têm "legislacao_principal" (leis/códigos que dominam) e "area_especializacao"
+ */
+export interface InformacaoAdvogado {
+  /**
+   * Identificador único do advogado especialista
+   * 
+   * CONTEXTO:
+   * Usado para referenciar o advogado em requisições ao backend.
+   * Deve corresponder aos valores do enum IdAdvogado.
+   * 
+   * EXEMPLO: "trabalhista", "previdenciario", "civel", "tributario"
+   */
+  id_advogado: string;
+
+  /**
+   * Nome legível para exibição na interface
+   * 
+   * CONTEXTO:
+   * Nome amigável mostrado ao usuário nos checkboxes e cards.
+   * 
+   * EXEMPLO: "Advogado Trabalhista", "Advogado Previdenciário"
+   */
+  nome_exibicao: string;
+
+  /**
+   * Área de especialização jurídica
+   * 
+   * CONTEXTO:
+   * Área do direito em que o advogado é especialista.
+   * 
+   * EXEMPLO: "Direito do Trabalho", "Direito Previdenciário"
+   */
+  area_especializacao: string;
+
+  /**
+   * Descrição das competências e focos do advogado
+   * 
+   * CONTEXTO:
+   * Texto descritivo exibido em tooltips ou cards expandidos.
+   * Ajuda o usuário a entender quando selecionar cada advogado.
+   * 
+   * EXEMPLO:
+   * "Especialista em CLT, verbas rescisórias, justa causa, horas extras,
+   *  adicional noturno e danos morais trabalhistas"
+   */
+  descricao: string;
+
+  /**
+   * Lista de legislação principal da área
+   * 
+   * CONTEXTO:
+   * Leis, códigos, súmulas e decretos que o advogado domina.
+   * Exibidas em cards expandidos ou tooltips detalhados.
+   * 
+   * EXEMPLO (Advogado Trabalhista):
+   * - "CLT (Consolidação das Leis do Trabalho)"
+   * - "Súmulas do TST"
+   * - "Lei 8.213/91 (Benefícios Previdenciários)"
+   */
+  legislacao_principal: string[];
+}
+
+
+/**
+ * Resposta do endpoint de listagem de advogados especialistas (TAREFA-029)
+ * 
+ * CONTEXTO:
+ * Estrutura retornada por GET /api/analise/advogados
+ * Espelha RespostaListarAdvogados do backend (modelos.py)
+ * 
+ * USO:
+ * Frontend chama este endpoint ao carregar o componente de seleção
+ * para obter a lista de advogados especialistas disponíveis dinamicamente.
+ * 
+ * DIFERENÇA PARA RespostaListarPeritos:
+ * - Peritos: análise técnica (médica, engenharia)
+ * - Advogados: análise jurídica especializada
+ */
+export interface RespostaListarAdvogados {
+  /**
+   * Indica se a listagem foi bem-sucedida
+   */
+  sucesso: boolean;
+
+  /**
+   * Número total de advogados especialistas disponíveis
+   * 
+   * CONTEXTO:
+   * Pode ser usado para exibir estatísticas ou validações.
+   * Se total_advogados === 0, exibir mensagem de erro.
+   */
+  total_advogados: number;
+
+  /**
+   * Lista de advogados especialistas disponíveis com todas as informações
+   * 
+   * CONTEXTO:
+   * Array usado para popular checkboxes e cards de seleção.
+   */
+  advogados: InformacaoAdvogado[];
 }
 
 
@@ -342,13 +490,42 @@ export interface RequestAnaliseMultiAgent {
    * Devem corresponder a peritos disponíveis.
    * 
    * VALIDAÇÃO:
-   * - Pelo menos 1 perito deve ser selecionado
+   * - Pelo menos 1 agente (perito ou advogado) deve ser selecionado
    * - Máximo todos os peritos disponíveis
    * - IDs devem existir no sistema
    * 
    * EXEMPLO: ["medico", "seguranca_trabalho"]
+   * 
+   * TAREFA-029: Renomeado de agentes_selecionados para peritos_selecionados
+   * para refletir a separação entre peritos técnicos e advogados especialistas
    */
-  agentes_selecionados: string[];
+  peritos_selecionados: string[];
+
+  /**
+   * Lista de IDs dos advogados especialistas a serem consultados (TAREFA-029)
+   * 
+   * CONTEXTO:
+   * IDs dos advogados especialistas selecionados pelo usuário.
+   * Devem corresponder a advogados disponíveis.
+   * 
+   * COMPORTAMENTO:
+   * - Se None/undefined/vazio: nenhum advogado especialista será consultado
+   * - Se fornecido: advogados especialistas gerarão pareceres jurídicos adicionais
+   * 
+   * USO:
+   * Permite ao usuário selecionar tanto peritos técnicos quanto advogados especialistas
+   * de forma independente.
+   * 
+   * VALIDAÇÃO:
+   * - IDs devem corresponder a advogados existentes
+   * - Backend valida se advogados existem
+   * 
+   * EXEMPLOS:
+   * - undefined: nenhum advogado especialista consultado
+   * - []: nenhum advogado especialista consultado (equivalente a undefined)
+   * - ["trabalhista", "previdenciario"]: consulta esses 2 advogados especialistas
+   */
+  advogados_selecionados?: string[];
 
   /**
    * Lista opcional de IDs de documentos específicos para usar como contexto RAG

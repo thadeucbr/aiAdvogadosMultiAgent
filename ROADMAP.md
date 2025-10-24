@@ -50,8 +50,10 @@ Aqui está o **Roadmap v2.0** atualizado:
 - ✅ TAREFA-024: Refatorar Infraestrutura de Agentes para Advogados Especialistas
 - ✅ TAREFA-025: Criar Agente Advogado Especialista - Direito do Trabalho
 - ✅ TAREFA-026: Criar Agente Advogado Especialista - Direito Previdenciário
+- ✅ TAREFA-027: Criar Agente Advogado Especialista - Direito Cível
+- ✅ TAREFA-028: Criar Agente Advogado Especialista - Direito Tributário
 
-**Próximo passo:** TAREFA-027 (Criar Agente Advogado Especialista - Direito Cível)
+**Próximo passo:** TAREFA-029 (Atualizar UI para Seleção de Múltiplos Agentes)
 
 ---
 
@@ -213,43 +215,49 @@ Aqui está o **Roadmap v2.0** atualizado:
 
 ---
 
-#### 🟡 TAREFA-027: Criar Agente Advogado Especialista - Direito Cível
+#### ✅ TAREFA-027: Criar Agente Advogado Especialista - Direito Cível
 **Prioridade:** 🟢 MÉDIA  
 **Dependências:** TAREFA-024  
 **Estimativa:** 2-3 horas  
-**Status:** 🟡 PENDENTE
+**Status:** ✅ CONCLUÍDA (2025-10-24)
 
 **Escopo:**
-- [ ] Criar `backend/src/agentes/agente_advogado_civel.py`
-- [ ] Herdar de `AgenteAdvogadoBase`.
-- [ ] Criar prompt focado na análise jurídica de:
-  - Responsabilidade civil (dano material, dano moral).
-  - Análise de contratos (cláusulas, validade, inadimplemento).
-  - Direito do consumidor.
-- [ ] Registrar agente no `OrquestradorMultiAgent`.
+- [x] Criar `backend/src/agentes/agente_advogado_civel.py`
+- [x] Herdar de `AgenteAdvogadoBase`.
+- [x] Criar prompt focado na análise jurídica de:
+  - [x] Responsabilidade civil (dano material, dano moral).
+  - [x] Análise de contratos (cláusulas, validade, inadimplemento).
+  - [x] Direito do consumidor.
+- [x] Registrar agente no `OrquestradorMultiAgent`.
+- [x] Criar testes unitários completos
 
 **Entregáveis:**
-- Agente Advogado Cível funcional.
+- ✅ Agente Advogado Cível funcional.
+- ✅ Testes unitários completos (test_agente_advogado_civel.py)
+- ✅ Changelog completo: `changelogs/TAREFA-027_agente-advogado-civel.md`
 
 ---
 
-#### 🟡 TAREFA-028: Criar Agente Advogado Especialista - Direito Tributário
+#### ✅ TAREFA-028: Criar Agente Advogado Especialista - Direito Tributário
 **Prioridade:** 🟢 MÉDIA  
 **Dependências:** TAREFA-024  
 **Estimativa:** 2-3 horas  
-**Status:** 🟡 PENDENTE
+**Status:** ✅ CONCLUÍDA (2025-10-24)
 
 **Escopo:**
-- [ ] Criar `backend/src/agentes/agente_advogado_tributario.py`
-- [ ] Herdar de `AgenteAdvogadoBase`.
-- [ ] Criar prompt focado na análise jurídica de:
+- [x] Criar `backend/src/agentes/agente_advogado_tributario.py`
+- [x] Herdar de `AgenteAdvogadoBase`.
+- [x] Criar prompt focado na análise jurídica de:
   - Fato gerador, base de cálculo de tributos (ICMS, PIS/COFINS, IRPJ).
   - Execução fiscal, defesa.
   - Bitributação, planejamento tributário.
-- [ ] Registrar agente no `OrquestradorMultiAgent`.
+- [x] Registrar agente no `OrquestradorMultiAgent` (via import dinâmico)
+- [x] Criar testes unitários completos
 
 **Entregáveis:**
-- Agente Advogado Tributário funcional.
+- ✅ Agente Advogado Tributário funcional.
+- ✅ Testes unitários completos (test_agente_advogado_tributario.py)
+- ✅ Changelog completo: `changelogs/TAREFA-028_agente-advogado-tributario.md`
 
 ---
 
