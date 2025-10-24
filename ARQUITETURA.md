@@ -56,20 +56,30 @@
 │  │  │  (Coordenador)  │         └──────────────────────┘        │  │
 │  │  └────────┬────────┘                                          │  │
 │  │           │                                                   │  │
-│  │           │ Delega para Peritos                               │  │
-│  │           ▼                                                   │  │
-│  │  ┌────────────────────────────────────────┐                  │  │
-│  │  │         AGENTES PERITOS                │                  │  │
-│  │  │  • Perito Segurança do Trabalho        │                  │  │
-│  │  │  • Perito Médico                       │                  │  │
-│  │  │  • [Extensível para novos peritos]     │                  │  │
-│  │  └────────────────────────────────────────┘                  │  │
+│  │           │ Delega (execução em paralelo via asyncio)         │  │
 │  │           │                                                   │  │
-│  │           │ Retorna pareceres                                 │  │
-│  │           ▼                                                   │  │
-│  │  ┌─────────────────┐                                          │  │
-│  │  │ AGENTE ADVOGADO │ Compila resposta final                  │  │
-│  │  └─────────────────┘                                          │  │
+│  │           ├────────────────────┬───────────────────────────┐  │  │
+│  │           ▼                    ▼                           ▼  │  │
+│  │  ┌─────────────────┐  ┌───────────────────────┐  ┌───────────┐  │
+│  │  │ AGENTES PERITOS │  │ ADVOGADOS ESPECIALISTAS│  │ (Futuros) │  │
+│  │  │ (Análise        │  │ (Análise Jurídica)     │  │           │  │
+│  │  │  Técnica)       │  │                        │  │           │  │
+│  │  ├─────────────────┤  ├───────────────────────┤  └───────────┘  │
+│  │  │ • Perito Médico │  │ • Advogado Trabalhista│                │  │
+│  │  │ • Perito Seg.   │  │ • Advogado Previdenc. │                │  │
+│  │  │   Trabalho      │  │ • Advogado Cível      │                │  │
+│  │  │ • [Extensível]  │  │ • Advogado Tributário │                │  │
+│  │  └────────┬────────┘  └───────────┬───────────┘                │  │
+│  │           │                       │                            │  │
+│  │           │ Pareceres Técnicos    │ Pareceres Jurídicos        │  │
+│  │           └───────────┬───────────┘                            │  │
+│  │                       ▼                                        │  │
+│  │              ┌─────────────────┐                               │  │
+│  │              │ AGENTE ADVOGADO │                               │  │
+│  │              │  (Coordenador)  │                               │  │
+│  │              │ Compila resposta│                               │  │
+│  │              │ final integrada │                               │  │
+│  │              └─────────────────┘                               │  │
 │  └──────────────────────────────────────────────────────────────┘  │
 │                │                                                    │
 │                ▼                                                    │
@@ -657,26 +667,30 @@ Se o arquivo físico não for encontrado em disco (por exemplo, já foi deletado
 ### Análise Multi-Agent
 
 #### `POST /api/analise/multi-agent`
-**Status:** ✅ IMPLEMENTADO (TAREFA-014) | 🆕 ATUALIZADO (TAREFA-022)
+**Status:** ✅ IMPLEMENTADO (TAREFA-014) | 🆕 ATUALIZADO (TAREFA-022, TAREFA-024)
 
-**Descrição:** Realiza análise jurídica usando sistema multi-agent. Recebe um prompt (pergunta/solicitação) e lista de agentes peritos selecionados, coordena todo o fluxo de análise (RAG → Peritos → Compilação) e retorna resposta final estruturada.
+**Descrição:** Realiza análise jurídica usando sistema multi-agent. Recebe um prompt (pergunta/solicitação) e lista de agentes selecionados (peritos E/OU advogados especialistas), coordena todo o fluxo de análise (RAG → Peritos → Advogados → Compilação) e retorna resposta final estruturada.
 
-**🆕 NOVIDADE (TAREFA-022 - Seleção de Documentos):**
-Agora suporta seleção granular de documentos específicos para análise. O usuário pode escolher quais documentos devem ser usados como contexto RAG, permitindo análises mais focadas e precisas.
+**🆕 NOVIDADES:**
+- **TAREFA-022:** Seleção granular de documentos específicos para análise focada
+- **TAREFA-024:** Suporte para advogados especialistas além dos peritos técnicos
 
 **Contexto de Negócio:**
-Este é o endpoint principal para análises jurídicas inteligentes. O usuário submete uma consulta e seleciona quais peritos especializados devem participar. O sistema consulta a base de conhecimento (RAG), delega para os peritos, e compila uma resposta final integrando todos os pareceres.
+Este é o endpoint principal para análises jurídicas inteligentes. O usuário submete uma consulta e seleciona quais agentes devem participar (peritos para análise técnica E/OU advogados para análise jurídica). O sistema consulta a base de conhecimento (RAG), delega para os agentes selecionados EM PARALELO, e compila uma resposta final integrando todos os pareceres.
 
 **Fluxo de Execução:**
 1. Request é validado (Pydantic)
 2. OrquestradorMultiAgent é acionado
-3. AgenteAdvogado consulta ChromaDB (RAG) para documentos relevantes
-   - **🆕 Se documento_ids fornecido:** Busca apenas nos documentos especificados
+3. AgenteAdvogadoCoordenador consulta ChromaDB (RAG) para documentos relevantes
+   - **Se documento_ids fornecido:** Busca apenas nos documentos especificados
    - **Se documento_ids vazio/null:** Busca em todos os documentos disponíveis
-4. AgenteAdvogado delega para peritos selecionados (execução em paralelo)
+4. AgenteAdvogadoCoordenador delega (execução em **paralelo** usando asyncio):
+   - **Para peritos selecionados** (se agentes_selecionados fornecido)
+   - **Para advogados especialistas** (se advogados_selecionados fornecido)
 5. Peritos retornam pareceres técnicos especializados
-6. AgenteAdvogado compila resposta final integrando pareceres + contexto RAG
-7. Resposta estruturada é retornada ao cliente
+6. Advogados retornam pareceres jurídicos especializados
+7. AgenteAdvogadoCoordenador compila resposta final integrando TODOS os pareceres + contexto RAG
+8. Resposta estruturada é retornada ao cliente
 
 **Request Body (todos os documentos):**
 ```json
@@ -705,7 +719,12 @@ Este é o endpoint principal para análises jurídicas inteligentes. O usuário 
   - Não pode ser apenas espaços em branco
 - `agentes_selecionados` (array of strings, optional): Lista de IDs dos agentes peritos
   - Valores válidos: `"medico"`, `"seguranca_trabalho"`
-  - Se `null` ou vazio, apenas o Advogado Coordenador responde (sem pareceres periciais)
+  - Se `null` ou vazio, nenhum perito participa (apenas coordenador e advogados, se houver)
+  - Duplicatas são automaticamente removidas
+- **🆕 `advogados_selecionados` (array of strings, optional):** Lista de IDs dos advogados especialistas (TAREFA-024)
+  - Valores válidos: `"trabalhista"`, `"previdenciario"`, `"civel"`, `"tributario"`
+  - Se `null` ou vazio, nenhum advogado participa (apenas coordenador e peritos, se houver)
+  - Permite análise jurídica especializada além da análise técnica dos peritos
   - Duplicatas são automaticamente removidas
 - **🆕 `documento_ids` (array of strings, optional):** Lista de IDs de documentos específicos (TAREFA-022)
   - Se `null` ou vazio: busca em TODOS os documentos disponíveis no RAG
@@ -713,12 +732,12 @@ Este é o endpoint principal para análises jurídicas inteligentes. O usuário 
   - Permite análise focada em documentos específicos selecionados pelo usuário
   - IDs devem corresponder aos documentos previamente carregados via `/api/documentos/upload`
 
-**Response (Sucesso):**
+**Response (Sucesso - com peritos E advogados):**
 ```json
 {
   "sucesso": true,
   "id_consulta": "550e8400-e29b-41d4-a716-446655440000",
-  "resposta_compilada": "Com base nos pareceres técnicos dos peritos médico e de segurança do trabalho, e considerando os documentos analisados (laudo_medico.pdf, relatorio_acidente.pdf), concluo que: [resposta jurídica completa integrando todos os pareceres]",
+  "resposta_compilada": "Com base nos pareceres técnicos dos peritos médico e de segurança do trabalho, nas análises jurídicas dos advogados especialistas em direito do trabalho e previdenciário, e considerando os documentos analisados (laudo_medico.pdf, relatorio_acidente.pdf), concluo que: [resposta jurídica completa integrando TODOS os pareceres]",
   "pareceres_individuais": [
     {
       "nome_agente": "Perito Médico",
@@ -737,11 +756,34 @@ Este é o endpoint principal para análises jurídicas inteligentes. O usuário 
       "timestamp": "2025-10-23T14:45:05"
     }
   ],
-  "documentos_consultados": ["laudo_medico.pdf", "relatorio_acidente.pdf", "atestado_especialista.pdf", "fotos_ambiente.pdf"],
+  "pareceres_advogados": [
+    {
+      "nome_agente": "Advogado Especialista em Direito do Trabalho",
+      "tipo_agente": "trabalhista",
+      "area_especializacao": "Direito do Trabalho",
+      "parecer": "Considerando os pareceres técnicos e a legislação trabalhista aplicável (CLT art. 7º, XXVIII e Lei 8.213/91), identifico responsabilidade objetiva do empregador em caso de acidente de trabalho. As verbas rescisórias devem incluir: estabilidade acidentária de 12 meses (art. 118 da Lei 8.213/91), indenização por danos morais e materiais conforme Súmula 392 do TST...",
+      "legislacao_citada": ["CLT art. 7º, XXVIII", "Lei 8.213/91 art. 118", "Súmula 392 do TST"],
+      "grau_confianca": 0.88,
+      "documentos_referenciados": ["contrato_trabalho.pdf", "rescisao.pdf"],
+      "timestamp": "2025-10-23T14:45:10"
+    },
+    {
+      "nome_agente": "Advogado Especialista em Direito Previdenciário",
+      "tipo_agente": "previdenciario",
+      "area_especializacao": "Direito Previdenciário",
+      "parecer": "Com base nos laudos periciais e na incapacidade permanente identificada, o trabalhador faz jus ao benefício de aposentadoria por invalidez ou auxílio-acidente conforme grau de incapacidade. Legislação aplicável: Lei 8.213/91 arts. 42 (aposentadoria por invalidez) e 86 (auxílio-acidente). Recomendo perícia médica do INSS para caracterização oficial...",
+      "legislacao_citada": ["Lei 8.213/91 art. 42", "Lei 8.213/91 art. 86", "Decreto 3.048/99"],
+      "grau_confianca": 0.82,
+      "documentos_referenciados": ["laudo_medico.pdf", "historico_inss.pdf"],
+      "timestamp": "2025-10-23T14:45:15"
+    }
+  ],
+  "documentos_consultados": ["laudo_medico.pdf", "relatorio_acidente.pdf", "atestado_especialista.pdf", "fotos_ambiente.pdf", "contrato_trabalho.pdf", "rescisao.pdf", "historico_inss.pdf"],
   "agentes_utilizados": ["medico", "seguranca_trabalho"],
-  "tempo_total_segundos": 45.2,
+  "advogados_utilizados": ["trabalhista", "previdenciario"],
+  "tempo_total_segundos": 52.8,
   "timestamp_inicio": "2025-10-23T14:44:00",
-  "timestamp_fim": "2025-10-23T14:44:45",
+  "timestamp_fim": "2025-10-23T14:44:52",
   "mensagem_erro": null
 }
 ```
@@ -778,7 +820,8 @@ Este é o endpoint principal para análises jurídicas inteligentes. O usuário 
 
 **Exemplo de Uso (JavaScript/Frontend):**
 ```javascript
-const response = await fetch('/api/analise/multi-agent', {
+// Exemplo 1: Apenas peritos (análise técnica)
+const response1 = await fetch('/api/analise/multi-agent', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -787,8 +830,22 @@ const response = await fetch('/api/analise/multi-agent', {
   })
 });
 
-const resultado = await response.json();
-console.log(resultado.resposta_compilada);
+// Exemplo 2: Peritos E advogados (análise técnica + jurídica)
+const response2 = await fetch('/api/analise/multi-agent', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    prompt: 'Analisar nexo causal, direitos trabalhistas e benefícios previdenciários',
+    agentes_selecionados: ['medico', 'seguranca_trabalho'],
+    advogados_selecionados: ['trabalhista', 'previdenciario'],
+    documento_ids: ['550e8400-e29b-41d4-a716-446655440000'] // Documentos específicos
+  })
+});
+
+const resultado = await response2.json();
+console.log('Resposta Final:', resultado.resposta_compilada);
+console.log('Pareceres Peritos:', resultado.pareceres_individuais);
+console.log('Pareceres Advogados:', resultado.pareceres_advogados);
 ```
 
 ---
@@ -853,6 +910,105 @@ peritos.forEach(perito => {
   console.log(`${perito.nome_exibicao}: ${perito.descricao}`);
 });
 ```
+
+---
+
+#### `GET /api/analise/advogados`
+**Status:** ✅ IMPLEMENTADO (TAREFA-024)
+
+**Descrição:** Lista todos os advogados especialistas disponíveis no sistema com suas informações (ID, nome, descrição, área de especialização, legislação principal).
+
+**Contexto:**
+Frontend consulta este endpoint para saber quais advogados especialistas estão disponíveis e popular a UI de seleção. Sistema multi-agent agora suporta DOIS TIPOS de agentes: peritos (análise técnica) e advogados (análise jurídica).
+
+**Request:** Nenhum parâmetro necessário
+
+**Response:**
+```json
+{
+  "sucesso": true,
+  "total_advogados": 4,
+  "advogados": [
+    {
+      "id_advogado": "trabalhista",
+      "nome_exibicao": "Advogado Especialista em Direito do Trabalho",
+      "descricao": "Especialista em análise jurídica de questões trabalhistas: contratos de trabalho, rescisões, verbas indenizatórias, justa causa, horas extras, adicional noturno, férias, 13º salário, FGTS, estabilidades, assédio moral, acidentes de trabalho (responsabilidade civil do empregador), equiparação salarial, desvio de função, nulidade de dispensas, terceirização, quarteirização.",
+      "area_especializacao": "Direito do Trabalho",
+      "legislacao_principal": [
+        "CLT (Consolidação das Leis do Trabalho)",
+        "Súmulas do TST",
+        "Reforma Trabalhista (Lei 13.467/2017)",
+        "Lei de Terceirização (Lei 13.429/2017)",
+        "Convenções Coletivas de Trabalho"
+      ]
+    },
+    {
+      "id_advogado": "previdenciario",
+      "nome_exibicao": "Advogado Especialista em Direito Previdenciário",
+      "descricao": "Especialista em análise jurídica de benefícios previdenciários: aposentadorias (por idade, tempo de contribuição, especial, invalidez), pensão por morte, auxílio-doença, auxílio-acidente, salário-maternidade, BPC/LOAS, revisões de benefícios, conversão de tempo especial, reconhecimento de atividade especial, qualidade de segurado.",
+      "area_especializacao": "Direito Previdenciário",
+      "legislacao_principal": [
+        "Lei 8.213/1991 (Lei de Benefícios)",
+        "Lei 8.212/1991 (Lei de Custeio)",
+        "Decreto 3.048/1999 (Regulamento da Previdência)",
+        "Súmulas e jurisprudência do STJ e TNU",
+        "IN INSS (Instruções Normativas)"
+      ]
+    },
+    {
+      "id_advogado": "civel",
+      "nome_exibicao": "Advogado Especialista em Direito Cível",
+      "descricao": "Especialista em análise jurídica de questões cíveis: responsabilidade civil, danos morais e materiais, contratos (nulidade, rescisão, inadimplemento), direitos reais (propriedade, posse, usucapião), família e sucessões, direito do consumidor (CDC), prescrição e decadência, obrigações e títulos de crédito.",
+      "area_especializacao": "Direito Cível",
+      "legislacao_principal": [
+        "Código Civil (Lei 10.406/2002)",
+        "Código de Processo Civil (Lei 13.105/2015)",
+        "CDC (Lei 8.078/1990)",
+        "Súmulas do STJ",
+        "Enunciados das Jornadas de Direito Civil"
+      ]
+    },
+    {
+      "id_advogado": "tributario",
+      "nome_exibicao": "Advogado Especialista em Direito Tributário",
+      "descricao": "Especialista em análise jurídica de questões tributárias: lançamento tributário, execução fiscal, tributos federais/estaduais/municipais (IRPF, IRPJ, CSLL, PIS, COFINS, ICMS, ISS, IPTU, IPVA), imunidades e isenções, compensação tributária, parcelamentos, prescrição e decadência tributária, crimes contra a ordem tributária.",
+      "area_especializacao": "Direito Tributário",
+      "legislacao_principal": [
+        "CTN (Código Tributário Nacional - Lei 5.172/1966)",
+        "Constituição Federal (arts. 145 a 162)",
+        "Lei de Execuções Fiscais (Lei 6.830/1980)",
+        "Súmulas do STF e STJ em matéria tributária",
+        "Legislação específica de cada tributo"
+      ]
+    }
+  ]
+}
+```
+
+**Status HTTP:**
+- `200 OK`: Listagem bem-sucedida
+- `500 Internal Server Error`: Erro ao listar advogados
+
+**Uso Típico:**
+```javascript
+// Frontend: Buscar advogados disponíveis ao carregar página
+const response = await fetch('/api/analise/advogados');
+const { advogados } = await response.json();
+
+// Popular checkboxes dinamicamente
+advogados.forEach(advogado => {
+  console.log(`${advogado.nome_exibicao}: ${advogado.descricao}`);
+  console.log(`Legislação: ${advogado.legislacao_principal.join(', ')}`);
+});
+```
+
+**Integração com Sistema Multi-Agent:**
+- Frontend pode selecionar **peritos** (análise técnica) E/OU **advogados** (análise jurídica)
+- Endpoint `POST /api/analise/multi-agent` aceita ambos os parâmetros:
+  - `agentes_selecionados`: IDs dos peritos (ex: `["medico", "seguranca_trabalho"]`)
+  - `advogados_selecionados`: IDs dos advogados (ex: `["trabalhista", "previdenciario"]`)
+- Coordenador delega para ambos os tipos em **paralelo** usando `asyncio.gather()`
+- Resposta inclui `pareceres_individuais` (peritos) E `pareceres_advogados` (advogados)
 
 ---
 
@@ -1258,10 +1414,30 @@ Utiliza o padrão **Template Method**: define o esqueleto do algoritmo de análi
 **Hierarquia de Agentes:**
 ```
 AgenteBase (abstrata)
-    ├── AgenteAdvogado (coordenador) - TAREFA-010
-    ├── AgentePeritoMedico - TAREFA-011
-    ├── AgentePeritoSegurancaTrabalho - TAREFA-012
-    └── [Futuros agentes extensíveis]
+    ├── AgentePeritoBase (abstrata) - TAREFA-009
+    │   ├── AgentePeritoMedico - TAREFA-011
+    │   ├── AgentePeritoSegurancaTrabalho - TAREFA-012
+    │   └── [Futuros peritos extensíveis]
+    │
+    ├── AgenteAdvogadoBase (abstrata) - TAREFA-024
+    │   ├── AgenteAdvogadoTrabalhista - TAREFA-025 (planejado)
+    │   ├── AgenteAdvogadoPrevidenciario - TAREFA-026 (planejado)
+    │   ├── AgenteAdvogadoCivel - TAREFA-027 (planejado)
+    │   ├── AgenteAdvogadoTributario - TAREFA-028 (planejado)
+    │   └── [Futuros advogados especialistas extensíveis]
+    │
+    └── AgenteAdvogadoCoordenador - TAREFA-010
+        └── Orquestra peritos E advogados em paralelo
+```
+
+**ATUALIZAÇÃO TAREFA-024:** Sistema agora suporta DOIS TIPOS de agentes:
+- **Peritos (Análise Técnica):** Expertise técnica (médica, segurança, etc.)
+- **Advogados Especialistas (Análise Jurídica):** Expertise em áreas do direito
+
+**Coordenador atualizado com dois métodos de delegação:**
+- `delegar_para_peritos()`: Delega para agentes peritos técnicos
+- `delegar_para_advogados_especialistas()`: Delega para advogados especialistas
+- Ambos executam em **paralelo** usando `asyncio.gather()`
 ```
 
 **Classe Principal:**

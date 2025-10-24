@@ -169,7 +169,7 @@ npm run dev
 
 ## 📋 Status do Projeto
 
-**Versão Atual:** 0.6.0 (Seleção de Documentos para Análise - Frontend)  
+**Versão Atual:** 0.7.0 (Infraestrutura para Advogados Especialistas)  
 **Última Atualização:** 2025-10-24
 
 ### ✅ Concluído
@@ -198,6 +198,14 @@ npm run dev
 - [x] Interface de Consulta e Análise (Frontend)
 - [x] Componente de Exibição de Pareceres (Markdown + PDF + Clipboard)
 - [x] Página de Histórico de Documentos (Listagem, Filtros, Deleção)
+- [x] Seleção de Documentos Específicos para Análise (Backend + Frontend)
+- [x] **Infraestrutura para Advogados Especialistas (TAREFA-024)**
+  - Classe base `AgenteAdvogadoBase` para advogados especialistas
+  - Métodos de delegação para advogados no Coordenador
+  - Suporte a `advogados_selecionados` no Orquestrador
+  - Modelos API para pareceres de advogados
+  - Endpoint `GET /api/analise/advogados`
+  - Sistema pronto para TAREFAS 025-028 (implementar advogados específicos)
 - [x] Backend: Seleção de Documentos para Análise (documento_ids na API)
 - [x] Frontend: Componente de Seleção de Documentos para Análise
 - [x] Seleção Granular de Documentos para Análise (Backend API)

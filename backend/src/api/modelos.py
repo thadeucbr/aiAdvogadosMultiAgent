@@ -776,6 +776,87 @@ class ParecerIndividualPerito(BaseModel):
         }
 
 
+class ParecerIndividualAdvogado(BaseModel):
+    """
+    Parecer jurídico individual de um agente advogado especialista.
+    
+    CONTEXTO (TAREFA-024):
+    Cada advogado especialista retorna um parecer jurídico estruturado sob
+    a perspectiva de sua área de especialização (Trabalhista, Previdenciário, etc.).
+    Este modelo representa o parecer de um único advogado especialista.
+    
+    DIFERENÇA PARA ParecerIndividualPerito:
+    - Peritos fornecem análise TÉCNICA (médica, engenharia de segurança)
+    - Advogados fornecem análise JURÍDICA (leis, súmulas, jurisprudência)
+    
+    ESTRUTURA DO PARECER:
+    - nome_agente: Identificação do advogado (ex: "Advogado Trabalhista")
+    - tipo_agente: ID do tipo (ex: "trabalhista")
+    - area_especializacao: Área do direito (ex: "Direito do Trabalho")
+    - parecer: Texto do parecer jurídico completo
+    - legislacao_citada: Leis, súmulas, etc. citadas no parecer
+    - grau_confianca: 0.0 a 1.0 (quão confiante o agente está na resposta)
+    - documentos_referenciados: Documentos do RAG que foram consultados
+    - timestamp: Quando o parecer foi gerado
+    """
+    nome_agente: str = Field(
+        ...,
+        description="Nome legível do advogado (ex: 'Advogado Trabalhista')"
+    )
+    
+    tipo_agente: str = Field(
+        ...,
+        description="Identificador técnico do advogado (ex: 'trabalhista', 'previdenciario')"
+    )
+    
+    area_especializacao: str = Field(
+        ...,
+        description="Área de especialização jurídica (ex: 'Direito do Trabalho')"
+    )
+    
+    parecer: str = Field(
+        ...,
+        description="Parecer jurídico completo do advogado especialista"
+    )
+    
+    legislacao_citada: List[str] = Field(
+        default_factory=list,
+        description="Lista de legislação citada no parecer (leis, súmulas, artigos)"
+    )
+    
+    grau_confianca: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Grau de confiança do advogado na análise jurídica (0.0 a 1.0)"
+    )
+    
+    documentos_referenciados: List[str] = Field(
+        default_factory=list,
+        description="Nomes dos documentos do RAG que foram consultados"
+    )
+    
+    timestamp: str = Field(
+        ...,
+        description="Timestamp ISO de quando o parecer foi gerado"
+    )
+    
+    class Config:
+        """Exemplo para documentação Swagger"""
+        json_schema_extra = {
+            "example": {
+                "nome_agente": "Advogado Trabalhista",
+                "tipo_agente": "trabalhista",
+                "area_especializacao": "Direito do Trabalho",
+                "parecer": "Sob a ótica do Direito do Trabalho, identifico violação aos direitos trabalhistas conforme CLT...",
+                "legislacao_citada": ["CLT art. 477", "Súmula 326 do TST", "Lei 8.213/91"],
+                "grau_confianca": 0.90,
+                "documentos_referenciados": ["processo.pdf", "rescisao.pdf"],
+                "timestamp": "2025-10-24T15:30:00"
+            }
+        }
+
+
 class RespostaAnaliseMultiAgent(BaseModel):
     """
     Resposta completa da análise multi-agent.
@@ -784,21 +865,23 @@ class RespostaAnaliseMultiAgent(BaseModel):
     Esta é a resposta final retornada pelo endpoint de análise.
     Contém toda a informação gerada pelo sistema multi-agent:
     - Resposta compilada pelo Advogado Coordenador
-    - Pareceres individuais de cada perito
+    - Pareceres individuais de cada perito (análise técnica)
+    - Pareceres individuais de cada advogado especialista (análise jurídica) [NOVO TAREFA-024]
     - Documentos consultados no RAG
     - Metadados de processamento (tempos, status)
     
     FLUXO DE GERAÇÃO:
     1. OrquestradorMultiAgent coordena todo o processo
-    2. AgenteAdvogado consulta RAG e delega para peritos
-    3. Peritos processam em paralelo e retornam pareceres
-    4. AgenteAdvogado compila resposta final
-    5. Orquestrador formata e retorna este modelo
+    2. AgenteAdvogado consulta RAG
+    3. AgenteAdvogado delega para peritos (análise técnica) E advogados especialistas (análise jurídica)
+    4. Peritos e advogados processam em paralelo e retornam pareceres
+    5. AgenteAdvogado compila resposta final integrando TODOS os pareceres
+    6. Orquestrador formata e retorna este modelo
     
     QUANDO USAR:
     Toda análise jurídica multi-agent retorna este modelo.
     Frontend exibe a resposta_compilada e pode mostrar
-    pareceres_individuais em seções expandíveis.
+    pareceres_individuais (peritos) e pareceres_advogados em seções expandíveis.
     """
     sucesso: bool = Field(
         ...,
@@ -813,12 +896,19 @@ class RespostaAnaliseMultiAgent(BaseModel):
     resposta_compilada: str = Field(
         ...,
         description="Resposta final compilada pelo Advogado Coordenador "
-                    "(integra pareceres dos peritos + contexto RAG)"
+                    "(integra pareceres dos peritos + advogados especialistas + contexto RAG)"
     )
     
     pareceres_individuais: List[ParecerIndividualPerito] = Field(
         default_factory=list,
-        description="Lista de pareceres técnicos individuais de cada perito consultado"
+        description="Lista de pareceres técnicos individuais de cada perito consultado "
+                    "(análise técnica: médica, engenharia de segurança)"
+    )
+    
+    pareceres_advogados: List[ParecerIndividualAdvogado] = Field(
+        default_factory=list,
+        description="(NOVO TAREFA-024) Lista de pareceres jurídicos individuais de cada "
+                    "advogado especialista consultado (análise jurídica: trabalhista, previdenciária, etc.)"
     )
     
     documentos_consultados: List[str] = Field(
@@ -828,7 +918,12 @@ class RespostaAnaliseMultiAgent(BaseModel):
     
     agentes_utilizados: List[str] = Field(
         default_factory=list,
-        description="Lista de IDs dos agentes que participaram da análise"
+        description="Lista de IDs dos peritos que participaram da análise (técnica)"
+    )
+    
+    advogados_utilizados: List[str] = Field(
+        default_factory=list,
+        description="(NOVO TAREFA-024) Lista de IDs dos advogados especialistas que participaram da análise (jurídica)"
     )
     
     tempo_total_segundos: float = Field(
@@ -858,23 +953,36 @@ class RespostaAnaliseMultiAgent(BaseModel):
             "example": {
                 "sucesso": True,
                 "id_consulta": "550e8400-e29b-41d4-a716-446655440000",
-                "resposta_compilada": "Com base nos pareceres técnicos dos peritos e "
-                                     "documentos analisados, concluo que: [resposta jurídica completa]",
+                "resposta_compilada": "Com base nos pareceres técnicos dos peritos e jurídicos dos advogados especialistas, "
+                                     "bem como nos documentos analisados, concluo que: [resposta jurídica completa compilada]",
                 "pareceres_individuais": [
                     {
                         "nome_agente": "Perito Médico",
                         "tipo_agente": "medico",
-                        "parecer": "Identifico nexo causal entre...",
+                        "parecer": "Identifico nexo causal entre a doença e o trabalho...",
                         "grau_confianca": 0.85,
                         "documentos_referenciados": ["laudo.pdf"],
-                        "timestamp": "2025-10-23T14:45:00"
+                        "timestamp": "2025-10-24T14:45:00"
+                    }
+                ],
+                "pareceres_advogados": [
+                    {
+                        "nome_agente": "Advogado Trabalhista",
+                        "tipo_agente": "trabalhista",
+                        "area_especializacao": "Direito do Trabalho",
+                        "parecer": "Sob a ótica do Direito do Trabalho, há direito a estabilidade acidentária...",
+                        "legislacao_citada": ["CLT art. 118", "Lei 8.213/91 art. 118"],
+                        "grau_confianca": 0.90,
+                        "documentos_referenciados": ["processo.pdf"],
+                        "timestamp": "2025-10-24T14:45:30"
                     }
                 ],
                 "documentos_consultados": ["laudo.pdf", "processo.pdf"],
                 "agentes_utilizados": ["medico", "seguranca_trabalho"],
-                "tempo_total_segundos": 45.2,
-                "timestamp_inicio": "2025-10-23T14:44:00",
-                "timestamp_fim": "2025-10-23T14:44:45",
+                "advogados_utilizados": ["trabalhista", "previdenciario"],
+                "tempo_total_segundos": 52.3,
+                "timestamp_inicio": "2025-10-24T14:44:00",
+                "timestamp_fim": "2025-10-24T14:44:52",
                 "mensagem_erro": None
             }
         }
@@ -969,6 +1077,115 @@ class RespostaListarPeritos(BaseModel):
                         "nome_exibicao": "Perito de Segurança do Trabalho",
                         "descricao": "Especialista em NRs e condições de trabalho",
                         "especialidades": ["Análise de EPIs", "Conformidade NRs"]
+                    }
+                ]
+            }
+        }
+
+
+# ===== MODELOS PARA ADVOGADOS ESPECIALISTAS (TAREFA-024) =====
+
+class InformacaoAdvogado(BaseModel):
+    """
+    Informações sobre um advogado especialista disponível.
+    
+    CONTEXTO (TAREFA-024):
+    Retornado pelo endpoint GET /api/analise/advogados
+    para que o frontend saiba quais advogados especialistas estão disponíveis.
+    
+    USO:
+    Frontend usa para popular checkboxes de seleção de advogados especialistas.
+    """
+    id_advogado: str = Field(
+        ...,
+        description="Identificador único do advogado (ex: 'trabalhista')"
+    )
+    
+    nome_exibicao: str = Field(
+        ...,
+        description="Nome legível para exibir na UI (ex: 'Advogado Trabalhista')"
+    )
+    
+    area_especializacao: str = Field(
+        ...,
+        description="Área de especialização jurídica (ex: 'Direito do Trabalho')"
+    )
+    
+    descricao: str = Field(
+        ...,
+        description="Descrição das competências e focos do advogado"
+    )
+    
+    legislacao_principal: List[str] = Field(
+        default_factory=list,
+        description="Lista de legislação principal da área (leis, códigos, súmulas)"
+    )
+    
+    class Config:
+        """Exemplo para documentação Swagger"""
+        json_schema_extra = {
+            "example": {
+                "id_advogado": "trabalhista",
+                "nome_exibicao": "Advogado Trabalhista",
+                "area_especializacao": "Direito do Trabalho",
+                "descricao": "Especialista em CLT, verbas rescisórias, justa causa, horas extras e danos morais trabalhistas",
+                "legislacao_principal": [
+                    "CLT (Consolidação das Leis do Trabalho)",
+                    "Súmulas do TST",
+                    "Lei 8.213/91 (Benefícios Previdenciários)"
+                ]
+            }
+        }
+
+
+class RespostaListarAdvogados(BaseModel):
+    """
+    Resposta do endpoint de listagem de advogados especialistas disponíveis.
+    
+    CONTEXTO (TAREFA-024):
+    Frontend consulta este endpoint para saber quais advogados especialistas
+    pode selecionar para uma análise jurídica.
+    
+    DIFERENÇA PARA RespostaListarPeritos:
+    - Peritos: análise técnica (médica, engenharia)
+    - Advogados: análise jurídica (direito trabalhista, previdenciário, etc.)
+    """
+    sucesso: bool = Field(
+        ...,
+        description="Indica se a listagem foi bem-sucedida"
+    )
+    
+    total_advogados: int = Field(
+        ...,
+        ge=0,
+        description="Número total de advogados especialistas disponíveis"
+    )
+    
+    advogados: List[InformacaoAdvogado] = Field(
+        default_factory=list,
+        description="Lista de advogados especialistas disponíveis com suas informações"
+    )
+    
+    class Config:
+        """Exemplo para documentação Swagger"""
+        json_schema_extra = {
+            "example": {
+                "sucesso": True,
+                "total_advogados": 2,
+                "advogados": [
+                    {
+                        "id_advogado": "trabalhista",
+                        "nome_exibicao": "Advogado Trabalhista",
+                        "area_especializacao": "Direito do Trabalho",
+                        "descricao": "Especialista em CLT e relações trabalhistas",
+                        "legislacao_principal": ["CLT", "Súmulas TST"]
+                    },
+                    {
+                        "id_advogado": "previdenciario",
+                        "nome_exibicao": "Advogado Previdenciário",
+                        "area_especializacao": "Direito Previdenciário",
+                        "descricao": "Especialista em benefícios INSS e aposentadorias",
+                        "legislacao_principal": ["Lei 8.213/91", "Lei 8.212/91"]
                     }
                 ]
             }

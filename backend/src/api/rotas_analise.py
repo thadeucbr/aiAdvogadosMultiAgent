@@ -4,29 +4,38 @@ Rotas de Análise Multi-Agent - API REST
 CONTEXTO DE NEGÓCIO:
 Este módulo implementa os endpoints para análise jurídica multi-agent.
 É o ponto de entrada HTTP para consultas que envolvem o sistema de agentes
-(Advogado Coordenador + Peritos Especializados).
+(Advogado Coordenador + Peritos Especializados + Advogados Especialistas).
 
 ENDPOINTS:
 1. POST /api/analise/multi-agent
-   - Recebe prompt do usuário e agentes selecionados
+   - Recebe prompt do usuário, agentes (peritos) e advogados selecionados
    - Orquestra análise completa via OrquestradorMultiAgent
-   - Retorna resposta compilada + pareceres individuais
+   - Retorna resposta compilada + pareceres individuais (peritos + advogados)
 
 2. GET /api/analise/peritos
-   - Lista peritos disponíveis no sistema
-   - Frontend usa para popular UI de seleção
+   - Lista peritos disponíveis no sistema (análise técnica)
+   - Frontend usa para popular UI de seleção de peritos
 
-3. GET /api/analise/health
+3. GET /api/analise/advogados (NOVO TAREFA-024)
+   - Lista advogados especialistas disponíveis (análise jurídica)
+   - Frontend usa para popular UI de seleção de advogados especialistas
+
+4. GET /api/analise/health
    - Health check do módulo de análise
    - Verifica se orquestrador está funcional
 
-FLUXO DE ANÁLISE MULTI-AGENT:
-1. Frontend → POST /api/analise/multi-agent {"prompt": "...", "agentes_selecionados": ["medico"]}
+FLUXO DE ANÁLISE MULTI-AGENT (ATUALIZADO TAREFA-024):
+1. Frontend → POST /api/analise/multi-agent {
+     "prompt": "...", 
+     "agentes_selecionados": ["medico"],
+     "advogados_selecionados": ["trabalhista", "previdenciario"]
+   }
 2. Endpoint valida request (Pydantic)
 3. Endpoint chama OrquestradorMultiAgent.processar_consulta()
-4. Orquestrador coordena: RAG → Peritos → Compilação
+4. Orquestrador coordena: 
+   RAG → Peritos (análise técnica) → Advogados (análise jurídica) → Compilação
 5. Endpoint formata resposta e retorna ao frontend
-6. Frontend exibe resposta compilada + pareceres individuais
+6. Frontend exibe resposta compilada + pareceres individuais (peritos E advogados)
 
 TRATAMENTO DE ERROS:
 - Validação Pydantic: 422 Unprocessable Entity
@@ -55,7 +64,8 @@ TAREFAS RELACIONADAS:
 - TAREFA-011: Agente Perito Médico
 - TAREFA-012: Agente Perito Segurança do Trabalho
 - TAREFA-013: Orquestrador Multi-Agent
-- TAREFA-014: Endpoint de Análise Multi-Agent (ESTE ARQUIVO)
+- TAREFA-014: Endpoint de Análise Multi-Agent
+- TAREFA-024: Refatoração para Advogados Especialistas (ESTE UPDATE)
 """
 
 from fastapi import APIRouter, HTTPException, status
@@ -70,8 +80,11 @@ from src.api.modelos import (
     RequestAnaliseMultiAgent,
     RespostaAnaliseMultiAgent,
     ParecerIndividualPerito,
+    ParecerIndividualAdvogado,
     InformacaoPerito,
+    InformacaoAdvogado,
     RespostaListarPeritos,
+    RespostaListarAdvogados,
     RespostaErro
 )
 
@@ -181,6 +194,79 @@ INFORMACOES_PERITOS = {
             "Caracterização de insalubridade e periculosidade",
             "Análise de riscos ocupacionais (físicos, químicos, biológicos, ergonômicos)",
             "Avaliação de condições ambientais de trabalho"
+        ]
+    }
+}
+
+
+# ===== DADOS ESTÁTICOS DOS ADVOGADOS ESPECIALISTAS (TAREFA-024) =====
+
+# CONTEXTO: Informações sobre advogados especialistas disponíveis
+# JUSTIFICATIVA: Dados estáticos para endpoint GET /api/analise/advogados
+# 
+# TODO (TAREFA FUTURA): Migrar para banco de dados ou buscar dinamicamente
+# do AgenteAdvogado.listar_advogados_especialistas_disponiveis()
+# 
+# NOTA: Estes advogados ainda não foram implementados (TAREFAS 025-028).
+# Quando forem implementados, eles aparecerão automaticamente se registrados
+# no criar_advogado_coordenador().
+INFORMACOES_ADVOGADOS = {
+    "trabalhista": {
+        "id_advogado": "trabalhista",
+        "nome_exibicao": "Advogado Trabalhista",
+        "area_especializacao": "Direito do Trabalho",
+        "descricao": "Especialista em análise jurídica trabalhista. Avalia vínculos empregatícios, "
+                    "verbas rescisórias, justa causa, horas extras, adicional noturno, dano moral "
+                    "trabalhista, assédio e conformidade com CLT e súmulas do TST.",
+        "legislacao_principal": [
+            "CLT (Consolidação das Leis do Trabalho)",
+            "Súmulas do TST (Tribunal Superior do Trabalho)",
+            "OJ (Orientações Jurisprudenciais) da SDI-1 do TST",
+            "Lei 13.467/2017 (Reforma Trabalhista)",
+            "Lei 8.213/91 (Benefícios Previdenciários relacionados ao trabalho)"
+        ]
+    },
+    "previdenciario": {
+        "id_advogado": "previdenciario",
+        "nome_exibicao": "Advogado Previdenciário",
+        "area_especializacao": "Direito Previdenciário",
+        "descricao": "Especialista em análise jurídica previdenciária. Avalia concessão de benefícios "
+                    "INSS (auxílio-doença, aposentadoria por invalidez, BPC/LOAS), nexo causal para "
+                    "benefícios acidentários, tempo de contribuição, carência e requisitos legais.",
+        "legislacao_principal": [
+            "Lei 8.213/91 (Plano de Benefícios da Previdência Social)",
+            "Lei 8.212/91 (Custeio da Previdência Social)",
+            "Decreto 3.048/99 (Regulamento da Previdência Social)",
+            "Lei 8.742/93 (LOAS - Benefício de Prestação Continuada)",
+            "Súmulas e Jurisprudência do TNU e TRFs"
+        ]
+    },
+    "civel": {
+        "id_advogado": "civel",
+        "nome_exibicao": "Advogado Cível",
+        "area_especializacao": "Direito Cível",
+        "descricao": "Especialista em análise jurídica cível. Avalia responsabilidade civil, danos "
+                    "materiais e morais, contratos (cláusulas, validade, inadimplemento), direito "
+                    "do consumidor e questões obrigacionais.",
+        "legislacao_principal": [
+            "Código Civil (Lei 10.406/2002)",
+            "Código de Defesa do Consumidor (Lei 8.078/90)",
+            "Código de Processo Civil (Lei 13.105/2015)",
+            "Súmulas do STJ sobre responsabilidade civil e contratos"
+        ]
+    },
+    "tributario": {
+        "id_advogado": "tributario",
+        "nome_exibicao": "Advogado Tributário",
+        "area_especializacao": "Direito Tributário",
+        "descricao": "Especialista em análise jurídica tributária. Avalia fato gerador, base de cálculo "
+                    "de tributos (ICMS, PIS/COFINS, IRPJ, CSLL), execução fiscal, defesa administrativa "
+                    "e judicial, bitributação e planejamento tributário.",
+        "legislacao_principal": [
+            "Código Tributário Nacional (Lei 5.172/66)",
+            "Constituição Federal (arts. 145 a 162 - Sistema Tributário Nacional)",
+            "Lei Complementar 123/2006 (Simples Nacional)",
+            "Súmulas do STJ e STF sobre matéria tributária"
         ]
     }
 }
@@ -475,6 +561,119 @@ async def endpoint_listar_peritos() -> RespostaListarPeritos:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao listar peritos: {str(erro)}"
+        )
+
+
+@router.get(
+    "/advogados",
+    response_model=RespostaListarAdvogados,
+    status_code=status.HTTP_200_OK,
+    summary="Listar advogados especialistas disponíveis (TAREFA-024)",
+    description="""
+    Lista todos os advogados especialistas disponíveis no sistema.
+    
+    **Contexto (TAREFA-024):**
+    Advogados especialistas fornecem análise jurídica sob perspectivas de áreas
+    específicas do direito (Trabalhista, Previdenciário, Cível, Tributário).
+    
+    **Diferença para Peritos:**
+    - **Peritos**: análise TÉCNICA (médica, engenharia de segurança)
+    - **Advogados**: análise JURÍDICA (leis, súmulas, jurisprudência)
+    
+    **Uso:**
+    Frontend usa este endpoint para popular checkboxes de seleção de advogados
+    especialistas na interface de análise multi-agent.
+    
+    **Advogados Disponíveis:**
+    - **Trabalhista**: CLT, verbas rescisórias, justa causa, horas extras
+    - **Previdenciário**: Benefícios INSS, aposentadorias, nexo causal previdenciário
+    - **Cível**: Responsabilidade civil, contratos, direito do consumidor
+    - **Tributário**: ICMS, IRPJ, execução fiscal, planejamento tributário
+    
+    **NOTA:**
+    Os advogados especialistas ainda não foram implementados (TAREFAS 025-028).
+    Este endpoint retorna informações estáticas preparadas para quando
+    os advogados forem criados.
+    
+    **Exemplo de Resposta:**
+    ```json
+    {
+      "sucesso": true,
+      "total_advogados": 4,
+      "advogados": [
+        {
+          "id_advogado": "trabalhista",
+          "nome_exibicao": "Advogado Trabalhista",
+          "area_especializacao": "Direito do Trabalho",
+          "descricao": "Especialista em CLT...",
+          "legislacao_principal": ["CLT", "Súmulas TST", ...]
+        }
+      ]
+    }
+    ```
+    """,
+    responses={
+        200: {
+            "description": "Lista de advogados especialistas retornada com sucesso",
+            "model": RespostaListarAdvogados
+        },
+        500: {
+            "description": "Erro ao listar advogados especialistas",
+            "model": RespostaErro
+        }
+    }
+)
+async def endpoint_listar_advogados() -> RespostaListarAdvogados:
+    """
+    Endpoint GET /api/analise/advogados (TAREFA-024)
+    
+    Lista todos os advogados especialistas disponíveis no sistema.
+    
+    CONTEXTO:
+    Este endpoint foi criado na TAREFA-024 para suportar a expansão do sistema
+    multi-agent com advogados especialistas. É análogo ao endpoint /api/analise/peritos,
+    mas focado em agentes que fornecem análise jurídica especializada.
+    
+    IMPLEMENTAÇÃO ATUAL:
+    Retorna dados estáticos do dicionário INFORMACOES_ADVOGADOS.
+    
+    TODO (TAREFAS 025-028):
+    Quando os advogados especialistas forem implementados, este endpoint pode
+    migrar para busca dinâmica via:
+    orquestrador.agente_advogado.listar_advogados_especialistas_disponiveis()
+    
+    Returns:
+        RespostaListarAdvogados com lista de advogados especialistas disponíveis
+        
+    Raises:
+        HTTPException: Em caso de erro (500)
+    """
+    logger.info("📋 Requisição para listar advogados especialistas disponíveis (TAREFA-024)")
+    
+    try:
+        # Converter dicionário estático para lista de InformacaoAdvogado
+        lista_advogados = [
+            InformacaoAdvogado(**info)
+            for info in INFORMACOES_ADVOGADOS.values()
+        ]
+        
+        resposta = RespostaListarAdvogados(
+            sucesso=True,
+            total_advogados=len(lista_advogados),
+            advogados=lista_advogados
+        )
+        
+        logger.info(
+            f"✅ Listagem de advogados concluída: {len(lista_advogados)} advogado(s) disponível(is) | "
+            f"IDs: {[adv.id_advogado for adv in lista_advogados]}"
+        )
+        return resposta
+        
+    except Exception as erro:
+        logger.exception("💥 Erro ao listar advogados especialistas:")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao listar advogados especialistas: {str(erro)}"
         )
 
 
