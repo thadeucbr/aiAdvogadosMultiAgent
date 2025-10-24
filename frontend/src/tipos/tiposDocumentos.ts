@@ -112,23 +112,26 @@ export const TAMANHO_MAXIMO_ARQUIVO_MB = 50;
  * Estrutura retornada pelo backend após upload bem-sucedido de um arquivo.
  * Corresponde ao modelo InformacaoDocumentoUploadado do backend.
  * 
+ * NOTA IMPORTANTE:
+ * Os campos usam snake_case (como vêm do backend FastAPI).
+ * 
  * CAMPOS:
- * - idDocumento: UUID único gerado pelo backend
- * - nomeArquivoOriginal: Nome do arquivo enviado pelo usuário
- * - tamanhoEmBytes: Tamanho do arquivo em bytes
- * - tipoDocumento: Extensão/tipo do arquivo
- * - caminhoTemporario: Onde o arquivo foi salvo no backend
- * - dataHoraUpload: Timestamp de quando o upload foi feito
- * - statusProcessamento: Estado atual do processamento
+ * - id_documento: UUID único gerado pelo backend
+ * - nome_arquivo_original: Nome do arquivo enviado pelo usuário
+ * - tamanho_em_bytes: Tamanho do arquivo em bytes
+ * - tipo_documento: Extensão/tipo do arquivo
+ * - caminho_temporario: Onde o arquivo foi salvo no backend
+ * - data_hora_upload: Timestamp de quando o upload foi feito
+ * - status_processamento: Estado atual do processamento
  */
 export interface InformacaoDocumentoUploadado {
-  idDocumento: string;
-  nomeArquivoOriginal: string;
-  tamanhoEmBytes: number;
-  tipoDocumento: TipoDocumento;
-  caminhoTemporario: string;
-  dataHoraUpload: string;
-  statusProcessamento: StatusProcessamento;
+  id_documento: string;
+  nome_arquivo_original: string;
+  tamanho_em_bytes: number;
+  tipo_documento: TipoDocumento;
+  caminho_temporario: string;
+  data_hora_upload: string;
+  status_processamento: StatusProcessamento;
 }
 
 /**
@@ -138,23 +141,29 @@ export interface InformacaoDocumentoUploadado {
  * Estrutura completa retornada pelo backend após upload.
  * Corresponde ao modelo RespostaUploadDocumento do backend.
  * 
+ * NOTA IMPORTANTE:
+ * Os campos usam snake_case (como vêm do backend FastAPI).
+ * Não há transformação de case entre backend e frontend.
+ * 
  * CAMPOS:
  * - sucesso: Indica se o upload foi bem-sucedido
  * - mensagem: Mensagem descritiva do resultado
- * - totalArquivosEnviados: Número de arquivos enviados
- * - totalArquivosProcessados: Número de arquivos processados com sucesso
- * - totalArquivosComErro: Número de arquivos que falharam
- * - documentosProcessados: Lista de documentos processados com sucesso
+ * - total_arquivos_recebidos: Número de arquivos enviados
+ * - total_arquivos_aceitos: Número de arquivos processados com sucesso
+ * - total_arquivos_rejeitados: Número de arquivos que falharam
+ * - documentos: Lista de documentos processados com sucesso
  * - erros: Lista de mensagens de erro (se houver)
+ * - shortcuts_sugeridos: Lista de prompts sugeridos baseados nos documentos enviados (NOVO na TAREFA-017)
  */
 export interface RespostaUploadDocumento {
   sucesso: boolean;
   mensagem: string;
-  totalArquivosEnviados: number;
-  totalArquivosProcessados: number;
-  totalArquivosComErro: number;
-  documentosProcessados: InformacaoDocumentoUploadado[];
+  total_arquivos_recebidos: number;
+  total_arquivos_aceitos: number;
+  total_arquivos_rejeitados: number;
+  documentos: InformacaoDocumentoUploadado[];
   erros?: string[];
+  shortcuts_sugeridos?: string[];
 }
 
 /**

@@ -33,23 +33,25 @@
  * ```
  */
 
-import { useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, File, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Upload, X, File, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import {
   uploadDocumentos,
   validarArquivosParaUpload,
 } from '../../servicos/servicoApiDocumentos';
+import type {
+  InformacaoDocumentoUploadado,
+  ArquivoParaUpload,
+  StatusArquivo,
+  ErroValidacaoArquivo,
+} from '../../tipos/tiposDocumentos';
 import {
-  formatarTamanhoArquivo,
-  obterExtensaoArquivo,
   TAMANHO_MAXIMO_ARQUIVO_MB,
   TIPOS_MIME_ACEITOS,
+  formatarTamanhoArquivo,
 } from '../../tipos/tiposDocumentos';
-import type {
-  ArquivoParaUpload,
-  InformacaoDocumentoUploadado,
-} from '../../tipos/tiposDocumentos';
+import { ComponenteBotoesShortcut } from '../analise/ComponenteBotoesShortcut';
 
 
 // ===== INTERFACES =====
@@ -122,6 +124,15 @@ export function ComponenteUploadDocumentos({
    * Exibidas abaixo da área de drop
    */
   const [errosValidacao, setErrosValidacao] = useState<string[]>([]);
+
+  /**
+   * Shortcuts sugeridos após upload bem-sucedido
+   * 
+   * CONTEXTO (TAREFA-017):
+   * Após upload, backend retorna prompts sugeridos baseados nos documentos.
+   * Armazenamos aqui para exibir ao usuário.
+   */
+  const [shortcutsSugeridos, setShortcutsSugeridos] = useState<string[]>([]);
 
 
   // ===== FUNÇÕES AUXILIARES =====
@@ -271,6 +282,7 @@ export function ComponenteUploadDocumentos({
     setArquivosSelecionados([]);
     setErrosValidacao([]);
     setProgressoGlobal(0);
+    setShortcutsSugeridos([]); // Limpar shortcuts também (TAREFA-017)
   };
 
   /**
@@ -324,20 +336,25 @@ export function ComponenteUploadDocumentos({
             ...arquivo,
             status: 'sucesso',
             progresso: 100,
-            idDocumentoBackend: resposta.documentosProcessados[index]?.idDocumento,
+            idDocumentoBackend: resposta.documentos[index]?.id_documento,
           }))
         );
 
-        // Notificar componente pai
-        if (aoFinalizarUploadComSucesso) {
-          const ids = resposta.documentosProcessados.map((doc) => doc.idDocumento);
-          aoFinalizarUploadComSucesso(ids, resposta.documentosProcessados);
+        // Armazenar shortcuts sugeridos (TAREFA-017)
+        if (resposta.shortcuts_sugeridos && resposta.shortcuts_sugeridos.length > 0) {
+          setShortcutsSugeridos(resposta.shortcuts_sugeridos);
         }
 
-        // Limpar lista após 2 segundos (para mostrar animação de sucesso)
+        // Notificar componente pai
+        if (aoFinalizarUploadComSucesso) {
+          const ids = resposta.documentos.map((doc) => doc.id_documento);
+          aoFinalizarUploadComSucesso(ids, resposta.documentos);
+        }
+
+        // Limpar lista de arquivos após 3 segundos (dar tempo para ver shortcuts)
         setTimeout(() => {
           handleLimparTudo();
-        }, 2000);
+        }, 3000);
         
       } else {
         // Upload falhou - marcar arquivos como erro
@@ -514,6 +531,21 @@ export function ComponenteUploadDocumentos({
               </>
             )}
           </button>
+        </div>
+      )}
+
+      {/* SEÇÃO DE SHORTCUTS SUGERIDOS (TAREFA-017) */}
+      {shortcutsSugeridos.length > 0 && (
+        <div className="mt-6">
+          <ComponenteBotoesShortcut
+            shortcuts={shortcutsSugeridos}
+            aoClicarShortcut={(shortcut) => {
+              // Por enquanto, apenas copiar para clipboard
+              // Futuramente, integrar com página de análise
+              navigator.clipboard.writeText(shortcut);
+              alert(`Prompt copiado para área de transferência:\n\n"${shortcut}"`);
+            }}
+          />
         </div>
       )}
     </div>

@@ -1,7 +1,7 @@
 # 🗺️ ROADMAP - PLATAFORMA JURÍDICA MULTI-AGENT
 
 **Versão:** 1.0.0  
-**Última Atualização:** 2025-10-23  
+**Última Atualização:** 2025-10-24  
 **Objetivo:** Plataforma completa para análise jurídica com sistema multi-agent e RAG
 
 ---
@@ -27,8 +27,9 @@
 - ✅ TAREFA-014: Endpoint de análise multi-agent (API REST)
 - ✅ TAREFA-015: Setup do Frontend (React + Vite)
 - ✅ TAREFA-016: Componente de Upload de Documentos
+- ✅ TAREFA-017: Exibição de Shortcuts Sugeridos
 
-**Próximo passo:** TAREFA-017 (Exibição de Shortcuts Sugeridos)
+**Próximo passo:** TAREFA-018 (Componente de Seleção de Agentes)
 
 ---
 
@@ -567,36 +568,37 @@
 
 ---
 
-#### TAREFA-017: Exibição de Shortcuts Sugeridos
-
-**Entregáveis:**
-- Componente de upload funcional
-- Drag-and-drop intuitivo
-- Feedback visual de progresso
-
----
-
 #### ✅ TAREFA-017: Exibição de Shortcuts Sugeridos
 **Prioridade:** 🟡 ALTA  
 **Dependências:** TAREFA-016  
 **Estimativa:** 2 horas
+**Status:** ✅ CONCLUÍDA (2025-10-24)
 
 **Escopo:**
-- [ ] Criar `frontend/src/componentes/analise/ComponenteBotoesShortcut.tsx`
-- [ ] Exibir shortcuts retornados pelo backend após upload
-- [ ] Botões clicáveis
-- [ ] Ao clicar, preencher campo de prompt automaticamente
-- [ ] Estilização com TailwindCSS
-- [ ] Animação de entrada (fade in)
-- [ ] Integração com página de análise
+- [x] Criar `frontend/src/componentes/analise/ComponenteBotoesShortcut.tsx`
+- [x] Exibir shortcuts retornados pelo backend após upload
+- [x] Botões clicáveis
+- [x] Ao clicar, preencher campo de prompt automaticamente (copia para clipboard temporariamente)
+- [x] Estilização com TailwindCSS
+- [x] Animação de entrada (fade in)
+- [x] Backend: adicionar campo `shortcuts_sugeridos` ao modelo de resposta
+- [x] Backend: criar função para gerar shortcuts contextualizados
+- [x] Frontend: corrigir tipos TypeScript para usar snake_case
 
 **Entregáveis:**
-- Shortcuts exibidos após upload
-- Interação fluida
+- ✅ Shortcuts exibidos após upload
+- ✅ Interação fluida
+- ✅ Componente reutilizável
+- ✅ Grid responsivo (1-3 colunas)
+- ✅ Animação customizada no TailwindCSS
+
+**Changelog:** [Ver detalhes completos](changelogs/TAREFA-017_exibicao-shortcuts-sugeridos.md)
+
+**Marco:** 🎉 **Primeira funcionalidade de UX avançada completa!** Usuários agora recebem sugestões inteligentes após upload.
 
 ---
 
-#### ✅ TAREFA-018: Componente de Seleção de Agentes
+#### TAREFA-018: Componente de Seleção de Agentes
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-017  
 **Estimativa:** 2-3 horas

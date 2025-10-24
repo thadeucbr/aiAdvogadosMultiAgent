@@ -170,7 +170,7 @@ npm run dev
 ## 📋 Status do Projeto
 
 **Versão Atual:** 0.1.0 (Fundação)  
-**Última Atualização:** 2025-10-23
+**Última Atualização:** 2025-10-24
 
 ### ✅ Concluído
 
@@ -193,11 +193,13 @@ npm run dev
 - [x] Endpoint de análise multi-agent (API REST)
 - [x] Setup do Frontend (React + Vite + TypeScript + TailwindCSS)
 - [x] Componente de Upload de Documentos (Frontend)
+- [x] Exibição de Shortcuts Sugeridos (Frontend)
 
 ### 🚧 Em Desenvolvimento
 
-- [ ] Exibição de Shortcuts Sugeridos (Frontend)
-- [ ] Componentes de Análise Multi-Agent (Frontend)
+- [ ] Componente de Seleção de Agentes (Frontend)
+- [ ] Interface de Consulta e Análise (Frontend)
+- [ ] Componentes de Exibição de Pareceres (Frontend)
 - [ ] Interface completa de usuário
 
 ---

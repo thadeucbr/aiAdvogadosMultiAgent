@@ -207,6 +207,15 @@ class RespostaUploadDocumento(BaseModel):
         description="Lista de mensagens de erro para arquivos que falharam na validação"
     )
     
+    shortcuts_sugeridos: List[str] = Field(
+        default_factory=list,
+        description=(
+            "Lista de prompts/perguntas sugeridos baseados no tipo de documentos enviados. "
+            "Estes shortcuts facilitam a interação do usuário com o sistema de análise multi-agent, "
+            "oferecendo consultas contextualizadas que podem ser feitas com base nos documentos carregados."
+        )
+    )
+    
     class Config:
         """Exemplo para documentação Swagger"""
         json_schema_extra = {
@@ -227,7 +236,13 @@ class RespostaUploadDocumento(BaseModel):
                         "status_processamento": "pendente"
                     }
                 ],
-                "erros": []
+                "erros": [],
+                "shortcuts_sugeridos": [
+                    "Analisar nexo causal entre doença e trabalho",
+                    "Avaliar grau de incapacidade laboral",
+                    "Investigar conformidade com NRs no ambiente de trabalho",
+                    "Resumir principais pontos jurídicos do processo"
+                ]
             }
         }
 

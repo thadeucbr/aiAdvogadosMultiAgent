@@ -310,6 +310,83 @@ async def salvar_arquivo_no_disco(
         raise
 
 
+# ===== FUNÇÃO DE GERAÇÃO DE SHORTCUTS SUGERIDOS =====
+
+def gerar_shortcuts_sugeridos(documentos_aceitos: List[InformacaoDocumentoUploadado]) -> List[str]:
+    """
+    Gera uma lista de prompts/perguntas sugeridos baseados nos tipos de documentos enviados.
+    
+    CONTEXTO DE NEGÓCIO:
+    Após o upload, queremos orientar o usuário sobre que tipo de análise ele pode solicitar.
+    Os shortcuts são prompts pré-configurados que facilitam a interação com o sistema multi-agent.
+    
+    ESTRATÉGIA:
+    - Analisa os tipos de documentos enviados (PDF, DOCX, imagens)
+    - Retorna shortcuts contextualizados que fazem sentido para documentos jurídicos
+    - Mantém uma lista genérica para todos os casos
+    - Adiciona shortcuts específicos baseados em padrões comuns
+    
+    PROMPTS DISPONÍVEIS:
+    - Análise de nexo causal (relevante para casos médicos/trabalhistas)
+    - Avaliação de incapacidade laboral (médico)
+    - Investigação de conformidade com NRs (segurança do trabalho)
+    - Caracterização de insalubridade/periculosidade (segurança do trabalho)
+    - Análise de acidente de trabalho (segurança do trabalho)
+    - Resumo jurídico geral (sempre relevante)
+    - Identificação de riscos ocupacionais (segurança do trabalho)
+    - Avaliação de EPIs (segurança do trabalho)
+    
+    IMPLEMENTAÇÃO:
+    Por ora, retornamos um conjunto fixo de shortcuts mais comuns.
+    Futuras melhorias podem incluir:
+    - Análise do nome do arquivo para detectar contexto (ex: "laudo_medico.pdf")
+    - Uso de IA para extrair trechos do documento e sugerir perguntas relevantes
+    - Histórico do usuário (quais prompts ele mais usa)
+    
+    Args:
+        documentos_aceitos: Lista de documentos que foram aceitos no upload
+    
+    Returns:
+        Lista de strings com prompts sugeridos (máximo 6 para não sobrecarregar a UI)
+    
+    Examples:
+        >>> docs = [InformacaoDocumentoUploadado(nome_arquivo_original="laudo.pdf", ...)]
+        >>> gerar_shortcuts_sugeridos(docs)
+        ["Analisar nexo causal...", "Avaliar grau de incapacidade...", ...]
+    """
+    
+    # Se não houver documentos, retornar lista vazia
+    if not documentos_aceitos:
+        return []
+    
+    # Conjunto de shortcuts contextuais comuns em processos trabalhistas/jurídicos
+    # NOTA PARA LLMs FUTURAS: Estes prompts foram escolhidos baseados nos agentes disponíveis
+    # (Perito Médico e Perito Segurança do Trabalho). Se novos agentes forem adicionados,
+    # considere adicionar novos shortcuts relevantes aqui.
+    
+    shortcuts_disponiveis = [
+        "Analisar nexo causal entre doença e trabalho",
+        "Avaliar grau de incapacidade laboral do trabalhador",
+        "Investigar conformidade com Normas Regulamentadoras (NRs)",
+        "Caracterizar insalubridade ou periculosidade do ambiente",
+        "Analisar causas e responsabilidades de acidente de trabalho",
+        "Resumir principais pontos jurídicos do processo",
+        "Identificar riscos ocupacionais presentes nos documentos",
+        "Avaliar adequação e uso de EPIs (Equipamentos de Proteção Individual)"
+    ]
+    
+    # Por enquanto, retornamos os 6 primeiros shortcuts (seleção fixa)
+    # FUTURO: Implementar lógica inteligente para selecionar shortcuts baseados em:
+    # - Nome dos arquivos (regex para detectar "laudo", "atestado", "CAT", etc)
+    # - Tipo de documento (PDF médico vs. PDF administrativo)
+    # - Conteúdo parcial (primeiras linhas do documento)
+    shortcuts_selecionados = shortcuts_disponiveis[:6]
+    
+    logger.info(f"Gerados {len(shortcuts_selecionados)} shortcuts sugeridos para {len(documentos_aceitos)} documento(s)")
+    
+    return shortcuts_selecionados
+
+
 # ===== ENDPOINTS =====
 
 @router.post(
@@ -534,6 +611,9 @@ async def endpoint_upload_documentos(
         f"{total_rejeitados} rejeitados"
     )
     
+    # Gerar shortcuts sugeridos baseados nos documentos aceitos
+    shortcuts = gerar_shortcuts_sugeridos(documentos_aceitos)
+    
     resposta = RespostaUploadDocumento(
         sucesso=sucesso,
         mensagem=mensagem,
@@ -541,7 +621,8 @@ async def endpoint_upload_documentos(
         total_arquivos_aceitos=total_aceitos,
         total_arquivos_rejeitados=total_rejeitados,
         documentos=documentos_aceitos,
-        erros=lista_de_erros
+        erros=lista_de_erros,
+        shortcuts_sugeridos=shortcuts
     )
     
     return resposta
