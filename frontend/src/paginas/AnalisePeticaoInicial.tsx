@@ -30,6 +30,7 @@
 
 import { useState } from 'react';
 import { FileText, CheckCircle2, Users, BarChart3, FileCheck } from 'lucide-react';
+import { ComponenteDocumentosSugeridos } from '../componentes/peticao/ComponenteDocumentosSugeridos';
 import type {
   DocumentoSugerido,
   AgentesSelecionados,
@@ -100,6 +101,7 @@ export function AnalisePeticaoInicial(): JSX.Element {
   /**
    * Documentos sugeridos pela LLM
    */
+  // TODO: Buscar documentos sugeridos da API após o upload da petição
   const [documentosSugeridos, setDocumentosSugeridos] = useState<DocumentoSugerido[]>([]);
   
   /**
@@ -295,14 +297,13 @@ export function AnalisePeticaoInicial(): JSX.Element {
         )}
         
         {etapaAtual === 2 && (
-          <EtapaDocumentosComplementares
+          <ComponenteDocumentosSugeridos
             peticaoId={peticaoId}
             documentosSugeridos={documentosSugeridos}
-            onDocumentosSugeridos={setDocumentosSugeridos}
-            onDocumentosEnviados={setDocumentosEnviados}
+            onUploadCompleto={(novosDocumentos) => {
+              setDocumentosEnviados(prev => [...prev, ...novosDocumentos]);
+            }}
             onAvancar={avancarEtapa}
-            onVoltar={voltarEtapa}
-            onErro={setErro}
           />
         )}
         
@@ -393,48 +394,6 @@ function EtapaUploadPeticao({
   );
 }
 
-/**
- * ETAPA 2: Documentos Complementares
- * 
- * NOTA: Este é um placeholder. O componente completo será implementado na TAREFA-051.
- */
-function EtapaDocumentosComplementares({
-  peticaoId,
-  documentosSugeridos,
-  onDocumentosSugeridos,
-  onDocumentosEnviados,
-  onAvancar,
-  onVoltar,
-  onErro,
-}: {
-  peticaoId: string;
-  documentosSugeridos: DocumentoSugerido[];
-  onDocumentosSugeridos: (docs: DocumentoSugerido[]) => void;
-  onDocumentosEnviados: (ids: string[]) => void;
-  onAvancar: () => void;
-  onVoltar: () => void;
-  onErro: (erro: string) => void;
-}) {
-  return (
-    <div className="text-center py-12">
-      <FileCheck className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-      <h2 className="text-xl font-semibold text-gray-900 mb-2">
-        Documentos Complementares
-      </h2>
-      <p className="text-gray-600 mb-6">
-        Componente completo será implementado na TAREFA-051
-      </p>
-      <div className="flex gap-4 justify-center">
-        <button onClick={onVoltar} className="btn btn-secondary">
-          Voltar
-        </button>
-        <button onClick={onAvancar} className="btn btn-primary">
-          Avançar (Dev)
-        </button>
-      </div>
-    </div>
-  );
-}
 
 /**
  * ETAPA 3: Seleção de Agentes

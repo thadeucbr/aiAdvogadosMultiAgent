@@ -1,0 +1,127 @@
+
+/* Estilos para o contêiner principal */
+.container {
+    padding: 24px;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Estilos para o cabeçalho */
+  .header {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: #1a202c;
+  }
+
+  /* Estilos para a descrição */
+  .description {
+    margin-bottom: 24px;
+    color: #4a5568;
+  }
+
+  /* Estilos para a lista de documentos */
+  .document-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* Estilos para cada item de documento */
+  .document-item {
+    padding: 16px;
+    border-width: 1px;
+    border-radius: 6px;
+  }
+
+  /* Estilos de prioridade */
+  .essencial-bg { background-color: #fff5f5; }
+  .essencial-text { color: #c53030; }
+  .essencial-border { border-color: #f56565; }
+
+  .importante-bg { background-color: #fffff0; }
+  .importante-text { color: #d69e2e; }
+  .importante-border { border-color: #f6e05e; }
+
+  .desejavel-bg { background-color: #f0fff4; }
+  .desejavel-text { color: #2f855a; }
+  .desejavel-border { border-color: #68d391; }
+
+  /* Estilos para o cabeçalho do item de documento */
+  .item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+
+  /* Estilos para o título e justificativa */
+  .item-title {
+    font-weight: 700;
+    font-size: 1.125rem;
+  }
+
+  .item-justification {
+    font-size: 0.875rem;
+    color: #718096;
+    margin-top: 4px;
+  }
+
+  /* Estilos para o badge de prioridade */
+  .priority-badge {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border-radius: 9999px;
+  }
+
+  /* Estilos para a área de upload */
+  .upload-area {
+    margin-top: 16px;
+  }
+
+  /* Estilos para o input de arquivo */
+  .file-input {
+    width: 100%;
+    max-width: 320px;
+  }
+
+  /* Estilos para a barra de progresso */
+  .progress-bar-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Estilos para o texto de status */
+  .status-text-success {
+    color: #2f855a;
+    font-weight: 600;
+  }
+
+  .status-text-error {
+    color: #c53030;
+  }
+
+  /* Estilos para o botão de tentar novamente */
+  .retry-button {
+    margin-left: 8px;
+  }
+
+  /* Estilos para a checkbox "Não possuo" */
+  .nao-possuo-checkbox {
+    margin-top: 8px;
+    text-align: right;
+  }
+
+  /* Estilos para os botões de ação */
+  .actions {
+    margin-top: 32px;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .action-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
