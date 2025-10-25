@@ -526,11 +526,14 @@ function EtapaProcessamento({
   );
 }
 
+import ComponenteProximosPassos from '../componentes/peticao/ComponenteProximosPassos';
+
 /**
  * ETAPA 5: Resultados
  * 
- * NOTA: Este é um placeholder. Componentes completos de visualização serão
- * implementados nas TAREFAS 053-056.
+ * NOTA: Este componente renderiza os resultados da análise. Ele utiliza componentes
+ * especializados para cada seção de resultado (próximos passos, prognóstico, etc.),
+ * que são implementados nas TAREFAS 053-056.
  */
 function EtapaResultados({
   resultado,
@@ -540,29 +543,54 @@ function EtapaResultados({
   onNovaAnalise: () => void;
 }) {
   return (
-    <div className="text-center py-12">
-      <CheckCircle2 className="w-16 h-16 text-green-600 mx-auto mb-4" />
-      <h2 className="text-xl font-semibold text-gray-900 mb-2">
-        Análise Concluída!
-      </h2>
-      <p className="text-gray-600 mb-6">
-        Componentes de visualização completos serão implementados nas TAREFAS 053-056
-      </p>
-      
-      <div className="text-left max-w-2xl mx-auto mb-6 bg-gray-50 rounded-lg p-4">
-        <h3 className="font-semibold text-gray-900 mb-2">Prévia do Resultado:</h3>
-        <ul className="text-sm text-gray-700 space-y-1">
-          <li>• Próximos Passos: {resultado.proximos_passos.estrategia_recomendada}</li>
-          <li>• Prognóstico: {resultado.prognostico.cenario_mais_provavel}</li>
-          <li>• Pareceres de Advogados: {Object.keys(resultado.pareceres_advogados).length}</li>
-          <li>• Pareceres de Peritos: {Object.keys(resultado.pareceres_peritos).length}</li>
-          <li>• Documento Gerado: {resultado.documento_continuacao.tipo_peca}</li>
-        </ul>
+    <div className="space-y-8 py-4">
+      <div className="text-center">
+        <CheckCircle2 className="w-12 h-12 text-green-600 mx-auto mb-2" />
+        <h2 className="text-2xl font-bold text-gray-900">
+          Análise Concluída!
+        </h2>
+        <p className="text-gray-600">
+          Abaixo estão os resultados detalhados gerados por nossos agentes.
+        </p>
       </div>
-      
-      <button onClick={onNovaAnalise} className="btn btn-primary">
-        Nova Análise
-      </button>
+
+      {/* Grid de Resultados */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+        {/* Coluna Principal (Próximos Passos e Pareceres) */}
+        <div className="lg:col-span-2 space-y-8">
+          {/* TAREFA-053: Componente de Visualização de Próximos Passos */}
+          <ComponenteProximosPassos proximosPassos={resultado.proximos_passos} />
+
+          {/* Placeholder para TAREFA-055 (Pareceres) */}
+          <div className="p-6 bg-white rounded-lg shadow-md">
+            <h3 className="text-xl font-semibold text-gray-800">Pareceres Individualizados</h3>
+            <p className="text-gray-600 mt-2">Componente a ser implementado na TAREFA-055.</p>
+          </div>
+        </div>
+
+        {/* Coluna Lateral (Prognóstico e Documento Gerado) */}
+        <div className="space-y-8">
+          {/* Placeholder para TAREFA-054 (Prognóstico) */}
+          <div className="p-6 bg-white rounded-lg shadow-md">
+            <h3 className="text-xl font-semibold text-gray-800">Prognóstico do Processo</h3>
+            <p className="text-gray-600 mt-2">Componente a ser implementado na TAREFA-054.</p>
+          </div>
+
+          {/* Placeholder para TAREFA-056 (Documento Gerado) */}
+          <div className="p-6 bg-white rounded-lg shadow-md">
+            <h3 className="text-xl font-semibold text-gray-800">Documento de Continuação</h3>
+            <p className="text-gray-600 mt-2">Componente a ser implementado na TAREFA-056.</p>
+          </div>
+        </div>
+
+      </div>
+
+      <div className="text-center pt-4">
+        <button onClick={onNovaAnalise} className="btn btn-primary">
+          Iniciar Nova Análise
+        </button>
+      </div>
     </div>
   );
 }
