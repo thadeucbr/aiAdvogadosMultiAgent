@@ -402,6 +402,14 @@ class OrquestradorMultiAgent:
             
             self._atualizar_status_consulta(id_consulta, StatusConsulta.CONSULTANDO_RAG)
             
+            # NOVO (TAREFA-034): Reportar início da consulta RAG
+            gerenciador = obter_gerenciador_estado_tarefas()
+            gerenciador.atualizar_progresso(
+                consulta_id=id_consulta,
+                etapa="Consultando base de conhecimento (RAG)",
+                progresso=5
+            )
+            
             logger.info(f"📚 CONSULTANDO RAG | ID: {id_consulta}")
             
             try:
@@ -411,6 +419,13 @@ class OrquestradorMultiAgent:
                     consulta=prompt,
                     numero_de_resultados=5,  # Top 5 documentos mais relevantes
                     documento_ids=documento_ids  # Filtro opcional de documentos específicos
+                )
+                
+                # NOVO (TAREFA-034): Reportar conclusão da consulta RAG
+                gerenciador.atualizar_progresso(
+                    consulta_id=id_consulta,
+                    etapa=f"Base de conhecimento consultada - {len(contexto_rag)} documentos encontrados",
+                    progresso=20
                 )
                 
                 logger.info(
@@ -433,12 +448,34 @@ class OrquestradorMultiAgent:
             if agentes_selecionados:
                 self._atualizar_status_consulta(id_consulta, StatusConsulta.DELEGANDO_PERITOS)
                 
+                # NOVO (TAREFA-034): Reportar início da delegação de peritos
+                gerenciador.atualizar_progresso(
+                    consulta_id=id_consulta,
+                    etapa=f"Delegando análise para {len(agentes_selecionados)} perito(s)",
+                    progresso=20
+                )
+                
                 logger.info(
                     f"🎯 DELEGANDO PARA PERITOS | ID: {id_consulta} | "
                     f"Peritos: {agentes_selecionados}"
                 )
                 
                 try:
+                    # NOVO (TAREFA-034): Calcular progresso proporcional por perito
+                    # Faixa de progresso para peritos: 20% - 50% (total: 30%)
+                    progresso_inicio_peritos = 20
+                    progresso_fim_peritos = 50
+                    progresso_por_perito = (progresso_fim_peritos - progresso_inicio_peritos) / len(agentes_selecionados)
+                    
+                    # NOVO (TAREFA-034): Reportar início de cada perito
+                    for idx, perito_id in enumerate(agentes_selecionados):
+                        progresso_atual = progresso_inicio_peritos + (idx * progresso_por_perito)
+                        gerenciador.atualizar_progresso(
+                            consulta_id=id_consulta,
+                            etapa=f"Consultando parecer do Perito: {perito_id.replace('_', ' ').title()}",
+                            progresso=int(progresso_atual)
+                        )
+                    
                     # Executar delegação com timeout
                     pareceres_peritos = await asyncio.wait_for(
                         self.agente_advogado.delegar_para_peritos(
@@ -455,6 +492,13 @@ class OrquestradorMultiAgent:
                         p for p in pareceres_peritos.values()
                         if not p.get("erro", False)
                     ]
+                    
+                    # NOVO (TAREFA-034): Reportar conclusão dos peritos
+                    gerenciador.atualizar_progresso(
+                        consulta_id=id_consulta,
+                        etapa=f"Pareceres dos peritos concluídos ({len(peritos_com_sucesso)}/{len(agentes_selecionados)})",
+                        progresso=50
+                    )
                     
                     logger.info(
                         f"✅ PERITOS CONCLUÍDOS | ID: {id_consulta} | "
@@ -491,12 +535,34 @@ class OrquestradorMultiAgent:
             if advogados_selecionados:
                 self._atualizar_status_consulta(id_consulta, StatusConsulta.DELEGANDO_ADVOGADOS)
                 
+                # NOVO (TAREFA-034): Reportar início da delegação de advogados
+                gerenciador.atualizar_progresso(
+                    consulta_id=id_consulta,
+                    etapa=f"Delegando análise para {len(advogados_selecionados)} advogado(s) especialista(s)",
+                    progresso=50
+                )
+                
                 logger.info(
                     f"⚖️  DELEGANDO PARA ADVOGADOS ESPECIALISTAS | ID: {id_consulta} | "
                     f"Advogados: {advogados_selecionados}"
                 )
                 
                 try:
+                    # NOVO (TAREFA-034): Calcular progresso proporcional por advogado
+                    # Faixa de progresso para advogados: 50% - 80% (total: 30%)
+                    progresso_inicio_advogados = 50
+                    progresso_fim_advogados = 80
+                    progresso_por_advogado = (progresso_fim_advogados - progresso_inicio_advogados) / len(advogados_selecionados)
+                    
+                    # NOVO (TAREFA-034): Reportar início de cada advogado
+                    for idx, advogado_id in enumerate(advogados_selecionados):
+                        progresso_atual = progresso_inicio_advogados + (idx * progresso_por_advogado)
+                        gerenciador.atualizar_progresso(
+                            consulta_id=id_consulta,
+                            etapa=f"Consultando parecer do Advogado: {advogado_id.replace('_', ' ').title()}",
+                            progresso=int(progresso_atual)
+                        )
+                    
                     # Executar delegação com timeout
                     pareceres_advogados_especialistas = await asyncio.wait_for(
                         self.agente_advogado.delegar_para_advogados_especialistas(
@@ -513,6 +579,13 @@ class OrquestradorMultiAgent:
                         a for a in pareceres_advogados_especialistas.values()
                         if not a.get("erro", False)
                     ]
+                    
+                    # NOVO (TAREFA-034): Reportar conclusão dos advogados
+                    gerenciador.atualizar_progresso(
+                        consulta_id=id_consulta,
+                        etapa=f"Pareceres dos advogados concluídos ({len(advogados_com_sucesso)}/{len(advogados_selecionados)})",
+                        progresso=80
+                    )
                     
                     logger.info(
                         f"✅ ADVOGADOS ESPECIALISTAS CONCLUÍDOS | ID: {id_consulta} | "
@@ -545,6 +618,13 @@ class OrquestradorMultiAgent:
             
             self._atualizar_status_consulta(id_consulta, StatusConsulta.COMPILANDO_RESPOSTA)
             
+            # NOVO (TAREFA-034): Reportar início da compilação
+            gerenciador.atualizar_progresso(
+                consulta_id=id_consulta,
+                etapa="Compilando resposta final integrando todos os pareceres",
+                progresso=85
+            )
+            
             logger.info(f"📝 COMPILANDO RESPOSTA | ID: {id_consulta}")
             
             try:
@@ -564,6 +644,13 @@ class OrquestradorMultiAgent:
                         pergunta_do_usuario=prompt,
                         metadados_adicionais=metadados_adicionais
                     )
+                
+                # NOVO (TAREFA-034): Reportar compilação finalizada
+                gerenciador.atualizar_progresso(
+                    consulta_id=id_consulta,
+                    etapa="Resposta final compilada com sucesso",
+                    progresso=95
+                )
                 
                 logger.info(f"✅ RESPOSTA COMPILADA | ID: {id_consulta}")
             

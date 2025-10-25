@@ -57,8 +57,9 @@ Aqui está o **Roadmap v2.0** atualizado:
 - ✅ TAREFA-031: Backend - Criar Endpoints de Análise Assíncrona
 - ✅ TAREFA-032: Frontend - Refatorar Serviço de API de Análise
 - ✅ TAREFA-033: Frontend - Implementar Polling na Página de Análise
+- ✅ TAREFA-034: Backend - Feedback de Progresso Detalhado
 
-**Próximo passo:** TAREFA-034 (Frontend - Feedback de Progresso Detalhado - Opcional)
+**Próximo passo:** TAREFA-035 (Sistema de Logging Completo)
 
 ---
 
@@ -417,21 +418,25 @@ Aqui está o **Roadmap v2.0** atualizado:
 
 ---
 
-#### 🟡 TAREFA-034: Frontend - Feedback de Progresso (Opcional, mas Recomendado)
+#### ✅ TAREFA-034: Frontend - Feedback de Progresso (Opcional, mas Recomendado)
 **Prioridade:** 🟢 MÉDIA  
 **Dependências:** TAREFA-033  
 **Estimativa:** 2-3 horas  
-**Status:** 🟡 PENDENTE
+**Status:** ✅ CONCLUÍDA (2025-10-24)
 
 **Escopo:**
-- [ ] **Backend:** Modificar o endpoint `GET /api/analise/status/{consulta_id}` para retornar mais detalhes (ex: `{ status: "PROCESSANDO", etapa_atual: "Analisando com Perito Médico", progresso_percentual: 50 }`).
-- [ ] **Backend:** O `_processar_consulta_em_background` (TAREFA-030) deve atualizar o gerenciador de estado em cada etapa (RAG, Perito 1, Advogado 1, Compilação).
-- [ ] **Frontend:** A `PaginaAnalise.tsx` (TAREFA-033) deve exibir a `etapa_atual` e barra de progresso na UI de loading (ex: "Processando... Etapa: Analisando com Perito Médico [50%]").
+- [x] **Backend:** Modificar o endpoint `GET /api/analise/status/{consulta_id}` para retornar mais detalhes (ex: `{ status: "PROCESSANDO", etapa_atual: "Analisando com Perito Médico", progresso_percentual: 50 }`).
+- [x] **Backend:** O `_processar_consulta_em_background` (TAREFA-030) deve atualizar o gerenciador de estado em cada etapa (RAG, Perito 1, Advogado 1, Compilação).
+- [x] **Frontend:** A `PaginaAnalise.tsx` (TAREFA-033) já exibe a `etapa_atual` e barra de progresso na UI de loading (ex: "Processando... Etapa: Analisando com Perito Médico [50%]").
 
 **Entregáveis:**
-- Melhoria de UX significativa, mostrando ao usuário o progresso da análise em tempo real.
+- ✅ Melhoria de UX significativa, mostrando ao usuário o progresso da análise em tempo real.
+- ✅ Método `atualizar_progresso()` criado no `GerenciadorEstadoTarefas`
+- ✅ Progresso proporcional baseado no número de agentes selecionados
+- ✅ Documentação completa em `ARQUITETURA.md` (seção "Sistema de Feedback de Progresso Detalhado")
+- ✅ Changelog completo: `changelogs/TAREFA-034_backend-feedback-progresso-detalhado.md`
 
-**Marco:** 🎉 **REARQUITETURA ASSÍNCRONA COMPLETA** - Risco de timeout eliminado, análises podem demorar quanto necessário.
+**Marco:** 🎉 **REARQUITETURA ASSÍNCRONA COMPLETA** - Risco de timeout eliminado, análises podem demorar quanto necessário, com feedback de progresso REAL em tempo real.
 
 ---
 

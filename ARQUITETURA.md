@@ -1317,6 +1317,193 @@ Exibir exatamente da mesma forma que o endpoint síncrono:
 
 ---
 
+### Sistema de Feedback de Progresso Detalhado (TAREFA-034)
+
+**Status:** ✅ IMPLEMENTADO (2025-10-24)  
+**Responsável:** GitHub Copilot (IA)
+
+**Contexto de Negócio:**
+O frontend mostra feedback de progresso em tempo real durante análises assíncronas, mas antes da TAREFA-034 o progresso era apenas **estimado** no frontend. Agora o backend reporta progresso **REAL** em cada micro-etapa do processamento multi-agent.
+
+**Benefício para o Usuário:**
+- ✅ Feedback **exato** do que está acontecendo (ex: "Consultando parecer do Perito Médico - 35%")
+- ✅ Progresso **proporcional** ao número de agentes (2 peritos = progresso mais granular que 5 advogados)
+- ✅ Transparência total do processamento (usuário sabe o que está demorando)
+
+#### Faixas de Progresso por Etapa
+
+O orquestrador divide o progresso de 0-100% em 4 faixas principais:
+
+| Faixa | Etapa | Descrição | Progresso Inicial | Progresso Final |
+|-------|-------|-----------|-------------------|-----------------|
+| **1** | **Consultando RAG** | Busca documentos relevantes no ChromaDB | 5% | 20% |
+| **2** | **Delegando para Peritos** | Executa peritos em paralelo (dividido entre peritos selecionados) | 20% | 50% |
+| **3** | **Delegando para Advogados** | Executa advogados especialistas em paralelo (dividido entre advogados selecionados) | 50% | 80% |
+| **4** | **Compilando Resposta** | Advogado Coordenador integra todos os pareceres | 85% | 95% |
+
+**IMPORTANTE:**
+- Se **nenhum perito** selecionado → Pula etapa 2 (vai direto de RAG para advogados ou compilação)
+- Se **nenhum advogado** selecionado → Pula etapa 3 (vai direto de peritos para compilação)
+- Faixas de peritos e advogados são **divididas proporcionalmente** entre agentes selecionados
+
+#### Exemplos de Progresso por Cenário
+
+**Exemplo 1: Análise com 1 Perito e 0 Advogados**
+```
+5%  → "Consultando base de conhecimento (RAG)"
+20% → "Delegando análise para 1 perito(s)"
+20% → "Consultando parecer do Perito: Medico"
+50% → "Pareceres dos peritos concluídos (1/1)"
+85% → "Compilando resposta final integrando todos os pareceres"
+95% → "Resposta final compilada com sucesso"
+100% → Status: CONCLUÍDA
+```
+
+**Exemplo 2: Análise com 2 Peritos e 2 Advogados**
+```
+5%  → "Consultando base de conhecimento (RAG)"
+20% → "Base de conhecimento consultada - 5 documentos encontrados"
+20% → "Delegando análise para 2 perito(s)"
+20% → "Consultando parecer do Perito: Medico"
+35% → "Consultando parecer do Perito: Seguranca Trabalho"
+50% → "Pareceres dos peritos concluídos (2/2)"
+50% → "Delegando análise para 2 advogado(s) especialista(s)"
+50% → "Consultando parecer do Advogado: Trabalhista"
+65% → "Consultando parecer do Advogado: Previdenciario"
+80% → "Pareceres dos advogados concluídos (2/2)"
+85% → "Compilando resposta final integrando todos os pareceres"
+95% → "Resposta final compilada com sucesso"
+100% → Status: CONCLUÍDA
+```
+
+**Exemplo 3: Análise com 0 Peritos e 3 Advogados**
+```
+5%  → "Consultando base de conhecimento (RAG)"
+20% → "Base de conhecimento consultada - 3 documentos encontrados"
+50% → "Delegando análise para 3 advogado(s) especialista(s)"
+50% → "Consultando parecer do Advogado: Trabalhista"
+60% → "Consultando parecer do Advogado: Previdenciario"
+70% → "Consultando parecer do Advogado: Civel"
+80% → "Pareceres dos advogados concluídos (3/3)"
+85% → "Compilando resposta final integrando todos os pareceres"
+95% → "Resposta final compilada com sucesso"
+100% → Status: CONCLUÍDA
+```
+
+#### Implementação Técnica
+
+**Módulo:** `backend/src/servicos/gerenciador_estado_tarefas.py`
+
+**Novo Método (TAREFA-034):**
+```python
+def atualizar_progresso(
+    self,
+    consulta_id: str,
+    etapa: str,
+    progresso: int
+) -> Tarefa:
+    """
+    Atualiza o progresso de uma tarefa sem alterar seu status.
+    
+    - Método de conveniência para reportar progresso detalhado
+    - Atualiza apenas `etapa_atual` e `progresso_percentual`
+    - Mantém status como PROCESSANDO
+    - Thread-safe (usa lock interno)
+    """
+```
+
+**Diferença vs `atualizar_status()`:**
+- `atualizar_status()`: Muda o status da tarefa (INICIADA → PROCESSANDO → CONCLUÍDA)
+- `atualizar_progresso()`: Atualiza apenas etapa_atual e progresso_percentual
+
+**Chamadas no Orquestrador:**
+
+O `OrquestradorMultiAgent.processar_consulta()` agora chama `gerenciador.atualizar_progresso()` em 5 pontos estratégicos:
+
+1. **Início da Consulta RAG** (5%)
+   ```python
+   gerenciador.atualizar_progresso(
+       consulta_id=id_consulta,
+       etapa="Consultando base de conhecimento (RAG)",
+       progresso=5
+   )
+   ```
+
+2. **Conclusão da Consulta RAG** (20%)
+   ```python
+   gerenciador.atualizar_progresso(
+       consulta_id=id_consulta,
+       etapa=f"Base de conhecimento consultada - {len(contexto_rag)} documentos encontrados",
+       progresso=20
+   )
+   ```
+
+3. **Durante Delegação de Peritos** (20-50%)
+   ```python
+   # Progresso proporcional (exemplo: 2 peritos)
+   # Perito 1: 20% → Perito 2: 35% → Conclusão: 50%
+   for idx, perito_id in enumerate(agentes_selecionados):
+       progresso_atual = 20 + (idx * 15)  # (50-20)/2 = 15% por perito
+       gerenciador.atualizar_progresso(
+           consulta_id=id_consulta,
+           etapa=f"Consultando parecer do Perito: {perito_id}",
+           progresso=int(progresso_atual)
+       )
+   ```
+
+4. **Durante Delegação de Advogados** (50-80%)
+   ```python
+   # Progresso proporcional (exemplo: 3 advogados)
+   # Adv 1: 50% → Adv 2: 60% → Adv 3: 70% → Conclusão: 80%
+   for idx, advogado_id in enumerate(advogados_selecionados):
+       progresso_atual = 50 + (idx * 10)  # (80-50)/3 = 10% por advogado
+       gerenciador.atualizar_progresso(
+           consulta_id=id_consulta,
+           etapa=f"Consultando parecer do Advogado: {advogado_id}",
+           progresso=int(progresso_atual)
+       )
+   ```
+
+5. **Compilação da Resposta** (85-95%)
+   ```python
+   # Início compilação
+   gerenciador.atualizar_progresso(
+       consulta_id=id_consulta,
+       etapa="Compilando resposta final integrando todos os pareceres",
+       progresso=85
+   )
+   
+   # Fim compilação
+   gerenciador.atualizar_progresso(
+       consulta_id=id_consulta,
+       etapa="Resposta final compilada com sucesso",
+       progresso=95
+   )
+   ```
+
+#### Consumo no Frontend
+
+O frontend (PaginaAnalise.tsx - TAREFA-033) JÁ consome estes dados via polling:
+
+```typescript
+// Polling a cada 3s
+const status = await verificarStatusAnalise(consultaId);
+
+// Atualizar UI com progresso REAL do backend
+setProgressoPercentual(status.progresso_percentual);  // 0-100
+setEtapaAtual(status.etapa_atual);  // "Consultando parecer do Perito: Medico"
+```
+
+**UI Visual:**
+- Barra de progresso animada (0-100%)
+- Etapa atual abaixo da barra
+- Ícone de relógio pulsante
+
+**Resultado:**
+Usuário vê **exatamente** o que está acontecendo em tempo real, com progresso preciso baseado na execução real do backend (não mais estimativas).
+
+---
+
 **Uso:**
 - Monitoramento de saúde do sistema
 - Validação antes de submeter análises

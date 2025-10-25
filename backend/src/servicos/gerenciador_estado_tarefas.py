@@ -361,6 +361,123 @@ class GerenciadorEstadoTarefas:
             
             return tarefa
     
+    def atualizar_progresso(
+        self,
+        consulta_id: str,
+        etapa: str,
+        progresso: int
+    ) -> Tarefa:
+        """
+        Atualiza o progresso de uma tarefa sem alterar seu status.
+        
+        CONTEXTO (TAREFA-034):
+        Método de conveniência adicionado para facilitar a atualização de progresso
+        durante a execução da análise multi-agent. Permite que o orquestrador
+        reporte progresso detalhado em cada etapa sem precisar gerenciar o status.
+        
+        DIFERENÇA vs atualizar_status():
+        - atualizar_status(): Muda o status da tarefa (INICIADA → PROCESSANDO → CONCLUÍDA)
+        - atualizar_progresso(): Atualiza apenas etapa_atual e progresso_percentual,
+                                 mantendo status como PROCESSANDO
+        
+        USO TÍPICO:
+        Chamado pelo orquestrador em cada micro-etapa do processamento:
+        - Início da consulta RAG (0-10%)
+        - Durante delegação de peritos (20-50%, incremento por perito)
+        - Durante delegação de advogados (50-80%, incremento por advogado)
+        - Durante compilação da resposta (80-100%)
+        
+        BENEFÍCIO PARA O USUÁRIO:
+        Frontend recebe feedback em tempo real mostrando exatamente o que está
+        acontecendo (ex: "Consultando parecer do Perito Médico - 35%") em vez de
+        apenas "Processando..." genérico.
+        
+        Args:
+            consulta_id: ID da tarefa a atualizar
+            etapa: Descrição detalhada da etapa atual
+                   Ex: "Consultando base de conhecimento (RAG)"
+                       "Delegando para Perito Médico"
+                       "Compilando resposta final do Advogado Trabalhista"
+            progresso: Porcentagem de conclusão (0-100)
+                       Ex: 0, 25, 50, 75, 100
+        
+        Returns:
+            Tarefa atualizada com novos valores de etapa_atual e progresso_percentual
+        
+        Raises:
+            ValueError: Se tarefa não existe
+        
+        THREAD-SAFETY:
+        Usa lock interno (_lock) para garantir operações atômicas.
+        Seguro para chamar de múltiplas threads/background tasks.
+        
+        EXEMPLO DE USO NO ORQUESTRADOR:
+        ```python
+        # Obter gerenciador
+        gerenciador = obter_gerenciador_estado_tarefas()
+        
+        # Início da análise RAG
+        gerenciador.atualizar_progresso(
+            consulta_id="uuid-123",
+            etapa="Consultando base de conhecimento (RAG)",
+            progresso=10
+        )
+        
+        # Durante delegação de peritos (2 peritos: médico e segurança)
+        # Perito 1 (médico) iniciando
+        gerenciador.atualizar_progresso(
+            consulta_id="uuid-123",
+            etapa="Consultando parecer do Perito Médico",
+            progresso=25
+        )
+        
+        # Perito 2 (segurança) iniciando
+        gerenciador.atualizar_progresso(
+            consulta_id="uuid-123",
+            etapa="Consultando parecer do Perito de Segurança do Trabalho",
+            progresso=40
+        )
+        
+        # Compilação final
+        gerenciador.atualizar_progresso(
+            consulta_id="uuid-123",
+            etapa="Compilando resposta final integrando todos os pareceres",
+            progresso=90
+        )
+        ```
+        
+        FLUXO TÍPICO DE PROGRESSO (TAREFA-034):
+        0-20%:  Consultando RAG
+        20-50%: Delegando para peritos (dividido entre peritos selecionados)
+        50-80%: Delegando para advogados (dividido entre advogados selecionados)
+        80-100%: Compilando resposta final
+        """
+        with self._lock:
+            # Validar se tarefa existe
+            if consulta_id not in self._tarefas:
+                logger.error(f"❌ Tentativa de atualizar progresso em tarefa inexistente: {consulta_id}")
+                raise ValueError(f"Tarefa com ID {consulta_id} não encontrada")
+            
+            # Obter tarefa
+            tarefa = self._tarefas[consulta_id]
+            
+            # Atualizar campos
+            tarefa.etapa_atual = etapa
+            tarefa.progresso_percentual = max(0, min(100, progresso))  # Garantir 0-100
+            tarefa.timestamp_atualizacao = datetime.utcnow().isoformat()
+            
+            # Garantir que status seja PROCESSANDO (não alterar se já CONCLUÍDA ou ERRO)
+            if tarefa.status == StatusTarefa.INICIADA:
+                tarefa.status = StatusTarefa.PROCESSANDO
+            
+            logger.info(
+                f"📊 Progresso atualizado: {consulta_id} | "
+                f"Etapa: {etapa} | "
+                f"Progresso: {progresso}%"
+            )
+            
+            return tarefa
+    
     def registrar_resultado(
         self,
         consulta_id: str,

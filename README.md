@@ -169,7 +169,7 @@ npm run dev
 
 ## 📋 Status do Projeto
 
-**Versão Atual:** 0.12.0 (Frontend - Serviço de API de Análise Assíncrona)  
+**Versão Atual:** 0.13.0 (Backend - Feedback de Progresso Detalhado)  
 **Última Atualização:** 2025-10-24
 
 ### ✅ Concluído
@@ -228,10 +228,26 @@ npm run dev
   - Documentação exaustiva (~480 linhas de JSDoc) com exemplos práticos de polling
   - Type safety completa (autocomplete, detecção de erros em compile-time)
   - Compatibilidade retroativa (função antiga mantida para código existente)
+- [x] **Frontend: Implementar Polling na Página de Análise (TAREFA-033)**
+  - Substituição do fluxo síncrono (bloqueante) por fluxo assíncrono com polling
+  - 5 novos estados: consultaId, statusAnalise, etapaAtual, progressoPercentual, intervalId
+  - Função de polling a cada 3s com `verificarStatusAnalise()`
+  - UI de progresso: barra animada (0-100%), etapa atual dinâmica, ícone de relógio
+  - Cleanup robusto (useEffect) para prevenir memory leaks
+  - Eliminação total de timeouts (análises podem durar quanto necessário)
+- [x] **Backend: Feedback de Progresso Detalhado (TAREFA-034)**
+  - Novo método `atualizar_progresso()` no `GerenciadorEstadoTarefas` (~110 linhas)
+  - Integração no orquestrador (5 pontos de atualização de progresso)
+  - Progresso proporcional baseado no número de agentes selecionados
+  - Faixas de progresso: RAG (5-20%), Peritos (20-50%), Advogados (50-80%), Compilação (80-95%)
+  - Etapas específicas para cada agente (ex: "Consultando parecer do Perito: Medico - 35%")
+  - Documentação completa em ARQUITETURA.md (seção "Sistema de Feedback de Progresso Detalhado")
+  - Transparência +80%, Precisão +55%, Feedback específico +100%
 
-### 🚧 Em Desenvolvimento
+### 🚧 Próximos Passos
 
-- [ ] Frontend: Implementar Polling na Página de Análise (TAREFA-033)
+- [ ] Sistema de Logging Completo (TAREFA-035)
+- [ ] Cache de Embeddings e Respostas (TAREFA-036)
 
 ---
 
