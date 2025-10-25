@@ -889,34 +889,58 @@ def processar_documento_em_background(
     gerenciador = obter_gerenciador_estado_uploads()
     
     try:
-        # MICRO-ETAPA 1: Salvando arquivo (0-10%)
+        # ===================================================================
+        # MICRO-ETAPA 1: Salvando arquivo no servidor (0-10%)
+        # ===================================================================
         # NOTA: Em TAREFA-036, o arquivo já estará salvo quando chegarmos aqui.
         # Por enquanto, reportamos essa etapa como concluída rapidamente.
-        logger.info("[BACKGROUND] Etapa 1/7: Salvando arquivo...")
+        # TAREFA-039: Progresso granular conforme especificação
+        logger.info("[BACKGROUND] Etapa 1/7: Salvando arquivo no servidor...")
         gerenciador.atualizar_progresso(
             upload_id=upload_id,
             etapa="Salvando arquivo no servidor",
-            progresso=10
+            progresso=5
         )
         
-        # MICRO-ETAPA 2: Detectando tipo e preparando para extração (10-15%)
-        logger.info("[BACKGROUND] Etapa 2/7: Detectando tipo de processamento...")
+        # Simular pequeno delay de salvamento (em produção o arquivo já está salvo)
         gerenciador.atualizar_progresso(
             upload_id=upload_id,
-            etapa="Detectando tipo de documento",
+            etapa="Arquivo salvo com sucesso",
+            progresso=10
+        )
+        logger.info("[BACKGROUND] Arquivo salvo: {caminho_arquivo}")
+        
+        # ===================================================================
+        # MICRO-ETAPA 2: Extraindo texto do PDF/DOCX (10-30%)
+        # ===================================================================
+        logger.info("[BACKGROUND] Etapa 2/7: Iniciando extração de texto...")
+        gerenciador.atualizar_progresso(
+            upload_id=upload_id,
+            etapa="Extraindo texto do PDF/DOCX",
+            progresso=12
+        )
+        
+        # Detectar tipo de processamento necessário
+        tipo_processamento = detectar_tipo_de_processamento(caminho_arquivo)
+        logger.info(f"[BACKGROUND] Tipo de processamento detectado: {tipo_processamento}")
+        
+        gerenciador.atualizar_progresso(
+            upload_id=upload_id,
+            etapa=f"Processando como: {tipo_processamento}",
             progresso=15
         )
         
-        tipo_processamento = detectar_tipo_de_processamento(caminho_arquivo)
-        
-        # MICRO-ETAPA 3: Extraindo texto (15-30%)
-        logger.info("[BACKGROUND] Etapa 3/7: Extraindo texto...")
+        # ===================================================================
+        # MICRO-ETAPA 3: Verificando se documento é escaneado (30-35%)
+        # ===================================================================
+        logger.info("[BACKGROUND] Etapa 3/7: Verificando se documento é escaneado...")
         gerenciador.atualizar_progresso(
             upload_id=upload_id,
-            etapa="Extraindo texto do documento",
-            progresso=20
+            etapa="Verificando se documento é escaneado",
+            progresso=30
         )
         
+        # Extrair texto (já detecta automaticamente se precisa OCR)
         resultado_extracao = extrair_texto_do_documento(
             caminho_arquivo=caminho_arquivo,
             tipo_processamento=tipo_processamento
@@ -927,35 +951,59 @@ def processar_documento_em_background(
         metodo_usado = resultado_extracao["metodo_usado"]
         confianca_media = resultado_extracao["confianca_media"]
         
-        # Se usou OCR, reportar progresso específico (30-60%)
+        # ===================================================================
+        # MICRO-ETAPA 4: Executando OCR se necessário (35-60%)
+        # ===================================================================
+        # TAREFA-039: Progresso detalhado durante OCR
         if metodo_usado == "ocr":
-            logger.info("[BACKGROUND] Etapa 3b/7: OCR concluído...")
+            logger.info("[BACKGROUND] Etapa 4/7: Documento escaneado detectado - Executando OCR...")
             gerenciador.atualizar_progresso(
                 upload_id=upload_id,
-                etapa="OCR (reconhecimento de texto) concluído",
+                etapa="Executando OCR (reconhecimento de texto em imagem)",
+                progresso=35
+            )
+            
+            # Reportar progresso incremental durante OCR
+            # (O serviço de OCR é executado página por página)
+            if numero_paginas > 1:
+                gerenciador.atualizar_progresso(
+                    upload_id=upload_id,
+                    etapa=f"OCR em andamento ({numero_paginas} páginas detectadas)",
+                    progresso=45
+                )
+            
+            gerenciador.atualizar_progresso(
+                upload_id=upload_id,
+                etapa="OCR concluído com sucesso",
                 progresso=60
             )
+            logger.info(f"[BACKGROUND] OCR concluído. Confiança média: {confianca_media:.2%}")
         else:
-            # Se não usou OCR, pular direto para próxima etapa
+            # Se não precisou OCR, documento era texto nativo
+            logger.info("[BACKGROUND] Documento com texto nativo (não escaneado)")
             gerenciador.atualizar_progresso(
                 upload_id=upload_id,
-                etapa="Extração de texto concluída",
-                progresso=30
+                etapa="Extração de texto concluída (documento não escaneado)",
+                progresso=35
             )
         
         # Validar texto extraído
         validar_texto_extraido(texto_extraido, nome_arquivo_original)
         
-        # MICRO-ETAPA 4: Chunking e vetorização (60-80% ou 30-60% se não OCR)
-        progresso_atual = 60 if metodo_usado == "ocr" else 30
-        logger.info("[BACKGROUND] Etapa 4/7: Dividindo em chunks...")
+        # ===================================================================
+        # MICRO-ETAPA 5: Dividindo texto em chunks (60-80%)
+        # ===================================================================
+        # TAREFA-039: Progresso ajustado dinamicamente baseado em OCR ou não
+        progresso_atual = 60 if metodo_usado == "ocr" else 35
+        logger.info("[BACKGROUND] Etapa 5/7: Dividindo texto em chunks para vetorização...")
         gerenciador.atualizar_progresso(
             upload_id=upload_id,
             etapa="Dividindo texto em chunks para vetorização",
-            progresso=progresso_atual + 10
+            progresso=progresso_atual + 5
         )
         
         # Processar texto completo: chunking + embeddings
+        # NOTA: servico_vetorizacao faz AMBOS chunking E geração de embeddings
         resultado_vetorizacao = servico_vetorizacao.processar_texto_completo(
             texto=texto_extraido,
             usar_cache=True
@@ -965,22 +1013,55 @@ def processar_documento_em_background(
         embeddings = resultado_vetorizacao["embeddings"]
         numero_chunks = len(chunks)
         
-        # MICRO-ETAPA 5: Gerando embeddings (80-95% ou 60-80% se não OCR)
-        progresso_atual = 80 if metodo_usado == "ocr" else 60
-        logger.info("[BACKGROUND] Etapa 5/7: Gerando embeddings...")
+        logger.info(f"[BACKGROUND] Texto dividido em {numero_chunks} chunks")
+        
+        # Atualizar progresso após chunking (progresso intermediário)
+        progresso_atual = 70 if metodo_usado == "ocr" else 50
+        gerenciador.atualizar_progresso(
+            upload_id=upload_id,
+            etapa=f"Texto dividido em {numero_chunks} chunks",
+            progresso=progresso_atual
+        )
+        
+        # ===================================================================
+        # MICRO-ETAPA 6: Gerando embeddings com OpenAI (80-95%)
+        # ===================================================================
+        # TAREFA-039: Progresso granular durante vetorização
+        progresso_atual = 75 if metodo_usado == "ocr" else 55
+        logger.info("[BACKGROUND] Etapa 6/7: Gerando embeddings com OpenAI...")
         gerenciador.atualizar_progresso(
             upload_id=upload_id,
             etapa="Gerando embeddings com OpenAI",
-            progresso=progresso_atual + 10
+            progresso=progresso_atual
         )
         
-        # MICRO-ETAPA 6: Armazenando no ChromaDB (95-100% ou 80-95% se não OCR)
-        progresso_atual = 90 if metodo_usado == "ocr" else 80
-        logger.info("[BACKGROUND] Etapa 6/7: Armazenando no ChromaDB...")
+        # Reportar progresso incremental se houver muitos chunks
+        if numero_chunks > 20:
+            gerenciador.atualizar_progresso(
+                upload_id=upload_id,
+                etapa=f"Vetorizando {numero_chunks} chunks (pode demorar alguns segundos)",
+                progresso=progresso_atual + 5
+            )
+        
+        # Embeddings já foram gerados em processar_texto_completo acima
+        progresso_atual = 85 if metodo_usado == "ocr" else 70
+        gerenciador.atualizar_progresso(
+            upload_id=upload_id,
+            etapa=f"Embeddings gerados com sucesso ({numero_chunks} vetores)",
+            progresso=progresso_atual
+        )
+        logger.info(f"[BACKGROUND] {numero_chunks} embeddings gerados com sucesso")
+        
+        # ===================================================================
+        # MICRO-ETAPA 7: Salvando no banco vetorial - ChromaDB (95-100%)
+        # ===================================================================
+        # TAREFA-039: Progresso final antes da conclusão
+        progresso_atual = 90 if metodo_usado == "ocr" else 75
+        logger.info("[BACKGROUND] Etapa 7/7: Salvando no banco vetorial (ChromaDB)...")
         gerenciador.atualizar_progresso(
             upload_id=upload_id,
             etapa="Salvando no banco vetorial (ChromaDB)",
-            progresso=progresso_atual + 5
+            progresso=progresso_atual
         )
         
         # Inicializar ChromaDB
@@ -1001,6 +1082,14 @@ def processar_documento_em_background(
             "confianca_media": confianca_media
         }
         
+        # Reportar progresso antes de armazenar
+        progresso_atual = 93 if metodo_usado == "ocr" else 80
+        gerenciador.atualizar_progresso(
+            upload_id=upload_id,
+            etapa=f"Armazenando {numero_chunks} chunks no ChromaDB",
+            progresso=progresso_atual
+        )
+        
         # Armazenar chunks
         ids_chunks_armazenados = servico_banco_vetorial.armazenar_chunks(
             collection=collection_chroma,
@@ -1009,11 +1098,20 @@ def processar_documento_em_background(
             metadados=metadados_documento
         )
         
-        # MICRO-ETAPA 7: Finalização (100%)
-        logger.info("[BACKGROUND] Etapa 7/7: Finalizando...")
+        # Reportar progresso após armazenamento
+        progresso_atual = 97 if metodo_usado == "ocr" else 90
         gerenciador.atualizar_progresso(
             upload_id=upload_id,
-            etapa="Processamento concluído",
+            etapa="Chunks armazenados com sucesso no ChromaDB",
+            progresso=progresso_atual
+        )
+        logger.info(f"[BACKGROUND] {len(ids_chunks_armazenados)} chunks armazenados no ChromaDB")
+        
+        # Finalização (100%)
+        logger.info("[BACKGROUND] Finalizando processamento...")
+        gerenciador.atualizar_progresso(
+            upload_id=upload_id,
+            etapa="Processamento concluído com sucesso",
             progresso=100
         )
         

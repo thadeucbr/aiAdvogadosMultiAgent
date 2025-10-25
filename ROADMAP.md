@@ -62,8 +62,9 @@ Aqui está o **Roadmap v2.0** atualizado:
 - ✅ TAREFA-036: Backend - Criar Endpoints de Upload Assíncrono
 - ✅ TAREFA-037: Frontend - Refatorar Serviço de API de Upload
 - ✅ TAREFA-038: Frontend - Implementar Polling de Upload no Componente
+- ✅ TAREFA-039: Backend - Feedback de Progresso Detalhado no Upload
 
-**Próximo passo:** TAREFA-039 (Backend - Feedback de Progresso Detalhado no Upload)
+**Próximo passo:** TAREFA-040 (Sistema de Logging Completo)
 
 ---
 
@@ -328,27 +329,28 @@ Atualmente, o upload de documentos é **síncrono** (bloqueante). Quando o usuá
 
 ---
 
-#### 🟡 TAREFA-039: Backend - Feedback de Progresso Detalhado no Upload
+#### ✅ TAREFA-039: Backend - Feedback de Progresso Detalhado no Upload
 **Prioridade:** 🟢 MÉDIA (Opcional, mas Recomendado)  
 **Dependências:** TAREFA-038  
 **Estimativa:** 2-3 horas  
-**Status:** 🟡 PENDENTE
+**Status:** ✅ CONCLUÍDA
 
 **Escopo:**
-- [ ] Modificar `backend/src/servicos/servico_ingestao_documentos.py`:
-  - [ ] Atualizar método wrapper `_processar_documento_em_background()` para reportar progresso granular:
-    - [ ] Salvando arquivo (0-10%): "Salvando arquivo no servidor"
-    - [ ] Extraindo texto (10-30%): "Extraindo texto do PDF/DOCX"
-    - [ ] Detectando se é escaneado (30-35%): "Verificando se documento é escaneado"
-    - [ ] OCR se necessário (35-60%): "Executando OCR (reconhecimento de texto em imagem)"
-    - [ ] Chunking (60-80%): "Dividindo texto em chunks para vetorização"
-    - [ ] Vetorização (80-95%): "Gerando embeddings com OpenAI"
-    - [ ] Salvando no ChromaDB (95-100%): "Salvando no banco vetorial"
-  - [ ] Chamar `gerenciador.atualizar_progresso(upload_id, etapa, progresso)` em cada micro-etapa
-- [ ] Adicionar documentação em `ARQUITETURA.md`:
-  - [ ] Seção "Sistema de Feedback de Progresso de Upload"
-  - [ ] Tabela de faixas de progresso (0-100%)
-  - [ ] Exemplos de fluxo (PDF normal vs PDF escaneado)
+- [x] Modificar `backend/src/servicos/servico_ingestao_documentos.py`:
+  - [x] Atualizar método wrapper `processar_documento_em_background()` para reportar progresso granular:
+    - [x] Salvando arquivo (0-10%): "Salvando arquivo no servidor"
+    - [x] Extraindo texto (10-30%): "Extraindo texto do PDF/DOCX"
+    - [x] Detectando se é escaneado (30-35%): "Verificando se documento é escaneado"
+    - [x] OCR se necessário (35-60%): "Executando OCR (reconhecimento de texto em imagem)"
+    - [x] Chunking (60-80%): "Dividindo texto em chunks para vetorização"
+    - [x] Vetorização (80-95%): "Gerando embeddings com OpenAI"
+    - [x] Salvando no ChromaDB (95-100%): "Salvando no banco vetorial"
+  - [x] Chamar `gerenciador.atualizar_progresso(upload_id, etapa, progresso)` em cada micro-etapa
+- [x] Adicionar documentação em `ARQUITETURA.md`:
+  - [x] Seção "Sistema de Feedback de Progresso de Upload"
+  - [x] Tabela de faixas de progresso (0-100%)
+  - [x] Exemplos de fluxo (PDF normal vs PDF escaneado)
+- [x] Changelog completo: `changelogs/TAREFA-039_backend-feedback-progresso-upload.md`
 
 **Entregáveis:**
 - ✅ Progresso detalhado reportado em cada etapa do processamento

@@ -79,39 +79,37 @@
 | **036** | 2025-10-24 | Backend - Criar Endpoints de Upload Assíncrono | modelos.py, rotas_documentos.py, ARQUITETURA.md | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-036_backend-endpoints-upload-assincrono.md) |
 | **037** | 2025-10-24 | Frontend - Refatorar Serviço de API de Upload | tiposDocumentos.ts, servicoApiDocumentos.ts | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-037_frontend-servico-api-upload-assincrono.md) |
 | **038** | 2025-10-24 | Frontend - Implementar Polling de Upload no Componente | ComponenteUploadDocumentos.tsx, tiposDocumentos.ts | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-038_frontend-polling-upload.md) |
+| **039** | 2025-10-24 | Backend - Feedback de Progresso Detalhado no Upload | servico_ingestao_documentos.py, ARQUITETURA.md | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-039_backend-feedback-progresso-upload.md) |
 | **035-039** | 2025-01-26 | Roadmap para Upload Assíncrono (FASE 6) | ROADMAP.md, README.md, CHANGELOG_IA.md | ✅ Concluído | Planejamento |
 
 ---
 
 ## 🎯 Última Tarefa Concluída
 
-**TAREFA-038** - Frontend - Implementar Polling de Upload no Componente  
+**TAREFA-039** - Backend - Feedback de Progresso Detalhado no Upload  
 **Data:** 2025-10-24  
 **IA:** GitHub Copilot  
 **Status:** ✅ CONCLUÍDA  
-**Resumo:** Refatoração completa do `ComponenteUploadDocumentos` para padrão assíncrono com **polling individual por arquivo**, eliminando completamente timeouts HTTP e permitindo múltiplos uploads simultâneos com feedback em tempo real. **Principais entregas:** (1) **Interface ArquivoParaUpload atualizada** - Adicionados 4 novos campos: `uploadId` (UUID do backend), `statusUpload` (INICIADO | SALVANDO | PROCESSANDO | CONCLUIDO | ERRO), `etapaAtual` (descrição textual), `intervalId` (controle de polling); (2) **Função handleFazerUpload() refatorada** - Substituído padrão síncrono (`uploadDocumentos()` bloqueava 30s-2min) por padrão assíncrono (`iniciarUploadAssincrono()` retorna em <100ms + polling independente), cada arquivo retorna upload_id imediatamente e inicia seu próprio ciclo de polling; (3) **Nova função iniciarPollingUpload()** - Polling individual a cada 2s por arquivo, atualiza UI com progresso (0-100%) e etapa atual, para automaticamente quando CONCLUIDO ou ERRO, salva intervalId no estado para cleanup; (4) **Nova função verificarSeUploadsForamConcluidos()** - Verifica se todos os arquivos terminaram, notifica componente pai, limpa lista após 3s; (5) **useEffect() para cleanup** - CRÍTICO para prevenir memory leaks, limpa todos os intervalos e URLs de preview quando componente desmontar; (6) **Componente ItemArquivo atualizado** - Barra de progresso individual por arquivo, exibição de etapa atual (ex: "Extraindo texto - 25%"), percentual exato (0-100%), visível apenas durante status "enviando"; (7) **UI refatorada** - Removido progresso global (substituído por barras individuais), botões e dropzone atualizados para suportar múltiplos uploads simultâneos; (8) **Estado simplificado** - Removido `uploadEmAndamento` e `progressoGlobal` (não necessários - cada arquivo tem status próprio), adicionado helper `temUploadEmAndamento` (computed value). **Padrão implementado:** Upload retorna <100ms → Polling individual a cada 2s → Progresso em tempo real → Cleanup robusto. **Decisões técnicas:** (1) Polling individual vs. global - permite múltiplos uploads simultâneos, facilita debugging, permite cancelamento individual (futuro); (2) Intervalo de 2s - equilíbrio entre feedback responsivo e carga no servidor, alinhado com análise assíncrona (TAREFA-033); (3) Cleanup com useEffect - previne memory leaks (crítico para SPA); (4) Progresso individual - mais preciso, transparente, permite identificar arquivo travado. **Impacto:** Performance: Tempo inicial 30s-2min → <100ms (-99.5%), timeouts HTTP eliminados, UI responsiva. UX: Feedback em tempo real com etapas detalhadas, progresso preciso 0-100% por arquivo, múltiplos uploads simultâneos, total transparência. Código: Manutenibilidade (polling isolado), prevenção de bugs (cleanup robusto), escalabilidade (N arquivos simultâneos). **PRÓXIMA TAREFA:** TAREFA-039 (Backend - Feedback de Progresso Detalhado no Upload) - opcional, mas recomendado para progresso ainda mais granular. **MARCO:** 🎉 UPLOAD ASSÍNCRONO COM POLLING IMPLEMENTADO! ComponenteUploadDocumentos agora retorna em <100ms, exibe progresso individual 0-100% por arquivo, mostra etapas detalhadas em tempo real, suporta múltiplos uploads simultâneos, zero timeouts HTTP, cleanup robusto sem memory leaks.
+**Resumo:** Implementado sistema de feedback de progresso **GRANULAR** e **ADAPTATIVO** para upload e processamento de documentos, seguindo o padrão bem-sucedido de análises multi-agent (TAREFA-034). O serviço de ingestão (`servico_ingestao_documentos.py`) agora reporta progresso em **7 micro-etapas** detalhadas (0-100%), adaptando-se dinamicamente ao tipo de documento (com ou sem OCR). **Principais entregas:** (1) **Função `processar_documento_em_background()` refatorada** - Reorganizada de 6 para 7 micro-etapas bem definidas com mensagens auto-explicativas: Salvando arquivo (0-10%), Extraindo texto (10-35%), Verificando escaneamento (30-35%), Executando OCR se necessário (35-60%), Dividindo em chunks (60-80% ou 35-50%), Gerando embeddings (80-95% ou 55-70%), Salvando no ChromaDB (95-100% ou 75-90%); (2) **Progresso adaptativo baseado em OCR** - PDFs escaneados: 0% → 60% (OCR) → 100% (demais etapas), PDFs com texto: 0% → 35% (extração) → 100% (pula OCR), faixas ajustadas para que progresso seja proporcional ao tempo real de processamento; (3) **Mensagens descritivas contextualizadas** - Cada etapa reporta mensagens específicas e informativas que aparecem na UI: "Executando OCR (reconhecimento de texto em imagem)", "OCR em andamento (15 páginas detectadas)", "Texto dividido em 42 chunks", "Vetorizando 42 chunks (pode demorar alguns segundos)", valores dinâmicos para melhor contexto; (4) **Progresso incremental em etapas longas** - OCR de múltiplas páginas reporta progresso intermediário (35% → 45% → 60%), vetorização de muitos chunks (>20) exibe aviso contextualizado, evita que usuário pense que sistema travou; (5) **Documentação exaustiva em ARQUITETURA.md** - Nova seção "Sistema de Feedback de Progresso Detalhado no Upload" com ~250 linhas: tabela de faixas de progresso (7 etapas), 3 exemplos completos de fluxo (PDF texto 5 páginas, PDF escaneado 15 páginas, DOCX), código de exemplo backend + frontend, tabela de todas as 20+ mensagens possíveis, comparação Upload vs Análise (padrão consistente), benefícios documentados (usuários, desenvolvedores, LLMs); (6) **Changelog completo** limitado a 300 linhas conforme solicitado. **Decisões técnicas:** (1) Faixas adaptativas - Usar 2 caminhos (OCR vs não-OCR) para progresso proporcional ao tempo real, alternativas consideradas: faixas fixas (descartado - não refletiria realidade), estimativa dinâmica de tempo (descartado - muito complexo); (2) Mensagens com valores dinâmicos - Incluir números reais (páginas, chunks) para correlacionar tamanho com tempo, facilita debugging; (3) Progresso intermediário - Reportar 35% → 45% → 60% em OCR longo para evitar sensação de travamento; (4) Padrão idêntico a TAREFA-034 - Consistência para usuários, manutenibilidade para desenvolvedores. **Impacto:** UX: Transparência total (usuário vê exatamente o que está acontecendo), feedback tranquilizador (sistema funcionando), estimativa de tempo (OCR demora, mas usuário sabe). Debugging: Logs + UI sincronizados, identificação rápida de gargalos, métricas detalhadas por micro-etapa. LLMs: Código auto-documentado (comentários explicam cada etapa), padrão consistente (fácil de replicar). **Compatibilidade:** Retrocompatibilidade TOTAL, nenhuma breaking change, endpoints não mudaram, frontend funciona sem alterações. **PRÓXIMA TAREFA:** FASE 7 - Melhorias e Otimizações (TAREFAS 040-044). **MARCO:** 🎉 UPLOAD ASSÍNCRONO COM FEEDBACK DETALHADO COMPLETO! Processamento assíncrono sem timeouts, progresso em tempo real 0-100%, feedback granular em 7 micro-etapas, progresso adaptativo OCR vs não-OCR, mensagens descritivas contextualizadas, padrão consistente com análise multi-agent, documentação exaustiva.
 
 ---
 
 ## 🚀 Próxima Tarefa Sugerida
 
-**TAREFA-039:** Backend - Feedback de Progresso Detalhado no Upload
+**TAREFA-040:** Sistema de Logging Completo
 
 **Escopo:**
-- Refatorar `ComponenteUploadDocumentos.tsx` para usar novo padrão assíncrono
-- Classe `GerenciadorEstadoUploads` com dicionário em memória para rastrear estado de uploads
-- Métodos: criar_upload, atualizar_status, atualizar_progresso, registrar_resultado, registrar_erro
-- Thread-safety com locks (threading.Lock)
-- Refatorar `backend/src/servicos/servico_ingestao_documentos.py` para criar wrapper `_processar_documento_em_background()`
-- Wrapper atualiza progresso em 7 micro-etapas: salvando (0-10%), extraindo texto (10-30%), OCR (30-60%), chunking (60-80%), vetorização (80-95%), ChromaDB (95-100%)
-- Singleton pattern para `GerenciadorEstadoUploads`
-- Changelog completo: `changelogs/TAREFA-035_backend-refatorar-ingestao-background.md`
+- Configurar Loguru completamente (Logging estruturado JSON)
+- Rotação de arquivos de log
+- Log de custos OpenAI (tokens, $$$)
+- Log de tempo de processamento por agente
+- Changelog completo: `changelogs/TAREFA-040_sistema-logging-completo.md`
 
-**Objetivo:** Preparar backend para processar uploads em background com feedback de progresso, eliminando timeouts HTTP e melhorando UX.
+**Objetivo:** Implementar sistema de logging robusto e rastreabilidade completa para facilitar debugging, monitoramento de custos e análise de performance.
 
-**Estimativa:** 3-4 horas
+**Estimativa:** 2-3 horas
 
-**Prioridade:** 🔴 CRÍTICA (base para todas as outras tarefas da FASE 6)
+**Prioridade:** � ALTA (importante para produção e debugging)
 
 ---
 

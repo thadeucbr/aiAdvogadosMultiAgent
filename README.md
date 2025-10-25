@@ -169,7 +169,7 @@ npm run dev
 
 ## 📋 Status do Projeto
 
-**Versão Atual:** 0.15.0 (API REST de Upload Assíncrono)  
+**Versão Atual:** 0.16.0 (Sistema de Feedback de Progresso Detalhado - Upload)  
 **Última Atualização:** 2025-10-24
 
 ### ✅ Concluído
@@ -258,6 +258,19 @@ npm run dev
   - Nova função `processar_documento_em_background()` (350+ linhas) em servico_ingestao_documentos.py
   - Wrapper em torno de processar_documento_completo() com reportagem de progresso
   - 7 micro-etapas: Salvando (0-10%), Detectando tipo (10-15%), Extraindo texto (15-30%), OCR se necessário (30-60%), Chunking (60-70%), Embeddings (80-90%), ChromaDB (95%), Finalização (100%)
+- [x] **Backend: Criar Endpoints de Upload Assíncrono (TAREFA-036)**
+- [x] **Frontend: Refatorar Serviço de API de Upload (TAREFA-037)**
+- [x] **Frontend: Implementar Polling de Upload no Componente (TAREFA-038)**
+- [x] **Backend: Feedback de Progresso Detalhado no Upload (TAREFA-039)**
+  - Refatoração completa de `processar_documento_em_background()` para progresso GRANULAR e ADAPTATIVO
+  - 7 micro-etapas bem definidas com mensagens descritivas: Salvando arquivo (0-10%), Extraindo texto (10-35%), Verificando escaneamento (30-35%), OCR se necessário (35-60%), Chunking (60-80% ou 35-50%), Vetorização (80-95% ou 55-70%), ChromaDB (95-100% ou 75-90%)
+  - Progresso adaptativo baseado em OCR: PDFs escaneados (0% → 60% OCR → 100%), PDFs com texto (0% → 35% extração → 100% pula OCR)
+  - Mensagens contextualizadas com valores dinâmicos: "OCR em andamento (15 páginas detectadas)", "Texto dividido em 42 chunks", "Vetorizando 42 chunks (pode demorar alguns segundos)"
+  - Progresso incremental em etapas longas (OCR multi-página: 35% → 45% → 60%)
+  - Nova seção em ARQUITETURA.md (~250 linhas): "Sistema de Feedback de Progresso Detalhado no Upload"
+  - Documentação completa: tabela de faixas de progresso, 3 exemplos de fluxo (PDF texto, PDF escaneado, DOCX), código backend/frontend, comparação Upload vs Análise
+  - Padrão idêntico a TAREFA-034 (análise multi-agent) para consistência UX/código
+  - **🎉 MARCO:** Upload assíncrono completo com feedback detalhado em tempo real!
   - Tempo de resposta do upload reduzido de 30-120s para <100ms (-99%)
   - Infraestrutura base criada para TAREFA-036 (endpoints assíncronos)
 - [x] **Backend: Endpoints de Upload Assíncrono (TAREFA-036)**

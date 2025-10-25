@@ -1012,6 +1012,236 @@ Com o padrão assíncrono, não há mais risco de timeout independente do tempo 
 
 ---
 
+### Sistema de Feedback de Progresso Detalhado no Upload (TAREFA-039)
+
+**Status:** ✅ IMPLEMENTADO (2025-10-24)  
+**Responsável:** GitHub Copilot (IA)
+
+**Contexto de Negócio:**
+Similar ao sistema de progresso implementado para análises multi-agent (TAREFA-034), o upload de documentos agora reporta progresso **REAL** e **GRANULAR** em cada micro-etapa do processamento. Usuários têm visibilidade completa do que está acontecendo durante o upload e processamento de documentos.
+
+**Benefício para o Usuário:**
+- ✅ Feedback **exato** do que está acontecendo (ex: "Executando OCR - 45%")
+- ✅ Progresso **adaptativo** (PDFs escaneados têm faixas diferentes de PDFs com texto)
+- ✅ Transparência total do processamento (usuário sabe quanto tempo falta)
+- ✅ Identificação rápida de etapas que estão demorando
+
+#### Faixas de Progresso por Etapa
+
+O serviço de ingestão divide o progresso de 0-100% em 7 micro-etapas principais:
+
+| Faixa | Etapa | Descrição | Progresso Inicial | Progresso Final |
+|-------|-------|-----------|-------------------|-----------------|
+| **1** | **Salvando arquivo** | Arquivo está sendo salvo no servidor | 0% | 10% |
+| **2** | **Extraindo texto** | Extração inicial de texto (PDF/DOCX) | 10% | 35% |
+| **3** | **Verificando escaneamento** | Detectando se documento é escaneado | 30% | 35% |
+| **4** | **Executando OCR** | Reconhecimento de texto em imagens (apenas PDFs escaneados) | 35% | 60% |
+| **5** | **Dividindo em chunks** | Texto sendo dividido em chunks para vetorização | 60-35%* | 80-50%* |
+| **6** | **Gerando embeddings** | Embeddings sendo gerados com OpenAI | 80-55%* | 95-70%* |
+| **7** | **Salvando no ChromaDB** | Chunks sendo armazenados no banco vetorial | 95-75%* | 100-90%* |
+
+**\*Nota:** Faixas de progresso são **dinâmicas** e se adaptam ao tipo de documento:
+- **PDF escaneado (com OCR):** Progresso de 0% → 60% (OCR) → 100% (demais etapas)
+- **PDF com texto (sem OCR):** Progresso de 0% → 35% (extração) → 100% (pula etapa 4)
+
+#### Exemplos de Progresso por Cenário
+
+**Exemplo 1: PDF com Texto Selecionável (5 páginas, ~10s)**
+```
+0%   → "Salvando arquivo no servidor"
+10%  → "Arquivo salvo com sucesso"
+12%  → "Extraindo texto do PDF/DOCX"
+15%  → "Processando como: pdf"
+30%  → "Verificando se documento é escaneado"
+35%  → "Extração de texto concluída (documento não escaneado)"
+40%  → "Dividindo texto em chunks para vetorização"
+50%  → "Texto dividido em 12 chunks"
+55%  → "Gerando embeddings com OpenAI"
+70%  → "Embeddings gerados com sucesso (12 vetores)"
+75%  → "Salvando no banco vetorial (ChromaDB)"
+80%  → "Armazenando 12 chunks no ChromaDB"
+90%  → "Chunks armazenados com sucesso no ChromaDB"
+100% → "Processamento concluído com sucesso"
+Status: CONCLUIDO
+```
+
+**Exemplo 2: PDF Escaneado com OCR (15 páginas, ~60s)**
+```
+0%   → "Salvando arquivo no servidor"
+10%  → "Arquivo salvo com sucesso"
+12%  → "Extraindo texto do PDF/DOCX"
+15%  → "Processando como: pdf"
+30%  → "Verificando se documento é escaneado"
+35%  → "Executando OCR (reconhecimento de texto em imagem)"
+45%  → "OCR em andamento (15 páginas detectadas)"
+60%  → "OCR concluído com sucesso"
+65%  → "Dividindo texto em chunks para vetorização"
+70%  → "Texto dividido em 42 chunks"
+75%  → "Gerando embeddings com OpenAI"
+80%  → "Vetorizando 42 chunks (pode demorar alguns segundos)"
+85%  → "Embeddings gerados com sucesso (42 vetores)"
+90%  → "Salvando no banco vetorial (ChromaDB)"
+93%  → "Armazenando 42 chunks no ChromaDB"
+97%  → "Chunks armazenados com sucesso no ChromaDB"
+100% → "Processamento concluído com sucesso"
+Status: CONCLUIDO
+```
+
+**Exemplo 3: Documento DOCX (sem OCR, ~8s)**
+```
+0%   → "Salvando arquivo no servidor"
+10%  → "Arquivo salvo com sucesso"
+12%  → "Extraindo texto do PDF/DOCX"
+15%  → "Processando como: docx"
+30%  → "Verificando se documento é escaneado"
+35%  → "Extração de texto concluída (documento não escaneado)"
+40%  → "Dividindo texto em chunks para vetorização"
+50%  → "Texto dividido em 8 chunks"
+55%  → "Gerando embeddings com OpenAI"
+70%  → "Embeddings gerados com sucesso (8 vetores)"
+75%  → "Salvando no banco vetorial (ChromaDB)"
+80%  → "Armazenando 8 chunks no ChromaDB"
+90%  → "Chunks armazenados com sucesso no ChromaDB"
+100% → "Processamento concluído com sucesso"
+Status: CONCLUIDO
+```
+
+#### Implementação Técnica
+
+**Módulo:** `backend/src/servicos/servico_ingestao_documentos.py`
+
+**Função Principal:** `processar_documento_em_background()`
+
+Esta função é um wrapper em torno de `processar_documento_completo()` que adiciona reportagem de progresso detalhado para o `GerenciadorEstadoUploads`. Permite que o frontend faça polling e veja exatamente o que está acontecendo durante o processamento.
+
+**Fluxo de Progresso:**
+1. Função é executada via BackgroundTasks do FastAPI
+2. Em cada micro-etapa, chama `gerenciador.atualizar_progresso(upload_id, etapa, progresso)`
+3. Frontend faz polling em `GET /api/documentos/status-upload/{upload_id}`
+4. UI é atualizada em tempo real com progresso 0-100% e descrição da etapa atual
+
+**Código de Exemplo (Backend):**
+```python
+# Micro-etapa 4: Executando OCR (se necessário)
+if metodo_usado == "ocr":
+    gerenciador.atualizar_progresso(
+        upload_id=upload_id,
+        etapa="Executando OCR (reconhecimento de texto em imagem)",
+        progresso=35
+    )
+    
+    # Reportar progresso incremental durante OCR
+    if numero_paginas > 1:
+        gerenciador.atualizar_progresso(
+            upload_id=upload_id,
+            etapa=f"OCR em andamento ({numero_paginas} páginas detectadas)",
+            progresso=45
+        )
+    
+    gerenciador.atualizar_progresso(
+        upload_id=upload_id,
+        etapa="OCR concluído com sucesso",
+        progresso=60
+    )
+```
+
+**Código de Exemplo (Frontend - Polling):**
+```typescript
+async function iniciarPollingUpload(uploadId: string) {
+  const interval = setInterval(async () => {
+    const response = await servicoApiDocumentos.verificarStatusUpload(uploadId);
+    const data = response.data;
+    
+    // Atualizar UI com progresso real
+    atualizarBarraProgresso(data.progresso_percentual);  // 0-100
+    exibirEtapaAtual(data.etapa_atual);  // "Executando OCR - 45%"
+    
+    // Parar polling quando concluído
+    if (data.status === 'CONCLUIDO') {
+      clearInterval(interval);
+      buscarResultado(uploadId);
+    } else if (data.status === 'ERRO') {
+      clearInterval(interval);
+      exibirErro(data.mensagem_erro);
+    }
+  }, 2000); // Polling a cada 2 segundos
+}
+```
+
+#### Mensagens de Etapa Detalhadas
+
+O sistema reporta mensagens descritivas em cada etapa para máxima transparência:
+
+**Etapa 1 - Salvando:**
+- "Salvando arquivo no servidor"
+- "Arquivo salvo com sucesso"
+
+**Etapa 2 - Extração Inicial:**
+- "Extraindo texto do PDF/DOCX"
+- "Processando como: pdf" (ou docx, png, etc.)
+
+**Etapa 3 - Detecção de Escaneamento:**
+- "Verificando se documento é escaneado"
+
+**Etapa 4 - OCR (se necessário):**
+- "Executando OCR (reconhecimento de texto em imagem)"
+- "OCR em andamento (15 páginas detectadas)" ← dinâmico
+- "OCR concluído com sucesso"
+
+**Etapa 4 - Sem OCR (alternativa):**
+- "Extração de texto concluída (documento não escaneado)"
+
+**Etapa 5 - Chunking:**
+- "Dividindo texto em chunks para vetorização"
+- "Texto dividido em 42 chunks" ← dinâmico
+
+**Etapa 6 - Vetorização:**
+- "Gerando embeddings com OpenAI"
+- "Vetorizando 42 chunks (pode demorar alguns segundos)" ← só se >20 chunks
+- "Embeddings gerados com sucesso (42 vetores)" ← dinâmico
+
+**Etapa 7 - ChromaDB:**
+- "Salvando no banco vetorial (ChromaDB)"
+- "Armazenando 42 chunks no ChromaDB" ← dinâmico
+- "Chunks armazenados com sucesso no ChromaDB"
+- "Processamento concluído com sucesso"
+
+#### Comparação: Upload vs Análise
+
+Ambos os fluxos (upload e análise) usam o mesmo padrão de progresso assíncrono:
+
+| Aspecto | Upload de Documentos | Análise Multi-Agent |
+|---------|---------------------|---------------------|
+| **Polling Interval** | 2 segundos | 2 segundos |
+| **Progresso** | 0-100% (7 etapas) | 0-100% (4 etapas) |
+| **Adaptativo** | ✅ Sim (OCR vs não-OCR) | ✅ Sim (nº de agentes) |
+| **Endpoint Status** | GET /status-upload/{id} | GET /status-analise/{id} |
+| **Endpoint Resultado** | GET /resultado-upload/{id} | GET /resultado-analise/{id} |
+| **Gerenciador** | GerenciadorEstadoUploads | GerenciadorEstadoTarefas |
+| **Tempo Típico** | 5-120s | 20-180s |
+| **Background Tasks** | ✅ FastAPI BackgroundTasks | ✅ FastAPI BackgroundTasks |
+
+#### Benefícios do Progresso Detalhado
+
+**Para Usuários:**
+- ✅ Transparência total (sabem exatamente o que está acontecendo)
+- ✅ Estimativa de tempo (conseguem inferir quanto falta)
+- ✅ Confiança (veem que o sistema está funcionando, não travou)
+- ✅ Debugging facilitado (identificam etapas lentas)
+
+**Para Desenvolvedores:**
+- ✅ Debugging mais fácil (logs + UI sincronizados)
+- ✅ Identificação de gargalos (qual etapa demora mais?)
+- ✅ Métricas detalhadas (tempo médio por etapa)
+- ✅ Manutenibilidade (cada etapa é auto-documentada)
+
+**Para LLMs (Manutenção):**
+- ✅ Código auto-explicativo (mensagens descrevem o que está acontecendo)
+- ✅ Fácil de estender (adicionar novas micro-etapas)
+- ✅ Padrão consistente (mesmo padrão usado em análise multi-agent)
+
+---
+
 ### Análise Multi-Agent
 
 #### `POST /api/analise/multi-agent`
