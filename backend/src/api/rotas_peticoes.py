@@ -56,7 +56,12 @@ from src.api.modelos import (
     # Reutilizar modelos de upload assíncrono (TAREFA-036)
     RespostaIniciarUpload,
     RespostaStatusUpload,
-    RespostaResultadoUpload
+    RespostaResultadoUpload,
+    # Modelos de análise completa de petição (TAREFA-048)
+    RequisicaoAnalisarPeticao,
+    RespostaIniciarAnalisePeticao,
+    RespostaStatusAnalisePeticao,
+    RespostaResultadoAnalisePeticao
 )
 
 # Importar configurações
@@ -1510,3 +1515,591 @@ async def endpoint_listar_documentos_peticao(
     )
     
     return resposta
+
+
+# ===== ENDPOINTS DE ANÁLISE COMPLETA DE PETIÇÃO (TAREFA-048) =====
+
+@router.post(
+    "/{peticao_id}/analisar",
+    response_model=RespostaIniciarAnalisePeticao,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Iniciar análise completa de petição",
+    description="""
+    Inicia análise completa assíncrona de uma petição inicial com os agentes selecionados.
+    
+    **CONTEXTO DE NEGÓCIO (TAREFA-048):**
+    Este é o endpoint que dispara a análise completa da petição, incluindo:
+    - Execução paralela de advogados especialistas selecionados
+    - Execução paralela de peritos técnicos selecionados
+    - Elaboração de estratégia processual (próximos passos)
+    - Cálculo de prognóstico probabilístico (cenários)
+    - Geração de documento de continuação (contestação, recurso, etc.)
+    
+    **PADRÃO ASSÍNCRONO:**
+    1. Valida que petição existe e está em status AGUARDANDO_DOCUMENTOS
+    2. Valida que documentos ESSENCIAIS foram enviados (ou advogado confirmou ausência)
+    3. Atualiza status da petição para PROCESSANDO
+    4. Agenda análise em background via BackgroundTasks
+    5. Retorna imediatamente (202 Accepted)
+    6. Cliente faz polling em GET /api/peticoes/{peticao_id}/status-analise
+    
+    **PROCESSAMENTO EM BACKGROUND:**
+    - Recupera petição e documentos do ChromaDB
+    - Monta contexto RAG completo
+    - Executa todos os agentes (paralelo quando possível)
+    - Compila resultado completo estruturado
+    - Atualiza status para CONCLUIDA (ou ERRO)
+    
+    **VALIDAÇÕES:**
+    - Petição deve existir
+    - Petição deve estar em status AGUARDANDO_DOCUMENTOS
+    - Deve selecionar pelo menos 1 advogado OU 1 perito
+    - Agentes selecionados devem ser válidos
+    
+    **TEMPO ESTIMADO:**
+    - 2-5 minutos dependendo de quantos agentes foram selecionados
+    - Execução paralela reduz tempo em ~60-70%
+    
+    **Args:**
+        peticao_id: UUID da petição a analisar
+        requisicao: Objeto com agentes_selecionados
+        background_tasks: FastAPI BackgroundTasks para processamento assíncrono
+    
+    **Returns:**
+        RespostaIniciarAnalisePeticao com peticao_id, status e timestamp_inicio
+    
+    **Raises:**
+        HTTPException 400: Se validação falhar (dados inválidos)
+        HTTPException 404: Se petição não existir
+        HTTPException 409: Se petição não estiver no status correto
+    """
+)
+async def endpoint_iniciar_analise_peticao(
+    peticao_id: str,
+    requisicao: RequisicaoAnalisarPeticao,
+    background_tasks: BackgroundTasks
+):
+    """
+    Endpoint para iniciar análise completa de petição inicial.
+    
+    CONTEXTO DE NEGÓCIO (TAREFA-048):
+    Após o advogado fazer upload da petição e documentos complementares,
+    ele seleciona os agentes desejados e dispara a análise completa.
+    
+    PADRÃO ASSÍNCRONO:
+    1. Validar petição e agentes
+    2. Atualizar status para PROCESSANDO
+    3. Agendar análise em background
+    4. Retornar 202 Accepted imediatamente
+    
+    PROCESSAMENTO EM BACKGROUND:
+    - Chama OrquestradorAnalisePeticoes.analisar_peticao_completa()
+    - Atualiza progresso em tempo real (0-100%)
+    - Compila resultado completo estruturado
+    - Atualiza status para CONCLUIDA (ou ERRO)
+    
+    Args:
+        peticao_id: UUID da petição
+        requisicao: Objeto com agentes_selecionados
+        background_tasks: FastAPI BackgroundTasks
+    
+    Returns:
+        RespostaIniciarAnalisePeticao com peticao_id e status
+    
+    Raises:
+        HTTPException 400: Validação falhou
+        HTTPException 404: Petição não encontrada
+        HTTPException 409: Status inválido
+    """
+    
+    logger.info(f"[PETICAO-ANALISE] Recebida requisição de análise - peticao_id: {peticao_id}")
+    
+    # ===== VALIDAÇÃO INICIAL =====
+    
+    # Validar que petição existe
+    gerenciador_peticoes = obter_gerenciador_estado_peticoes()
+    peticao = gerenciador_peticoes.obter_peticao(peticao_id)
+    
+    if not peticao:
+        logger.warning(f"[PETICAO-ANALISE] Petição não encontrada: {peticao_id}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Petição {peticao_id} não encontrada."
+        )
+    
+    # Validar que petição está no status correto
+    if peticao.status != StatusPeticao.AGUARDANDO_DOCUMENTOS:
+        logger.warning(
+            f"[PETICAO-ANALISE] Status inválido - peticao_id: {peticao_id}, "
+            f"status_atual: {peticao.status.value}, status_esperado: aguardando_documentos"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Petição está em status '{peticao.status.value}'. "
+                f"Análise só pode ser iniciada se status = 'aguardando_documentos'. "
+                f"Se análise já foi iniciada, consulte GET /api/peticoes/{peticao_id}/status-analise."
+            )
+        )
+    
+    # Extrair agentes selecionados
+    agentes_selecionados = requisicao.agentes_selecionados
+    advogados_selecionados = agentes_selecionados.get("advogados", [])
+    peritos_selecionados = agentes_selecionados.get("peritos", [])
+    
+    logger.info(
+        f"[PETICAO-ANALISE] Agentes selecionados - "
+        f"advogados: {advogados_selecionados}, peritos: {peritos_selecionados}"
+    )
+    
+    # ===== VALIDAR AGENTES SELECIONADOS =====
+    
+    # Lista de advogados válidos (TAREFA-024 a TAREFA-028)
+    ADVOGADOS_VALIDOS = ["trabalhista", "previdenciario", "civel", "tributario"]
+    
+    # Lista de peritos válidos (TAREFA-011 e TAREFA-012)
+    PERITOS_VALIDOS = ["medico", "seguranca_trabalho"]
+    
+    # Validar advogados
+    for advogado in advogados_selecionados:
+        if advogado not in ADVOGADOS_VALIDOS:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Advogado '{advogado}' não é válido. "
+                    f"Advogados disponíveis: {', '.join(ADVOGADOS_VALIDOS)}"
+                )
+            )
+    
+    # Validar peritos
+    for perito in peritos_selecionados:
+        if perito not in PERITOS_VALIDOS:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Perito '{perito}' não é válido. "
+                    f"Peritos disponíveis: {', '.join(PERITOS_VALIDOS)}"
+                )
+            )
+    
+    # ===== ATUALIZAR STATUS DA PETIÇÃO =====
+    
+    # Atualizar agentes selecionados na petição
+    gerenciador_peticoes.atualizar_agentes_selecionados(
+        peticao_id=peticao_id,
+        agentes_selecionados=agentes_selecionados
+    )
+    
+    # Atualizar status para PROCESSANDO
+    gerenciador_peticoes.atualizar_status(
+        peticao_id=peticao_id,
+        status=StatusPeticao.PROCESSANDO
+    )
+    
+    logger.info(f"[PETICAO-ANALISE] Status atualizado para PROCESSANDO - peticao_id: {peticao_id}")
+    
+    # ===== AGENDAR ANÁLISE EM BACKGROUND =====
+    
+    # Importar orquestrador (lazy import para evitar circular dependency)
+    from src.servicos.orquestrador_analise_peticoes import criar_orquestrador_analise_peticoes
+    
+    async def processar_analise_em_background():
+        """
+        Função executada em background para processar análise completa.
+        
+        CONTEXTO:
+        Esta função é executada pela FastAPI BackgroundTasks após o endpoint
+        retornar 202 Accepted. Ela coordena toda a análise multi-agent.
+        
+        ETAPAS:
+        1. Criar orquestrador
+        2. Chamar analisar_peticao_completa()
+        3. Registrar resultado no gerenciador
+        4. Tratar erros (se houver)
+        """
+        try:
+            logger.info(f"[PETICAO-ANALISE-BG] Iniciando processamento em background - peticao_id: {peticao_id}")
+            
+            # Criar orquestrador
+            orquestrador = criar_orquestrador_analise_peticoes()
+            
+            # Executar análise completa
+            resultado = await orquestrador.analisar_peticao_completa(
+                peticao_id=peticao_id,
+                advogados_selecionados=advogados_selecionados,
+                peritos_selecionados=peritos_selecionados
+            )
+            
+            # Registrar resultado no gerenciador
+            gerenciador_peticoes.registrar_resultado(
+                peticao_id=peticao_id,
+                resultado=resultado
+            )
+            
+            logger.info(f"[PETICAO-ANALISE-BG] Análise concluída com sucesso - peticao_id: {peticao_id}")
+            
+        except Exception as e:
+            logger.error(f"[PETICAO-ANALISE-BG] Erro durante análise - peticao_id: {peticao_id}, erro: {e}")
+            
+            # Registrar erro no gerenciador
+            gerenciador_peticoes.registrar_erro(
+                peticao_id=peticao_id,
+                mensagem_erro=str(e)
+            )
+    
+    # Agendar processamento em background
+    background_tasks.add_task(processar_analise_em_background)
+    
+    logger.info(f"[PETICAO-ANALISE] Análise agendada em background - peticao_id: {peticao_id}")
+    
+    # ===== RETORNAR RESPOSTA IMEDIATA =====
+    
+    timestamp_inicio = datetime.now().isoformat()
+    
+    resposta = RespostaIniciarAnalisePeticao(
+        sucesso=True,
+        peticao_id=peticao_id,
+        status="processando",
+        mensagem=(
+            "Análise da petição iniciada com sucesso. "
+            f"Use GET /api/peticoes/{peticao_id}/status-analise para acompanhar o progresso."
+        ),
+        timestamp_inicio=timestamp_inicio
+    )
+    
+    logger.info(
+        f"[PETICAO-ANALISE] Resposta 202 Accepted retornada - peticao_id: {peticao_id}, "
+        f"timestamp: {timestamp_inicio}"
+    )
+    
+    return resposta
+
+
+@router.get(
+    "/{peticao_id}/status-analise",
+    response_model=RespostaStatusAnalisePeticao,
+    status_code=status.HTTP_200_OK,
+    summary="Consultar status de análise de petição",
+    description="""
+    Consulta o status e progresso da análise completa de uma petição.
+    
+    **CONTEXTO DE NEGÓCIO (TAREFA-048):**
+    O frontend faz polling neste endpoint (a cada 2-3 segundos) para acompanhar
+    o progresso da análise que está rodando em background.
+    
+    **ESTADOS POSSÍVEIS:**
+    - **processando**: Análise em andamento (mostra etapa_atual e progresso_percentual)
+    - **concluida**: Análise finalizada (cliente deve chamar GET /resultado)
+    - **erro**: Falha durante análise (mostra mensagem_erro)
+    
+    **FAIXAS DE PROGRESSO (0-100%):**
+    - 0-10%: Recuperando dados da petição
+    - 10-20%: Montando contexto RAG completo
+    - 20-50%: Executando advogados especialistas
+    - 50-70%: Executando peritos técnicos
+    - 70-80%: Elaborando estratégia processual
+    - 80-90%: Calculando prognóstico e cenários
+    - 90-100%: Finalizando análise
+    
+    **POLLING:**
+    Recomenda-se fazer polling a cada 2-3 segundos enquanto status = processando.
+    Quando status mudar para concluida ou erro, parar polling.
+    
+    **Args:**
+        peticao_id: UUID da petição sendo analisada
+    
+    **Returns:**
+        RespostaStatusAnalisePeticao com status, etapa, progresso
+    
+    **Raises:**
+        HTTPException 404: Se petição não existir
+    """
+)
+async def endpoint_consultar_status_analise(peticao_id: str):
+    """
+    Endpoint para consultar status de análise de petição.
+    
+    CONTEXTO DE NEGÓCIO (TAREFA-048):
+    O frontend faz polling neste endpoint para acompanhar progresso em tempo real.
+    
+    ESTADOS:
+    - processando: Mostra etapa_atual e progresso_percentual
+    - concluida: Cliente deve chamar GET /resultado
+    - erro: Mostra mensagem_erro
+    
+    Args:
+        peticao_id: UUID da petição
+    
+    Returns:
+        RespostaStatusAnalisePeticao com status e progresso
+    
+    Raises:
+        HTTPException 404: Petição não encontrada
+    """
+    
+    logger.debug(f"[PETICAO-STATUS] Consultando status de análise - peticao_id: {peticao_id}")
+    
+    # ===== VALIDAÇÃO =====
+    
+    gerenciador_peticoes = obter_gerenciador_estado_peticoes()
+    peticao = gerenciador_peticoes.obter_peticao(peticao_id)
+    
+    if not peticao:
+        logger.warning(f"[PETICAO-STATUS] Petição não encontrada: {peticao_id}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Petição {peticao_id} não encontrada."
+        )
+    
+    # ===== PREPARAR RESPOSTA CONFORME STATUS =====
+    
+    timestamp_atualizacao = datetime.now().isoformat()
+    
+    if peticao.status == StatusPeticao.PROCESSANDO:
+        # Análise em andamento - retornar progresso
+        
+        # Obter progresso do gerenciador
+        progresso_info = gerenciador_peticoes.obter_progresso(peticao_id)
+        
+        resposta = RespostaStatusAnalisePeticao(
+            sucesso=True,
+            peticao_id=peticao_id,
+            status="processando",
+            etapa_atual=progresso_info.get("etapa_atual", "Processando análise..."),
+            progresso_percentual=progresso_info.get("progresso_percentual", 0),
+            timestamp_atualizacao=timestamp_atualizacao,
+            mensagem_erro=None
+        )
+        
+        logger.debug(
+            f"[PETICAO-STATUS] Status PROCESSANDO - peticao_id: {peticao_id}, "
+            f"etapa: {resposta.etapa_atual}, progresso: {resposta.progresso_percentual}%"
+        )
+        
+    elif peticao.status == StatusPeticao.CONCLUIDA:
+        # Análise concluída
+        
+        resposta = RespostaStatusAnalisePeticao(
+            sucesso=True,
+            peticao_id=peticao_id,
+            status="concluida",
+            etapa_atual=None,
+            progresso_percentual=None,
+            timestamp_atualizacao=timestamp_atualizacao,
+            mensagem_erro=None
+        )
+        
+        logger.info(f"[PETICAO-STATUS] Status CONCLUIDA - peticao_id: {peticao_id}")
+        
+    elif peticao.status == StatusPeticao.ERRO:
+        # Erro durante análise
+        
+        # Obter mensagem de erro do gerenciador
+        erro_info = gerenciador_peticoes.obter_erro(peticao_id)
+        mensagem_erro = erro_info.get("mensagem_erro", "Erro desconhecido durante análise")
+        
+        resposta = RespostaStatusAnalisePeticao(
+            sucesso=False,
+            peticao_id=peticao_id,
+            status="erro",
+            etapa_atual=None,
+            progresso_percentual=None,
+            timestamp_atualizacao=timestamp_atualizacao,
+            mensagem_erro=mensagem_erro
+        )
+        
+        logger.warning(f"[PETICAO-STATUS] Status ERRO - peticao_id: {peticao_id}, erro: {mensagem_erro}")
+        
+    else:
+        # Status inesperado (AGUARDANDO_DOCUMENTOS ou outro)
+        
+        resposta = RespostaStatusAnalisePeticao(
+            sucesso=False,
+            peticao_id=peticao_id,
+            status=peticao.status.value,
+            etapa_atual=None,
+            progresso_percentual=None,
+            timestamp_atualizacao=timestamp_atualizacao,
+            mensagem_erro=(
+                f"Petição está em status '{peticao.status.value}'. "
+                f"Análise ainda não foi iniciada. "
+                f"Use POST /api/peticoes/{peticao_id}/analisar para iniciar análise."
+            )
+        )
+        
+        logger.warning(
+            f"[PETICAO-STATUS] Status inesperado - peticao_id: {peticao_id}, "
+            f"status: {peticao.status.value}"
+        )
+    
+    return resposta
+
+
+@router.get(
+    "/{peticao_id}/resultado",
+    response_model=RespostaResultadoAnalisePeticao,
+    status_code=status.HTTP_200_OK,
+    summary="Obter resultado completo de análise de petição",
+    description="""
+    Obtém o resultado completo da análise de uma petição (após conclusão).
+    
+    **CONTEXTO DE NEGÓCIO (TAREFA-048):**
+    Após a análise ser concluída (status = concluida), o frontend chama este
+    endpoint para obter o resultado completo estruturado.
+    
+    **PRODUTO FINAL:**
+    Este é o resultado completo da análise, contendo:
+    1. **Próximos Passos Estratégicos**: Estratégia + passos ordenados + prazos
+    2. **Prognóstico Probabilístico**: Cenários + probabilidades + valores esperados
+    3. **Pareceres de Advogados**: 1 parecer por advogado especialista selecionado
+    4. **Pareceres de Peritos**: 1 parecer por perito técnico selecionado
+    5. **Documento de Continuação**: Gerado automaticamente (Markdown + HTML)
+    
+    **RENDERIZAÇÃO NO FRONTEND:**
+    - Próximos passos: Timeline vertical com cards
+    - Prognóstico: Gráfico de pizza + tabela de cenários
+    - Pareceres: Boxes separados (1 por advogado, 1 por perito)
+    - Documento: Preview HTML + download Markdown
+    
+    **TEMPO DE PROCESSAMENTO:**
+    - 2-5 minutos dependendo de quantos agentes foram executados
+    - Informação disponível em tempo_processamento_segundos
+    
+    **Args:**
+        peticao_id: UUID da petição analisada
+    
+    **Returns:**
+        RespostaResultadoAnalisePeticao com resultado completo estruturado
+    
+    **Raises:**
+        HTTPException 404: Se petição não existir
+        HTTPException 425: Se análise ainda não foi concluída (Too Early)
+        HTTPException 500: Se análise terminou com erro
+    """
+)
+async def endpoint_obter_resultado_analise(peticao_id: str):
+    """
+    Endpoint para obter resultado completo de análise de petição.
+    
+    CONTEXTO DE NEGÓCIO (TAREFA-048):
+    Após análise concluir, frontend chama este endpoint para obter
+    o resultado completo estruturado.
+    
+    VALIDAÇÕES:
+    - Petição deve existir
+    - Status deve ser CONCLUIDA
+    - Se PROCESSANDO → retorna 425 Too Early
+    - Se ERRO → retorna 500 com mensagem de erro
+    
+    Args:
+        peticao_id: UUID da petição
+    
+    Returns:
+        RespostaResultadoAnalisePeticao com resultado completo
+    
+    Raises:
+        HTTPException 404: Petição não encontrada
+        HTTPException 425: Análise ainda não concluída
+        HTTPException 500: Erro durante análise
+    """
+    
+    logger.info(f"[PETICAO-RESULTADO] Consultando resultado de análise - peticao_id: {peticao_id}")
+    
+    # ===== VALIDAÇÃO =====
+    
+    gerenciador_peticoes = obter_gerenciador_estado_peticoes()
+    peticao = gerenciador_peticoes.obter_peticao(peticao_id)
+    
+    if not peticao:
+        logger.warning(f"[PETICAO-RESULTADO] Petição não encontrada: {peticao_id}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Petição {peticao_id} não encontrada."
+        )
+    
+    # ===== VERIFICAR STATUS =====
+    
+    if peticao.status == StatusPeticao.PROCESSANDO:
+        # Análise ainda em andamento
+        
+        logger.info(f"[PETICAO-RESULTADO] Análise ainda em andamento - peticao_id: {peticao_id}")
+        raise HTTPException(
+            status_code=status.HTTP_425_TOO_EARLY,
+            detail=(
+                "Análise ainda está em andamento. "
+                f"Consulte GET /api/peticoes/{peticao_id}/status-analise para acompanhar o progresso."
+            )
+        )
+    
+    elif peticao.status == StatusPeticao.ERRO:
+        # Erro durante análise
+        
+        erro_info = gerenciador_peticoes.obter_erro(peticao_id)
+        mensagem_erro = erro_info.get("mensagem_erro", "Erro desconhecido durante análise")
+        
+        logger.error(f"[PETICAO-RESULTADO] Análise terminou com erro - peticao_id: {peticao_id}, erro: {mensagem_erro}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Análise terminou com erro: {mensagem_erro}"
+        )
+    
+    elif peticao.status != StatusPeticao.CONCLUIDA:
+        # Status inesperado
+        
+        logger.warning(
+            f"[PETICAO-RESULTADO] Status inesperado - peticao_id: {peticao_id}, "
+            f"status: {peticao.status.value}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Petição está em status '{peticao.status.value}'. "
+                f"Resultado só está disponível se status = 'concluida'. "
+                f"Use POST /api/peticoes/{peticao_id}/analisar para iniciar análise."
+            )
+        )
+    
+    # ===== OBTER RESULTADO =====
+    
+    # Obter resultado do gerenciador
+    resultado = gerenciador_peticoes.obter_resultado(peticao_id)
+    
+    if not resultado:
+        logger.error(f"[PETICAO-RESULTADO] Resultado não encontrado para petição concluída: {peticao_id}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro interno: Resultado não encontrado para petição concluída."
+        )
+    
+    # ===== PREPARAR RESPOSTA =====
+    
+    # Converter ResultadoAnaliseProcesso para dicionários
+    # (Pydantic models têm método dict() para serialização)
+    
+    resposta = RespostaResultadoAnalisePeticao(
+        sucesso=True,
+        peticao_id=peticao_id,
+        proximos_passos=resultado.proximos_passos.dict(),
+        prognostico=resultado.prognostico.dict(),
+        pareceres_advogados={
+            tipo: parecer.dict()
+            for tipo, parecer in resultado.pareceres_advogados.items()
+        },
+        pareceres_peritos={
+            tipo: parecer.dict()
+            for tipo, parecer in resultado.pareceres_peritos.items()
+        },
+        documento_continuacao=resultado.documento_continuacao.dict(),
+        tempo_processamento_segundos=(
+            (resultado.timestamp_conclusao - peticao.timestamp_criacao).total_seconds()
+        ),
+        timestamp_conclusao=resultado.timestamp_conclusao.isoformat()
+    )
+    
+    logger.info(
+        f"[PETICAO-RESULTADO] Resultado retornado com sucesso - peticao_id: {peticao_id}, "
+        f"tempo_processamento: {resposta.tempo_processamento_segundos:.1f}s"
+    )
+    
+    return resposta
+

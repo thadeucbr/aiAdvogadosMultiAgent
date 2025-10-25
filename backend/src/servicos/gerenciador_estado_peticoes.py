@@ -61,7 +61,7 @@ Segue o mesmo padrão estabelecido em:
 """
 
 import threading
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from datetime import datetime
 
 from src.modelos.processo import (
@@ -501,6 +501,91 @@ class GerenciadorEstadoPeticoes:
             raise ValueError(
                 f"Petição com ID '{peticao_id}' não foi encontrada no gerenciador de estado"
             )
+    
+    def atualizar_agentes_selecionados(
+        self,
+        peticao_id: str,
+        agentes_selecionados: Dict[str, List[str]]
+    ) -> None:
+        """
+        Atualiza os agentes selecionados para análise da petição.
+        
+        CONTEXTO (TAREFA-048):
+        Chamado pelo endpoint POST /api/peticoes/{peticao_id}/analisar
+        para registrar quais agentes foram selecionados pelo advogado.
+        
+        Args:
+            peticao_id: ID da petição
+            agentes_selecionados: Dict com formato {"advogados": [...], "peritos": [...]}
+        
+        Raises:
+            ValueError: Se petição não existir
+        """
+        advogados = agentes_selecionados.get("advogados", [])
+        peritos = agentes_selecionados.get("peritos", [])
+        
+        # Reutilizar método existente
+        self.definir_agentes_selecionados(
+            peticao_id=peticao_id,
+            advogados=advogados,
+            peritos=peritos
+        )
+    
+    def obter_progresso(self, peticao_id: str) -> Dict[str, Any]:
+        """
+        Obtém informações de progresso da análise em andamento.
+        
+        CONTEXTO (TAREFA-048):
+        Chamado pelo endpoint GET /api/peticoes/{peticao_id}/status-analise
+        durante o polling para acompanhar progresso da análise.
+        
+        Args:
+            peticao_id: ID da petição
+        
+        Returns:
+            Dict com etapa_atual e progresso_percentual
+        
+        Raises:
+            ValueError: Se petição não existir
+        """
+        with self._lock:
+            self._validar_peticao_existe(peticao_id)
+            
+            estado = self._peticoes_em_processamento[peticao_id]
+            
+            # Retornar informações de progresso armazenadas
+            return {
+                "etapa_atual": estado.get("etapa_atual", "Processando análise..."),
+                "progresso_percentual": estado.get("progresso_percentual", 0)
+            }
+    
+    def obter_erro(self, peticao_id: str) -> Dict[str, Any]:
+        """
+        Obtém informações de erro da análise (se houver).
+        
+        CONTEXTO (TAREFA-048):
+        Chamado pelo endpoint GET /api/peticoes/{peticao_id}/status-analise
+        quando status = ERRO para obter detalhes do erro.
+        
+        Args:
+            peticao_id: ID da petição
+        
+        Returns:
+            Dict com mensagem_erro e timestamp_erro
+        
+        Raises:
+            ValueError: Se petição não existir
+        """
+        with self._lock:
+            self._validar_peticao_existe(peticao_id)
+            
+            estado = self._peticoes_em_processamento[peticao_id]
+            
+            # Retornar informações de erro armazenadas
+            return {
+                "mensagem_erro": estado.get("mensagem_erro", "Erro desconhecido"),
+                "timestamp_erro": estado.get("timestamp_erro", datetime.now().isoformat())
+            }
 
 
 # ===== SINGLETON PATTERN =====

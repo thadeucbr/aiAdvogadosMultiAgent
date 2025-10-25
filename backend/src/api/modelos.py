@@ -33,7 +33,7 @@ JUSTIFICATIVA PARA LLMs:
 """
 
 from pydantic import BaseModel, Field, validator
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
 
@@ -2102,5 +2102,409 @@ class RespostaStatusPeticao(BaseModel):
                 "timestamp_criacao": "2025-10-25T14:30:00.000Z",
                 "timestamp_atualizacao": "2025-10-25T14:35:00.000Z",
                 "mensagem_erro": None
+            }
+        }
+
+
+# ===== MODELOS PARA ANÁLISE COMPLETA DE PETIÇÃO (TAREFA-048) =====
+
+class RequisicaoAnalisarPeticao(BaseModel):
+    """
+    Modelo de requisição para POST /api/peticoes/{peticao_id}/analisar
+    
+    CONTEXTO (TAREFA-048):
+    Após o advogado fazer upload da petição inicial e dos documentos complementares,
+    ele seleciona quais advogados especialistas e peritos deseja consultar.
+    Esta requisição dispara a análise completa assíncrona.
+    
+    VALIDAÇÕES:
+    - Deve selecionar pelo menos 1 advogado OU 1 perito (não pode estar vazio)
+    - Nomes de agentes devem ser válidos (validado no endpoint)
+    
+    CAMPOS:
+    - agentes_selecionados: Dict com listas de advogados e peritos
+      Formato: {"advogados": ["trabalhista", "civel"], "peritos": ["medico"]}
+    
+    EXEMPLO DE USO:
+    ```json
+    {
+      "agentes_selecionados": {
+        "advogados": ["trabalhista", "previdenciario"],
+        "peritos": ["medico", "seguranca_trabalho"]
+      }
+    }
+    ```
+    """
+    
+    agentes_selecionados: Dict[str, List[str]] = Field(
+        ...,
+        description=(
+            "Agentes selecionados para análise. "
+            "Formato: {'advogados': ['trabalhista', ...], 'peritos': ['medico', ...]}. "
+            "Deve conter pelo menos 1 advogado OU 1 perito."
+        )
+    )
+    
+    @validator('agentes_selecionados')
+    def validar_agentes_nao_vazios(cls, v):
+        """Valida que pelo menos um agente foi selecionado"""
+        advogados = v.get('advogados', [])
+        peritos = v.get('peritos', [])
+        
+        if not advogados and not peritos:
+            raise ValueError(
+                "Deve selecionar pelo menos 1 advogado especialista OU 1 perito técnico"
+            )
+        
+        return v
+    
+    class Config:
+        """Exemplo para documentação Swagger"""
+        json_schema_extra = {
+            "example": {
+                "agentes_selecionados": {
+                    "advogados": ["trabalhista", "previdenciario"],
+                    "peritos": ["medico", "seguranca_trabalho"]
+                }
+            }
+        }
+
+
+class RespostaIniciarAnalisePeticao(BaseModel):
+    """
+    Modelo de resposta para POST /api/peticoes/{peticao_id}/analisar
+    
+    CONTEXTO (TAREFA-048):
+    Quando a análise é disparada, o endpoint retorna imediatamente (202 Accepted)
+    com o ID da petição e status inicial. O processamento acontece em background.
+    
+    FLUXO:
+    1. Cliente faz POST /api/peticoes/{id}/analisar
+    2. Backend valida e agenda análise em background
+    3. Backend retorna 202 Accepted com esta resposta
+    4. Cliente faz polling em GET /api/peticoes/{id}/status-analise
+    
+    CAMPOS:
+    - sucesso: Sempre true se retornou 202
+    - peticao_id: ID da petição sendo analisada
+    - status: "processando" (estado inicial)
+    - mensagem: Mensagem informativa
+    - timestamp_inicio: Quando a análise foi iniciada
+    """
+    
+    sucesso: bool = Field(
+        ...,
+        description="Indica se a análise foi iniciada com sucesso"
+    )
+    
+    peticao_id: str = Field(
+        ...,
+        description="UUID da petição sendo analisada"
+    )
+    
+    status: str = Field(
+        ...,
+        description="Status da análise: 'processando'"
+    )
+    
+    mensagem: str = Field(
+        ...,
+        description="Mensagem informativa sobre o início da análise"
+    )
+    
+    timestamp_inicio: str = Field(
+        ...,
+        description="Data e hora de início da análise em formato ISO 8601"
+    )
+    
+    class Config:
+        """Exemplo para documentação Swagger"""
+        json_schema_extra = {
+            "example": {
+                "sucesso": True,
+                "peticao_id": "550e8400-e29b-41d4-a716-446655440000",
+                "status": "processando",
+                "mensagem": "Análise da petição iniciada com sucesso. Use GET /api/peticoes/{peticao_id}/status-analise para acompanhar o progresso.",
+                "timestamp_inicio": "2025-10-25T15:00:00.000Z"
+            }
+        }
+
+
+class RespostaStatusAnalisePeticao(BaseModel):
+    """
+    Modelo de resposta para GET /api/peticoes/{peticao_id}/status-analise
+    
+    CONTEXTO (TAREFA-048):
+    O frontend faz polling neste endpoint (a cada 2-3s) para acompanhar
+    o progresso da análise completa da petição.
+    
+    ESTADOS POSSÍVEIS:
+    - processando: Análise em andamento (mostra etapa_atual e progresso)
+    - concluida: Análise finalizada (cliente deve chamar /resultado)
+    - erro: Falha durante análise (mostra mensagem_erro)
+    
+    FAIXAS DE PROGRESSO (0-100%):
+    - 0-10%: Recuperando dados da petição
+    - 10-20%: Montando contexto RAG
+    - 20-50%: Executando advogados especialistas
+    - 50-70%: Executando peritos técnicos
+    - 70-80%: Elaborando estratégia processual
+    - 80-90%: Calculando prognóstico
+    - 90-100%: Finalizando análise
+    
+    CAMPOS:
+    - sucesso: Indica se consulta foi bem-sucedida
+    - peticao_id: UUID da petição
+    - status: processando | concluida | erro
+    - etapa_atual: Descrição textual da etapa (se processando)
+    - progresso_percentual: 0-100 (se processando)
+    - timestamp_atualizacao: Última atualização
+    - mensagem_erro: Só presente se status = erro
+    """
+    
+    sucesso: bool = Field(
+        ...,
+        description="Indica se a consulta foi bem-sucedida"
+    )
+    
+    peticao_id: str = Field(
+        ...,
+        description="UUID da petição"
+    )
+    
+    status: str = Field(
+        ...,
+        description="Status da análise: 'processando', 'concluida', ou 'erro'"
+    )
+    
+    etapa_atual: Optional[str] = Field(
+        None,
+        description=(
+            "Descrição textual da etapa atual (ex: 'Executando advogados especialistas'). "
+            "Presente apenas se status = 'processando'."
+        )
+    )
+    
+    progresso_percentual: Optional[int] = Field(
+        None,
+        ge=0,
+        le=100,
+        description=(
+            "Progresso da análise em percentual (0-100). "
+            "Presente apenas se status = 'processando'."
+        )
+    )
+    
+    timestamp_atualizacao: str = Field(
+        ...,
+        description="Data e hora da última atualização em formato ISO 8601"
+    )
+    
+    mensagem_erro: Optional[str] = Field(
+        None,
+        description="Mensagem de erro detalhada. Presente apenas se status = 'erro'."
+    )
+    
+    class Config:
+        """Exemplos para documentação Swagger"""
+        json_schema_extra = {
+            "examples": [
+                {
+                    "summary": "Análise em Progresso",
+                    "value": {
+                        "sucesso": True,
+                        "peticao_id": "550e8400-e29b-41d4-a716-446655440000",
+                        "status": "processando",
+                        "etapa_atual": "Executando advogados especialistas",
+                        "progresso_percentual": 35,
+                        "timestamp_atualizacao": "2025-10-25T15:01:30.000Z",
+                        "mensagem_erro": None
+                    }
+                },
+                {
+                    "summary": "Análise Concluída",
+                    "value": {
+                        "sucesso": True,
+                        "peticao_id": "550e8400-e29b-41d4-a716-446655440000",
+                        "status": "concluida",
+                        "etapa_atual": None,
+                        "progresso_percentual": None,
+                        "timestamp_atualizacao": "2025-10-25T15:05:00.000Z",
+                        "mensagem_erro": None
+                    }
+                },
+                {
+                    "summary": "Erro na Análise",
+                    "value": {
+                        "sucesso": False,
+                        "peticao_id": "550e8400-e29b-41d4-a716-446655440000",
+                        "status": "erro",
+                        "etapa_atual": None,
+                        "progresso_percentual": None,
+                        "timestamp_atualizacao": "2025-10-25T15:02:00.000Z",
+                        "mensagem_erro": "Erro ao executar agente perito médico: Timeout na chamada LLM"
+                    }
+                }
+            ]
+        }
+
+
+class RespostaResultadoAnalisePeticao(BaseModel):
+    """
+    Modelo de resposta para GET /api/peticoes/{peticao_id}/resultado
+    
+    CONTEXTO (TAREFA-048):
+    Após a análise ser concluída (status = 'concluida'), o frontend chama
+    este endpoint para obter o resultado completo estruturado.
+    
+    PRODUTO FINAL:
+    Este é o resultado completo da análise de petição, contendo:
+    1. Próximos passos estratégicos (estratégia + passos + prazos)
+    2. Prognóstico probabilístico (cenários + probabilidades + valores)
+    3. Pareceres individualizados de cada advogado especialista
+    4. Pareceres individualizados de cada perito técnico
+    5. Documento de continuação gerado (contestação, recurso, etc.)
+    
+    RENDERIZAÇÃO NO FRONTEND:
+    - Próximos passos: Timeline vertical com cards
+    - Prognóstico: Gráfico de pizza + tabela de cenários
+    - Pareceres: Boxes separados (1 por advogado, 1 por perito)
+    - Documento: Preview HTML + download Markdown
+    
+    CAMPOS:
+    - sucesso: Indica se consulta foi bem-sucedida
+    - peticao_id: UUID da petição
+    - proximos_passos: Objeto ProximosPassos (estratégia + passos + prazos)
+    - prognostico: Objeto Prognostico (cenários + probabilidades + valores)
+    - pareceres_advogados: Dict[str, ParecerAdvogado] (1 por advogado)
+    - pareceres_peritos: Dict[str, ParecerPerito] (1 por perito)
+    - documento_continuacao: Objeto DocumentoContinuacao (Markdown + HTML)
+    - tempo_processamento_segundos: Tempo total de processamento
+    - timestamp_conclusao: Quando análise foi finalizada
+    """
+    
+    sucesso: bool = Field(
+        ...,
+        description="Indica se a consulta foi bem-sucedida"
+    )
+    
+    peticao_id: str = Field(
+        ...,
+        description="UUID da petição analisada"
+    )
+    
+    proximos_passos: Dict[str, Any] = Field(
+        ...,
+        description=(
+            "Próximos passos estratégicos recomendados. "
+            "Contém: estrategia_recomendada, passos (lista), caminhos_alternativos"
+        )
+    )
+    
+    prognostico: Dict[str, Any] = Field(
+        ...,
+        description=(
+            "Prognóstico probabilístico com múltiplos cenários. "
+            "Contém: cenarios (lista com probabilidade e valores), "
+            "cenario_mais_provavel, recomendacao_geral"
+        )
+    )
+    
+    pareceres_advogados: Dict[str, Dict[str, Any]] = Field(
+        ...,
+        description=(
+            "Pareceres dos advogados especialistas. "
+            "Chave = tipo de advogado (ex: 'trabalhista'), "
+            "Valor = objeto ParecerAdvogado com análise jurídica completa"
+        )
+    )
+    
+    pareceres_peritos: Dict[str, Dict[str, Any]] = Field(
+        ...,
+        description=(
+            "Pareceres dos peritos técnicos. "
+            "Chave = tipo de perito (ex: 'medico'), "
+            "Valor = objeto ParecerPerito com análise técnica completa"
+        )
+    )
+    
+    documento_continuacao: Dict[str, Any] = Field(
+        ...,
+        description=(
+            "Documento de continuação gerado automaticamente. "
+            "Contém: tipo_peca, conteudo_markdown, conteudo_html, sugestoes_personalizacao"
+        )
+    )
+    
+    tempo_processamento_segundos: float = Field(
+        ...,
+        description="Tempo total de processamento da análise em segundos"
+    )
+    
+    timestamp_conclusao: str = Field(
+        ...,
+        description="Data e hora de conclusão da análise em formato ISO 8601"
+    )
+    
+    class Config:
+        """Exemplo para documentação Swagger"""
+        json_schema_extra = {
+            "example": {
+                "sucesso": True,
+                "peticao_id": "550e8400-e29b-41d4-a716-446655440000",
+                "proximos_passos": {
+                    "estrategia_recomendada": "Apresentar contestação robusta focando em...",
+                    "passos": [
+                        {
+                            "numero": 1,
+                            "descricao": "Apresentar contestação",
+                            "prazo_dias": 15,
+                            "tipo": "obrigatorio"
+                        }
+                    ],
+                    "caminhos_alternativos": []
+                },
+                "prognostico": {
+                    "cenarios": [
+                        {
+                            "tipo": "vitoria_total",
+                            "probabilidade": 45.0,
+                            "valor_minimo": 50000.0,
+                            "valor_maximo": 80000.0
+                        }
+                    ],
+                    "cenario_mais_provavel": "Vitória total com valores entre R$ 50.000 e R$ 80.000",
+                    "recomendacao_geral": "Recomenda-se prosseguir com a ação..."
+                },
+                "pareceres_advogados": {
+                    "trabalhista": {
+                        "tipo_advogado": "Direito do Trabalho",
+                        "analise_juridica": "A petição apresenta fundamentos sólidos...",
+                        "pontos_fortes": ["Vínculo empregatício comprovado"],
+                        "pontos_fracos": ["Falta documento X"],
+                        "jurisprudencia_aplicavel": ["Súmula 123 do TST"],
+                        "recomendacoes": ["Solicitar documento X"]
+                    }
+                },
+                "pareceres_peritos": {
+                    "medico": {
+                        "tipo_perito": "Perícia Médica",
+                        "analise_tecnica": "Laudo médico indica nexo causal...",
+                        "conclusoes_tecnicas": ["Incapacidade permanente parcial"],
+                        "documentos_analisados": ["Laudo médico de 2023"],
+                        "recomendacoes": ["Solicitar exames complementares"]
+                    }
+                },
+                "documento_continuacao": {
+                    "tipo_peca": "contestacao",
+                    "conteudo_markdown": "# CONTESTAÇÃO\\n\\n...",
+                    "conteudo_html": "<h1>CONTESTAÇÃO</h1>...",
+                    "sugestoes_personalizacao": [
+                        "Inserir nome completo do cliente",
+                        "Ajustar valores conforme negociação"
+                    ]
+                },
+                "tempo_processamento_segundos": 45.3,
+                "timestamp_conclusao": "2025-10-25T15:05:00.000Z"
             }
         }
