@@ -292,6 +292,7 @@ export function AnalisePeticaoInicial(): JSX.Element {
               setTipoAcao(tipo);
               avancarEtapa();
             }}
+            onDocumentosSugeridos={setDocumentosSugeridos}
             onErro={setErro}
           />
         )}
@@ -368,9 +369,11 @@ export function AnalisePeticaoInicial(): JSX.Element {
  */
 function EtapaUploadPeticao({
   onUploadConcluido,
+  onDocumentosSugeridos,
   onErro,
 }: {
   onUploadConcluido: (peticaoId: string, uploadId: string, tipoAcao: string) => void;
+  onDocumentosSugeridos: (docs: DocumentoSugerido[]) => void;
   onErro: (erro: string) => void;
 }) {
   return (
@@ -388,7 +391,7 @@ function EtapaUploadPeticao({
         aoConcluirComSucesso={(peticaoId, documentosSugeridos) => {
           console.log('[EtapaUploadPeticao] Upload concluído:', peticaoId, documentosSugeridos);
           // Salvar documentos sugeridos no state
-          setDocumentosSugeridos(documentosSugeridos);
+          onDocumentosSugeridos(documentosSugeridos);
           // Passar peticaoId para a próxima etapa
           onUploadConcluido(peticaoId, '', '');
         }}
