@@ -30,6 +30,7 @@
 
 import { useState } from 'react';
 import { FileText, CheckCircle2, Users, BarChart3, FileCheck } from 'lucide-react';
+import { ComponenteUploadPeticaoInicial } from '../componentes/peticao/ComponenteUploadPeticaoInicial';
 import type {
   DocumentoSugerido,
   AgentesSelecionados,
@@ -283,11 +284,10 @@ export function AnalisePeticaoInicial(): JSX.Element {
       {/* Conteúdo da etapa atual */}
       <div className="card min-h-[400px]">
         {etapaAtual === 1 && (
-          <EtapaUploadPeticao
-            onUploadConcluido={(peticaoId, uploadId, tipo) => {
+          <ComponenteUploadPeticaoInicial
+            onUploadConcluido={(peticaoId, docsSugeridos) => {
               setPeticaoId(peticaoId);
-              setUploadPeticaoId(uploadId);
-              setTipoAcao(tipo);
+              setDocumentosSugeridos(docsSugeridos);
               avancarEtapa();
             }}
             onErro={setErro}

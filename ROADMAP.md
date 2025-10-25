@@ -73,8 +73,9 @@ Aqui está o **Roadmap v2.0** atualizado:
 - ✅ TAREFA-047: Backend - Serviço de Geração de Documento de Continuação
 - ✅ TAREFA-048: Backend - Endpoint de Análise Completa de Petição
 - ✅ TAREFA-049: Frontend - Criar Página de Análise de Petição Inicial
+- ✅ TAREFA-050: Frontend - Componente de Upload de Petição Inicial
 
-**Próximo passo:** TAREFA-050 (Frontend - Componente de Upload de Petição Inicial)
+**Próximo passo:** TAREFA-051 (Frontend - Componente de Exibição de Documentos Sugeridos)
 
 ---
 
