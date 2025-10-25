@@ -35,6 +35,7 @@ import type {
   AgentesSelecionados,
   ResultadoAnaliseProcesso,
 } from '../tipos/tiposPeticao';
+import { ComponenteUploadPeticaoInicial } from '../componentes/peticao/ComponenteUploadPeticaoInicial';
 
 // ===== TIPOS LOCAIS =====
 
@@ -362,7 +363,7 @@ export function AnalisePeticaoInicial(): JSX.Element {
 /**
  * ETAPA 1: Upload da Petição Inicial
  * 
- * NOTA: Este é um placeholder. O componente completo será implementado na TAREFA-050.
+ * IMPLEMENTAÇÃO (TAREFA-050): Usa ComponenteUploadPeticaoInicial
  */
 function EtapaUploadPeticao({
   onUploadConcluido,
@@ -372,23 +373,27 @@ function EtapaUploadPeticao({
   onErro: (erro: string) => void;
 }) {
   return (
-    <div className="text-center py-12">
-      <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-      <h2 className="text-xl font-semibold text-gray-900 mb-2">
-        Upload de Petição Inicial
-      </h2>
-      <p className="text-gray-600 mb-6">
-        Componente completo será implementado na TAREFA-050
-      </p>
-      <button
-        onClick={() => {
-          // Simular upload bem-sucedido (para desenvolvimento)
-          onUploadConcluido('peticao-123', 'upload-456', 'Trabalhista - Acidente de Trabalho');
+    <div className="space-y-6">
+      <div className="text-center">
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          Upload de Petição Inicial
+        </h2>
+        <p className="text-gray-600">
+          Envie a petição inicial para análise. Documentos sugeridos serão gerados automaticamente.
+        </p>
+      </div>
+      
+      <ComponenteUploadPeticaoInicial
+        aoConcluirComSucesso={(peticaoId, documentosSugeridos) => {
+          console.log('[EtapaUploadPeticao] Upload concluído:', peticaoId, documentosSugeridos);
+          // Passar peticaoId e upload_id (vazio por enquanto, será usado depois)
+          onUploadConcluido(peticaoId, '', '');
         }}
-        className="btn btn-primary"
-      >
-        Simular Upload (Dev)
-      </button>
+        aoOcorrerErro={(mensagemErro) => {
+          console.error('[EtapaUploadPeticao] Erro:', mensagemErro);
+          onErro(mensagemErro);
+        }}
+      />
     </div>
   );
 }

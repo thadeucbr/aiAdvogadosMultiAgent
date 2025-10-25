@@ -131,8 +131,8 @@ class AgentePeritoSegurancaTrabalho(AgenteBase):
             "acidentes de trabalho, insalubridade e periculosidade."
         )
         
-        # Modelo de LLM - GPT-4 para análises técnicas complexas
-        self.modelo_llm_padrao = "gpt-4"
+        # Modelo de LLM - GPT-5-nano para análises técnicas complexas
+        self.modelo_llm_padrao = "gpt-5-nano-2025-08-07"
         
         # Temperatura baixa (0.2) - análises de segurança devem ser objetivas e consistentes
         # Valores baixos reduzem aleatoriedade e aumentam reprodutibilidade

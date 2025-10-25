@@ -151,7 +151,7 @@ class AgenteEstrategistaProcessual(AgenteBase):
             "e considera aspectos práticos, riscos e oportunidades processuais."
         )
         
-        # Modelo de LLM: GPT-4 para análise estratégica complexa
+        # Modelo de LLM: GPT-5-nano para análise estratégica complexa
         self.modelo_llm_padrao = "gpt-5-nano-2025-08-07"
         
         # Temperatura: baixa para objetividade (análise estratégica requer precisão)

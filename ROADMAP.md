@@ -74,7 +74,7 @@ Aqui está o **Roadmap v2.0** atualizado:
 - ✅ TAREFA-048: Backend - Endpoint de Análise Completa de Petição
 - ✅ TAREFA-049: Frontend - Criar Página de Análise de Petição Inicial
 
-**Próximo passo:** TAREFA-050 (Frontend - Componente de Upload de Petição Inicial)
+**Próximo passo:** TAREFA-051 (Frontend - Componente de Exibição de Documentos Sugeridos)
 
 ---
 
@@ -854,34 +854,37 @@ Esta é uma nova funcionalidade estratégica que diferencia o produto. O fluxo �
 
 ---
 
-#### 🟡 TAREFA-050: Frontend - Componente de Upload de Petição Inicial
+#### ✅ TAREFA-050: Frontend - Componente de Upload de Petição Inicial
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-049, TAREFA-041 (Endpoint Backend)  
 **Estimativa:** 2-3 horas  
-**Status:** 🟡 PENDENTE
+**Status:** ✅ CONCLUÍDA
 
 **Escopo:**
-- [ ] Criar `frontend/src/componentes/peticao/ComponenteUploadPeticaoInicial.tsx`:
-  - [ ] Campo de upload drag-and-drop (reutilizar lógica da TAREFA-016)
-  - [ ] Aceita apenas 1 arquivo (PDF ou DOCX)
-  - [ ] Validação de tipo e tamanho (max 20MB)
-  - [ ] Ao fazer upload:
-    - [ ] Chama `POST /api/peticoes/iniciar`
-    - [ ] Exibe barra de progresso (polling de upload via TAREFA-038)
-    - [ ] Quando upload concluir, dispara análise de documentos relevantes automaticamente
-    - [ ] Chama `POST /api/peticoes/{peticao_id}/analisar-documentos`
-  - [ ] Feedback visual: loading, sucesso, erro
-  - [ ] Botão "Avançar" só habilita quando upload completo E documentos sugeridos retornados
-- [ ] Integração com serviço de API:
-  - [ ] `servicoApiPeticoes.iniciarPeticao(arquivo)`
-  - [ ] `servicoApiPeticoes.analisarDocumentos(peticaoId)`
+- [x] Criar `frontend/src/componentes/peticao/ComponenteUploadPeticaoInicial.tsx`:
+  - [x] Campo de upload drag-and-drop (reutilizar lógica da TAREFA-016)
+  - [x] Aceita apenas 1 arquivo (PDF ou DOCX)
+  - [x] Validação de tipo e tamanho (max 20MB)
+  - [x] Ao fazer upload:
+    - [x] Chama `POST /api/peticoes/iniciar`
+    - [x] Exibe barra de progresso (polling de upload via TAREFA-038)
+    - [x] Quando upload concluir, dispara análise de documentos relevantes automaticamente
+    - [x] Chama `POST /api/peticoes/{peticao_id}/analisar-documentos`
+  - [x] Feedback visual: loading, sucesso, erro
+  - [x] Botão "Avançar" só habilita quando upload completo E documentos sugeridos retornados
+- [x] Integração com serviço de API:
+  - [x] `servicoApiPeticoes.iniciarPeticao(arquivo)`
+  - [x] `servicoApiPeticoes.analisarDocumentos(peticaoId)`
 
 **Entregáveis:**
-- Componente de upload de petição inicial
-- Integração com upload assíncrono (com progresso)
-- Disparo automático de análise de documentos
-- Validação e feedback visual
-- Changelog completo: `changelogs/TAREFA-050_frontend-upload-peticao-inicial.md`
+- ✅ Componente de upload de petição inicial (720 linhas)
+- ✅ Integração com upload assíncrono (com progresso 0-100%)
+- ✅ Disparo automático de análise de documentos
+- ✅ Validação robusta e feedback visual
+- ✅ Polling com timeouts configuráveis (5min upload, 2min análise)
+- ✅ Cleanup de memory leaks
+- ✅ Integração com AnalisePeticaoInicial.tsx
+- ✅ Changelog completo: `changelogs/TAREFA-050_frontend-upload-peticao-inicial.md`
 
 ---
 

@@ -181,7 +181,7 @@ class GerenciadorLLM:
         gerenciador = GerenciadorLLM()
         resposta = gerenciador.chamar_llm(
             prompt="Analise este documento jurídico...",
-            modelo="gpt-4",
+            modelo="gpt-5-nano-2025-08-07",
             temperatura=0.7
         )
     

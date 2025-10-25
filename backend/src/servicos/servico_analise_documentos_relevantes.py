@@ -130,8 +130,8 @@ class ErroParsingRespostaLLM(ErroAnaliseDocumentosRelevantes):
 NUMERO_DE_CHUNKS_RAG_PARA_CONTEXTO = 5
 
 # Modelo de LLM a usar para análise
-# JUSTIFICATIVA: GPT-4 tem melhor raciocínio jurídico que modelos menores
-MODELO_LLM_ANALISE_DOCUMENTOS = "gpt-4"
+# JUSTIFICATIVA: gpt-5-nano tem melhor custo-benefício e raciocínio jurídico adequado
+MODELO_LLM_ANALISE_DOCUMENTOS = "gpt-5-nano-2025-08-07"
 
 # Temperatura para geração (0.0 = determinística, 1.0 = criativa)
 # JUSTIFICATIVA: 0.3 = baixa criatividade, respostas mais consistentes e factuais
@@ -717,7 +717,7 @@ class ServicoAnaliseDocumentosRelevantes:
         try:
             self.gerenciador_peticoes.adicionar_documentos_sugeridos(
                 peticao_id=peticao_id,
-                documentos_sugeridos=documentos_sugeridos
+                documentos=documentos_sugeridos
             )
             
             logger.debug(

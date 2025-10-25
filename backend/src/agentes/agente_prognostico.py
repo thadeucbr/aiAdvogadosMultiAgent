@@ -144,8 +144,8 @@ class AgentePrognostico(AgenteBase):
         )
         
         # Configuração de LLM otimizada para análise probabilística
-        # Usar GPT-4 para análise mais sofisticada
-        self.modelo_llm_padrao = "gpt-4"
+        # Usar GPT-5-nano para análise (melhor custo-benefício)
+        self.modelo_llm_padrao = "gpt-5-nano-2025-08-07"
         
         # Temperatura MUITO BAIXA (0.2) para garantir objetividade
         # Prognóstico não deve ser criativo, deve ser realista e consistente

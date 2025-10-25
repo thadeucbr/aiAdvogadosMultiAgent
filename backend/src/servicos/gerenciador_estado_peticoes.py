@@ -61,7 +61,7 @@ Segue o mesmo padrão estabelecido em:
 """
 
 import threading
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
 from datetime import datetime
 
 from src.modelos.processo import (
@@ -204,7 +204,7 @@ class GerenciadorEstadoPeticoes:
     def adicionar_documentos_sugeridos(
         self,
         peticao_id: str,
-        documentos: List[Dict[str, str]]
+        documentos: Union[List[Dict[str, str]], List[DocumentoSugerido]]
     ) -> None:
         """
         Adiciona documentos sugeridos pela LLM à petição.
@@ -215,8 +215,8 @@ class GerenciadorEstadoPeticoes:
         
         Args:
             peticao_id: ID da petição
-            documentos: Lista de dicts com documentos sugeridos
-                Formato: [
+            documentos: Lista de dicts ou objetos DocumentoSugerido
+                Formato dict: [
                     {
                         "tipo_documento": "Laudo Médico",
                         "justificativa": "Comprova lesões...",
@@ -231,10 +231,15 @@ class GerenciadorEstadoPeticoes:
         with self._lock:
             self._validar_peticao_existe(peticao_id)
             
-            # Converter dicts em objetos DocumentoSugerido
-            documentos_sugeridos = [
-                DocumentoSugerido(**doc) for doc in documentos
-            ]
+            # Converter para objetos DocumentoSugerido se necessário
+            if documentos and isinstance(documentos[0], dict):
+                # É lista de dicts - converter
+                documentos_sugeridos = [
+                    DocumentoSugerido(**doc) for doc in documentos
+                ]
+            else:
+                # Já são objetos DocumentoSugerido
+                documentos_sugeridos = documentos
             
             # Atualizar petição
             self._peticoes_em_processamento[peticao_id]["peticao"].documentos_sugeridos = documentos_sugeridos

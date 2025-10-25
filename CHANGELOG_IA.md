@@ -90,13 +90,14 @@
 | **047** | 2025-10-25 | Backend - Serviço de Geração de Documento de Continuação | servico_geracao_documento.py, requirements.txt | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-047_backend-servico-geracao-documento.md) |
 | **048** | 2025-10-25 | Backend - Endpoint de Análise Completa de Petição | rotas_peticoes.py, modelos.py, gerenciador_estado_peticoes.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-048_backend-endpoint-analise-peticao.md) |
 | **049** | 2025-10-25 | Frontend - Criar Página de Análise de Petição Inicial | tiposPeticao.ts, servicoApiPeticoes.ts, AnalisePeticaoInicial.tsx, App.tsx | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-049_frontend-pagina-analise-peticao.md) |
+| **050** | 2025-10-25 | Frontend - Componente de Upload de Petição Inicial | ComponenteUploadPeticaoInicial.tsx, AnalisePeticaoInicial.tsx | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-050_frontend-upload-peticao-inicial.md) |
 | **035-039** | 2025-01-26 | Roadmap para Upload Assíncrono (FASE 6) | ROADMAP.md, README.md, CHANGELOG_IA.md | ✅ Concluído | Planejamento |
 
 ---
 
 ## 🎯 Última Tarefa Concluída
 
-**TAREFA-049** - Frontend - Criar Página de Análise de Petição Inicial  
+**TAREFA-050** - Frontend - Componente de Upload de Petição Inicial  
 **Data:** 2025-10-25  
 **IA:** GitHub Copilot  
 **Status:** ✅ CONCLUÍDA  

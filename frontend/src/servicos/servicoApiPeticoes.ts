@@ -122,7 +122,7 @@ export async function verificarStatusPeticao(
   peticaoId: string
 ): Promise<AxiosResponse<RespostaStatusPeticao>> {
   return axios.get<RespostaStatusPeticao>(
-    `${PETICOES_PREFIX}/${peticaoId}/status`
+    `${PETICOES_PREFIX}/status/${peticaoId}`
   );
 }
 

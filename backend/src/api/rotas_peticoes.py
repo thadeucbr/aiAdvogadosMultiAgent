@@ -801,12 +801,15 @@ async def endpoint_analisar_documentos_peticao(
     
     # ===== AGENDAR ANÁLISE EM BACKGROUND =====
     
-    async def executar_analise_em_background():
+    def executar_analise_em_background():
         """
         Função executada em background para análise da petição.
         
         IMPORTANTE: Esta função executa APÓS o response 202 ser enviado.
         Qualquer erro aqui não afeta o status HTTP do request original.
+        
+        NOTA: Função síncrona (não async) para garantir execução em background
+        sem bloquear o retorno do endpoint.
         """
         try:
             logger.info(f"[PETICAO] Iniciando análise em background - peticao_id: {peticao_id}")
@@ -1702,8 +1705,9 @@ async def endpoint_iniciar_analise_peticao(
     
     # Importar orquestrador (lazy import para evitar circular dependency)
     from src.servicos.orquestrador_analise_peticoes import criar_orquestrador_analise_peticoes
+    import asyncio
     
-    async def processar_analise_em_background():
+    def processar_analise_em_background():
         """
         Função executada em background para processar análise completa.
         
@@ -1711,41 +1715,48 @@ async def endpoint_iniciar_analise_peticao(
         Esta função é executada pela FastAPI BackgroundTasks após o endpoint
         retornar 202 Accepted. Ela coordena toda a análise multi-agent.
         
+        NOTA: Função síncrona que usa asyncio.run() internamente para executar
+        código assíncrono sem bloquear o retorno do endpoint.
+        
         ETAPAS:
         1. Criar orquestrador
         2. Chamar analisar_peticao_completa()
         3. Registrar resultado no gerenciador
         4. Tratar erros (se houver)
         """
-        try:
-            logger.info(f"[PETICAO-ANALISE-BG] Iniciando processamento em background - peticao_id: {peticao_id}")
-            
-            # Criar orquestrador
-            orquestrador = criar_orquestrador_analise_peticoes()
-            
-            # Executar análise completa
-            resultado = await orquestrador.analisar_peticao_completa(
-                peticao_id=peticao_id,
-                advogados_selecionados=advogados_selecionados,
-                peritos_selecionados=peritos_selecionados
-            )
-            
-            # Registrar resultado no gerenciador
-            gerenciador_peticoes.registrar_resultado(
-                peticao_id=peticao_id,
-                resultado=resultado
-            )
-            
-            logger.info(f"[PETICAO-ANALISE-BG] Análise concluída com sucesso - peticao_id: {peticao_id}")
-            
-        except Exception as e:
-            logger.error(f"[PETICAO-ANALISE-BG] Erro durante análise - peticao_id: {peticao_id}, erro: {e}")
-            
-            # Registrar erro no gerenciador
-            gerenciador_peticoes.registrar_erro(
-                peticao_id=peticao_id,
-                mensagem_erro=str(e)
-            )
+        async def _executar_analise_async():
+            try:
+                logger.info(f"[PETICAO-ANALISE-BG] Iniciando processamento em background - peticao_id: {peticao_id}")
+                
+                # Criar orquestrador
+                orquestrador = criar_orquestrador_analise_peticoes()
+                
+                # Executar análise completa
+                resultado = await orquestrador.analisar_peticao_completa(
+                    peticao_id=peticao_id,
+                    advogados_selecionados=advogados_selecionados,
+                    peritos_selecionados=peritos_selecionados
+                )
+                
+                # Registrar resultado no gerenciador
+                gerenciador_peticoes.registrar_resultado(
+                    peticao_id=peticao_id,
+                    resultado=resultado
+                )
+                
+                logger.info(f"[PETICAO-ANALISE-BG] Análise concluída com sucesso - peticao_id: {peticao_id}")
+                
+            except Exception as e:
+                logger.error(f"[PETICAO-ANALISE-BG] Erro durante análise - peticao_id: {peticao_id}, erro: {e}")
+                
+                # Registrar erro no gerenciador
+                gerenciador_peticoes.registrar_erro(
+                    peticao_id=peticao_id,
+                    mensagem_erro=str(e)
+                )
+        
+        # Executar função async em novo event loop
+        asyncio.run(_executar_analise_async())
     
     # Agendar processamento em background
     background_tasks.add_task(processar_analise_em_background)
