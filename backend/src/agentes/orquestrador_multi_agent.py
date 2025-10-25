@@ -65,6 +65,7 @@ import asyncio
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from enum import Enum
+from functools import lru_cache
 
 # Importar agente advogado coordenador
 from src.agentes.agente_advogado_coordenador import (
@@ -77,6 +78,13 @@ from src.utilitarios.gerenciador_llm import (
     ErroLimiteTaxaExcedido,
     ErroTimeoutAPI,
     ErroGeralAPI
+)
+
+# Importar gerenciador de estado de tarefas (NOVO TAREFA-030)
+from src.servicos.gerenciador_estado_tarefas import (
+    obter_gerenciador_estado_tarefas,
+    GerenciadorEstadoTarefas,
+    StatusTarefa
 )
 
 
@@ -646,6 +654,143 @@ class OrquestradorMultiAgent:
             # Re-raise para que a API possa tratar
             raise
     
+    async def _processar_consulta_em_background(
+        self,
+        consulta_id: str,
+        prompt: str,
+        agentes_selecionados: Optional[List[str]] = None,
+        advogados_selecionados: Optional[List[str]] = None,
+        documento_ids: Optional[List[str]] = None,
+        metadados_adicionais: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """
+        Processa uma consulta em background e atualiza o gerenciador de estado.
+        
+        CONTEXTO (TAREFA-030):
+        Este método é um WRAPPER em torno de processar_consulta() para execução
+        assíncrona. Resolve o problema de TIMEOUT em análises longas (>2 minutos)
+        ao permitir processamento em background com polling de status.
+        
+        PROBLEMA QUE RESOLVE:
+        - Análises com múltiplos agentes podem demorar muito tempo
+        - HTTP Request/Response tradicional tem limite de ~2 minutos
+        - Backend deve processar em background e frontend fazer polling
+        
+        FLUXO:
+        1. Criar tarefa no GerenciadorEstadoTarefas (status: INICIADA)
+        2. Atualizar status para PROCESSANDO
+        3. Executar processar_consulta() original
+        4. Se SUCESSO: registrar resultado (status: CONCLUIDA)
+        5. Se ERRO: registrar erro (status: ERRO)
+        
+        DIFERENÇA vs processar_consulta:
+        - processar_consulta(): Executa análise e RETORNA resultado (síncrono)
+        - _processar_consulta_em_background(): Executa análise e ARMAZENA resultado (assíncrono)
+        
+        CHAMADA:
+        Este método é chamado via BackgroundTasks do FastAPI nos endpoints
+        assíncronos (POST /api/analise/iniciar, TAREFA-031).
+        
+        Args:
+            consulta_id: ID único da consulta (UUID)
+            prompt: Pergunta/solicitação do usuário
+            agentes_selecionados: Lista de peritos (ex: ["medico"])
+            advogados_selecionados: Lista de advogados especialistas (ex: ["trabalhista"])
+            documento_ids: IDs de documentos específicos (opcional)
+            metadados_adicionais: Informações adicionais (opcional)
+        
+        Returns:
+            None (resultado é armazenado no GerenciadorEstadoTarefas)
+        
+        EXEMPLO DE USO:
+        ```python
+        from fastapi import BackgroundTasks
+        
+        @app.post("/api/analise/iniciar")
+        async def iniciar_analise(request: RequestAnalise, background_tasks: BackgroundTasks):
+            consulta_id = str(uuid.uuid4())
+            
+            # Criar tarefa no gerenciador de estado
+            gerenciador = obter_gerenciador_estado_tarefas()
+            gerenciador.criar_tarefa(consulta_id, request.prompt, request.agentes_selecionados)
+            
+            # Agendar processamento em background
+            orquestrador = obter_orquestrador()
+            background_tasks.add_task(
+                orquestrador._processar_consulta_em_background,
+                consulta_id=consulta_id,
+                prompt=request.prompt,
+                agentes_selecionados=request.agentes_selecionados,
+                advogados_selecionados=request.advogados_selecionados
+            )
+            
+            # Retornar imediatamente
+            return {"consulta_id": consulta_id, "status": "INICIADA"}
+        ```
+        
+        TAREFAS RELACIONADAS:
+        - TAREFA-030: Backend - Refatorar Orquestrador para Background Tasks (ESTE MÉTODO)
+        - TAREFA-031: Backend - Criar Endpoints de Análise Assíncrona (futuro)
+        """
+        # Obter gerenciador de estado
+        gerenciador = obter_gerenciador_estado_tarefas()
+        
+        logger.info(
+            f"🚀 INICIANDO PROCESSAMENTO EM BACKGROUND | "
+            f"ID: {consulta_id} | "
+            f"Prompt: '{prompt[:100]}...'"
+        )
+        
+        try:
+            # Atualizar status para PROCESSANDO
+            gerenciador.atualizar_status(
+                consulta_id,
+                StatusTarefa.PROCESSANDO,
+                etapa="Iniciando análise multi-agent",
+                progresso=0
+            )
+            
+            # Executar processamento principal (método existente)
+            # IMPORTANTE: Passa consulta_id para manter rastreabilidade
+            resultado = await self.processar_consulta(
+                prompt=prompt,
+                agentes_selecionados=agentes_selecionados,
+                id_consulta=consulta_id,
+                metadados_adicionais=metadados_adicionais,
+                documento_ids=documento_ids,
+                advogados_selecionados=advogados_selecionados
+            )
+            
+            # Registrar resultado no gerenciador de estado
+            gerenciador.registrar_resultado(consulta_id, resultado)
+            
+            logger.info(
+                f"✅ PROCESSAMENTO EM BACKGROUND CONCLUÍDO | "
+                f"ID: {consulta_id} | "
+                f"Tempo: {resultado.get('tempo_total_segundos', 0)}s"
+            )
+        
+        except Exception as erro:
+            # Capturar qualquer erro e registrar no gerenciador de estado
+            mensagem_erro = f"Erro durante processamento em background: {str(erro)}"
+            
+            logger.error(
+                f"❌ ERRO NO PROCESSAMENTO EM BACKGROUND | "
+                f"ID: {consulta_id} | "
+                f"Erro: {mensagem_erro}",
+                exc_info=True
+            )
+            
+            # Registrar erro no gerenciador de estado
+            gerenciador.registrar_erro(
+                consulta_id,
+                mensagem_erro,
+                detalhes_erro={
+                    "exception_type": type(erro).__name__,
+                    "exception_message": str(erro)
+                }
+            )
+    
     def obter_status_consulta(self, id_consulta: str) -> Optional[Dict[str, Any]]:
         """
         Obtém o status atual de uma consulta.
@@ -775,11 +920,12 @@ class OrquestradorMultiAgent:
 # FUNÇÕES AUXILIARES
 # ==============================================================================
 
+@lru_cache(maxsize=1)
 def criar_orquestrador(
     timeout_padrao_agente: int = 60
 ) -> OrquestradorMultiAgent:
     """
-    Factory function para criar e configurar um Orquestrador Multi-Agent.
+    Factory function para criar e configurar um Orquestrador Multi-Agent (SINGLETON).
     
     CONTEXTO:
     Esta função centraliza a criação do orquestrador, facilitando:
@@ -787,28 +933,49 @@ def criar_orquestrador(
     2. Configurações padrão
     3. Possibilidade de injeção de dependências no futuro
     
+    NOVIDADE (TAREFA-030):
+    Agora implementa padrão SINGLETON usando @lru_cache(maxsize=1).
+    Isso garante que apenas UMA instância do orquestrador exista em todo
+    o processo Python, compartilhando o gerenciador de estado de tarefas.
+    
+    IMPORTANTE:
+    - Em ambiente com múltiplos workers (uvicorn --workers 4), cada worker
+      terá sua própria instância do singleton
+    - Para compartilhar estado entre workers, migrar GerenciadorEstadoTarefas
+      para Redis ou banco de dados
+    
+    THREAD-SAFETY:
+    O OrquestradorMultiAgent e GerenciadorEstadoTarefas são thread-safe,
+    mas o singleton só funciona dentro do mesmo processo.
+    
     Args:
         timeout_padrao_agente: Timeout em segundos para cada agente (padrão: 60s)
     
     Returns:
-        OrquestradorMultiAgent: Instância configurada
+        OrquestradorMultiAgent: Instância singleton configurada
     
     EXEMPLO:
     ```python
-    # Criar com configurações padrão
-    orquestrador = criar_orquestrador()
+    # Todas as chamadas retornam a MESMA instância
+    orquestrador1 = criar_orquestrador()
+    orquestrador2 = criar_orquestrador()
+    assert orquestrador1 is orquestrador2  # True
     
-    # Criar com timeout customizado
+    # Criar com timeout customizado (apenas na primeira chamada)
     orquestrador = criar_orquestrador(timeout_padrao_agente=120)
     ```
+    
+    TAREFAS RELACIONADAS:
+    - TAREFA-013: Orquestrador Multi-Agent (versão original)
+    - TAREFA-030: Backend - Refatorar para Background Tasks (singleton adicionado)
     """
-    logger.info("🏗️  Criando Orquestrador Multi-Agent via factory...")
+    logger.info("🏗️  Criando Orquestrador Multi-Agent via factory (SINGLETON)...")
     
     orquestrador = OrquestradorMultiAgent(
         timeout_padrao_agente=timeout_padrao_agente
     )
     
-    logger.info("✅ Orquestrador Multi-Agent criado com sucesso")
+    logger.info("✅ Orquestrador Multi-Agent criado com sucesso (instância singleton)")
     
     return orquestrador
 

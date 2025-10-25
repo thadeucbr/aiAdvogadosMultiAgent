@@ -70,33 +70,34 @@
 | **027** | 2025-10-24 | Criar Agente Advogado Especialista - Direito Cível | agente_advogado_civel.py, test_agente_advogado_civel.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-027_agente-advogado-civel.md) |
 | **028** | 2025-10-24 | Criar Agente Advogado Especialista - Direito Tributário | agente_advogado_tributario.py, test_agente_advogado_tributario.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-028_agente-advogado-tributario.md) |
 | **029** | 2025-10-24 | UI de Seleção de Múltiplos Tipos de Agentes | ComponenteSelecionadorAgentes.tsx, armazenamentoAgentes.ts, PaginaAnalise.tsx, tiposAgentes.ts, servicoApiAnalise.ts | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-029_ui-selecao-multiplos-agentes.md) |
+| **030** | 2025-10-24 | Backend - Refatorar Orquestrador para Background Tasks | gerenciador_estado_tarefas.py, orquestrador_multi_agent.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-030_backend-refatorar-orquestrador-background.md) |
 
 ---
 
 ## 🎯 Última Tarefa Concluída
 
-**TAREFA-029** - UI de Seleção de Múltiplos Tipos de Agentes  
+**TAREFA-030** - Backend - Refatorar Orquestrador para Background Tasks  
 **Data:** 2025-10-24  
 **IA:** GitHub Copilot  
 **Status:** ✅ CONCLUÍDA  
-**Resumo:** Implementação completa da **interface de usuário para seleção independente de peritos técnicos e advogados especialistas**. Expandiu a funcionalidade do sistema multi-agent permitindo que usuários selecionem diferentes tipos de agentes simultaneamente, refletindo a arquitetura híbrida implementada nas tarefas anteriores (TAREFA-024 a TAREFA-028). **Principais entregas:** (1) Tipos TypeScript criados para advogados (`InformacaoAdvogado`, `RespostaListarAdvogados`); (2) Função de API `listarAdvogadosDisponiveis()` para consultar advogados especialistas; (3) Store Zustand completamente refatorado com listas separadas (`peritosSelecionados`, `advogadosSelecionados`) e ações duplicadas para cada tipo (10 ações totais); (4) `ComponenteSelecionadorAgentes` completamente refatorado com duas seções visuais independentes: "🔬 Peritos Técnicos" (Médico, Segurança do Trabalho) e "⚖️ Advogados Especialistas" (Trabalhista, Previdenciário, Cível, Tributário); (5) `PaginaAnalise` atualizada para enviar ambas as listas na requisição de análise; (6) Interface `RequestAnaliseMultiAgent` atualizada com campos `peritos_selecionados` (obrigatório) e `advogados_selecionados` (opcional). **Funcionalidades:** Busca paralela de peritos e advogados via API, loading states separados, validação combinada (pelo menos 1 agente total), botões de ação global (Selecionar Todos, Limpar), checkboxes independentes por tipo. **Compatibilidade:** Mantida com TAREFA-023 (seleção de documentos específicos). **Fluxo completo:** Usuário visualiza duas seções → seleciona peritos e/ou advogados → digita prompt → clica "Analisar com X Agente(s)" → backend processa com agentes selecionados → exibe pareceres individuais + resposta compilada. **Arquivos modificados:** 5 principais (tiposAgentes.ts, servicoApiAnalise.ts, armazenamentoAgentes.ts, ComponenteSelecionadorAgentes.tsx, PaginaAnalise.tsx). **PRÓXIMA TAREFA:** TAREFA-030 (a definir no ROADMAP) - possíveis melhorias: testes automatizados (unit, integration, E2E), acessibilidade (ARIA labels, navegação por teclado), performance (lazy loading, virtualização), UX (filtros/busca, agrupamento por categoria). **MARCO:** 🎉 Interface de seleção multi-agent completa! Usuários agora podem combinar livremente peritos técnicos e advogados especialistas para análises personalizadas, aproveitando a expertise de até 6 agentes simultaneamente (2 peritos + 4 advogados)!
+**Resumo:** Refatoração arquitetural do **OrquestradorMultiAgent** para suportar **processamento assíncrono em background**, resolvendo o problema crítico de **TIMEOUT** em análises longas (>2 minutos). **Principais entregas:** (1) **GerenciadorEstadoTarefas** - Novo módulo singleton thread-safe para gerenciar estado de tarefas assíncronas com métodos: criar_tarefa, atualizar_status, obter_tarefa, registrar_resultado, registrar_erro; (2) **Método _processar_consulta_em_background** - Wrapper assíncrono que executa processar_consulta() existente e atualiza gerenciador de estado (sucesso ou erro); (3) **Padrão Singleton** - criar_orquestrador() agora usa @lru_cache(maxsize=1) para garantir instância única compartilhada; (4) **Thread-Safety** - Todas operações usam threading.Lock para garantir atomicidade; (5) **Enum StatusTarefa** - 4 estados simplificados (INICIADA, PROCESSANDO, CONCLUIDA, ERRO) vs StatusConsulta (7 estados internos); (6) **DataClass Tarefa** - Estrutura completa com consulta_id, status, prompt, agentes, progresso_percentual (0-100), etapa_atual, resultado, mensagem_erro, timestamps; (7) **Armazenamento em memória** - Dicionário thread-safe (futuro: migrar para Redis em produção). **Arquitetura:** Fluxo assíncrono: Frontend POST /iniciar → Backend cria tarefa e retorna UUID imediatamente → Backend processa em background via BackgroundTasks → Frontend faz polling GET /status/{id} a cada 3s → GET /resultado/{id} quando CONCLUIDA. **Problema resolvido:** Análises com múltiplos agentes (RAG 5-10s + Peritos 15-30s + Advogados 15-30s + Compilação 10-20s = 2-5 minutos) causavam timeout HTTP. Agora sem limite de tempo, com feedback de progresso em tempo real. **Métodos do gerenciador:** criar_tarefa (registra nova análise), atualizar_status (atualiza etapa/progresso), registrar_resultado (marca CONCLUIDA), registrar_erro (marca ERRO), obter_tarefa (consulta por ID), listar_tarefas (debug/admin), obter_estatisticas (monitoring). **Integração futura:** Base completa para TAREFA-031 (endpoints POST /iniciar, GET /status, GET /resultado), TAREFA-032 (serviço API frontend), TAREFA-033 (polling com setInterval). **Arquivos modificados:** 2 principais (gerenciador_estado_tarefas.py CRIADO ~850 linhas, orquestrador_multi_agent.py MODIFICADO +~150 linhas). **Decisões arquiteturais:** (1) Dicionário em memória (não Redis) para simplicidade em MVP; (2) Singleton via lru_cache para compartilhar estado; (3) Wrapper sem duplicação de código; (4) StatusTarefa separado (API) vs StatusConsulta (interno); (5) Thread-safety com locks e double-checked locking. **PRÓXIMA TAREFA:** TAREFA-031 (criar endpoints assíncronos de API REST). **MARCO:** 🎉 Arquitetura assíncrona implementada! Sistema agora suporta análises de QUALQUER duração sem risco de timeout HTTP, preparado para fornecer feedback de progresso em tempo real.
 
 ---
 
 ## 🚀 Próxima Tarefa Sugerida
 
-**TAREFA-030:** Testes Unitários do Frontend (Componentes de Análise)
+**TAREFA-031:** Backend - Criar Endpoints de Análise Assíncrona
 
 **Escopo:**
-- Criar testes unitários para `ComponenteSelecionadorAgentes.tsx`
-- Criar testes unitários para `ComponenteSelecionadorDocumentos.tsx`
-- Criar testes unitários para `PaginaAnalise.tsx`
-- Criar testes unitários para o store `armazenamentoAgentes.ts`
-- Configurar ambiente de testes (Vitest + Testing Library)
-- Criar mocks para chamadas de API
-- Garantir cobertura mínima de 80%
+- Criar `POST /api/analise/iniciar` (retorna consulta_id imediatamente)
+- Criar `GET /api/analise/status/{consulta_id}` (polling de status)
+- Criar `GET /api/analise/resultado/{consulta_id}` (obtém resultado quando concluída)
+- Deprecar (mas manter) `POST /api/analise/multi-agent` síncrono para compatibilidade
+- Atualizar modelos Pydantic (`RequestIniciarAnalise`, `RespostaStatus`, etc.)
+- Atualizar `ARQUITETURA.md` com novos endpoints
+- Usar `BackgroundTasks` do FastAPI para processamento assíncrono
 
-**Objetivo:** Garantir qualidade e confiabilidade dos componentes críticos da interface de análise multi-agent através de testes automatizados.
+**Objetivo:** Implementar API REST completa para fluxo de análise assíncrono, eliminando timeouts e permitindo feedback de progresso em tempo real.
 
 ---
 

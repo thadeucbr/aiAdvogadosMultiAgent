@@ -52,8 +52,10 @@ Aqui está o **Roadmap v2.0** atualizado:
 - ✅ TAREFA-026: Criar Agente Advogado Especialista - Direito Previdenciário
 - ✅ TAREFA-027: Criar Agente Advogado Especialista - Direito Cível
 - ✅ TAREFA-028: Criar Agente Advogado Especialista - Direito Tributário
+- ✅ TAREFA-029: Atualizar UI para Seleção de Múltiplos Agentes
+- ✅ TAREFA-030: Backend - Refatorar Orquestrador para Background Tasks
 
-**Próximo passo:** TAREFA-029 (Atualizar UI para Seleção de Múltiplos Agentes)
+**Próximo passo:** TAREFA-031 (Backend - Criar Endpoints de Análise Assíncrona)
 
 ---
 
@@ -282,13 +284,137 @@ Aqui está o **Roadmap v2.0** atualizado:
 
 ---
 
-### 🔵 FASE 5: MELHORIAS E OTIMIZAÇÕES (TAREFAS 030-034)
+### 🔵 FASE 5: REARQUITETURA - FLUXO DE ANÁLISE ASSÍNCRONO (TAREFAS 030-034)
 
-**Objetivo:** Polimento e features avançadas (anterior FASE 5)
+**Objetivo:** Migrar o processo de análise de síncrono (request/response) para assíncrono (polling) para eliminar o risco de timeouts da API.
+
+**Contexto:** Análises com múltiplos agentes podem exceder 2 minutos, causando timeout HTTP. A arquitetura assíncrona resolve isso permitindo que o frontend faça polling do status.
 
 ---
 
-#### 🟡 TAREFA-030: Sistema de Logging Completo
+#### 🟡 TAREFA-030: Backend - Refatorar Orquestrador para Background Tasks
+**Prioridade:** 🔴 CRÍTICA  
+**Dependências:** TAREFA-013, TAREFA-024  
+**Estimativa:** 4-5 horas  
+**Status:** 🟡 PENDENTE
+
+**Escopo:**
+- [ ] Criar um gerenciador de estado de tarefas (ex: um dicionário em memória ou cache Redis simples) para armazenar `(consulta_id, {status, resultado})`.
+- [ ] Refatorar `backend/src/agentes/orquestrador_multi_agent.py`:
+  - [ ] Manter o método `processar_consulta` (TAREFA-013) como `async`.
+  - [ ] Criar um novo método wrapper (ex: `_processar_consulta_em_background`) que será executado pela `BackgroundTask` do FastAPI.
+  - [ ] Este wrapper deve chamar o `processar_consulta` original e, ao final, atualizar o gerenciador de estado com o resultado ou o erro.
+- [ ] Garantir que o `OrquestradorMultiAgent` seja instanciado como um singleton (ex: via `lru_cache` ou dependência do FastAPI) para que o gerenciador de estado seja compartilhado.
+
+**Entregáveis:**
+- Orquestrador capaz de executar a análise em background e armazenar o resultado.
+
+---
+
+#### 🟡 TAREFA-031: Backend - Criar Endpoints de Análise Assíncrona
+**Prioridade:** 🔴 CRÍTICA  
+**Dependências:** TAREFA-030  
+**Estimativa:** 3-4 horas  
+**Status:** 🟡 PENDENTE
+
+**Escopo:**
+- [ ] Em `backend/src/api/rotas_analise.py`:
+  - [ ] DEPRECIAR (mas manter por enquanto) o endpoint síncrono `POST /api/analise/multi-agent` (TAREFA-014).
+  - [ ] **CRIAR** `POST /api/analise/iniciar`:
+    - [ ] Recebe o mesmo body da TAREFA-014/022/029 (prompt, agentes, documentos).
+    - [ ] Gera um `consulta_id` (UUID).
+    - [ ] Inicia a `_processar_consulta_em_background` (da TAREFA-030) usando `BackgroundTasks` do FastAPI.
+    - [ ] Retorna imediatamente um JSON: `{ "consulta_id": "...", "status": "INICIADA" }`.
+  - [ ] **CRIAR** `GET /api/analise/status/{consulta_id}`:
+    - [ ] Consulta o gerenciador de estado.
+    - [ ] Retorna JSON: `{ "consulta_id": "...", "status": "PROCESSANDO | CONCLUIDA | ERRO", "progresso": "..." }`.
+  - [ ] **CRIAR** `GET /api/analise/resultado/{consulta_id}`:
+    - [ ] Consulta o gerenciador de estado.
+    - [ ] Se o status for `"CONCLUIDA"`, retorna o JSON completo da análise (o mesmo que o endpoint síncrono retornava).
+    - [ ] Se for `"ERRO"`, retorna a mensagem de erro.
+    - [ ] Se for `"PROCESSANDO"`, retorna um erro 425 (Too Early) ou JSON com status processando.
+- [ ] Atualizar `ARQUITETURA.md` com os novos endpoints.
+
+**Entregáveis:**
+- API REST completa para fluxo de análise assíncrono.
+
+---
+
+#### 🟡 TAREFA-032: Frontend - Refatorar Serviço de API de Análise
+**Prioridade:** 🔴 CRÍTICA  
+**Dependências:** TAREFA-031  
+**Estimativa:** 2-3 horas  
+**Status:** 🟡 PENDENTE
+
+**Escopo:**
+- [ ] Em `frontend/src/servicos/servicoApiAnalise.ts`:
+  - [ ] MANTER `realizarAnaliseMultiAgent` por compatibilidade, mas marcá-la como `@deprecated`.
+  - [ ] Remover o timeout de 120s da configuração do Axios.
+  - [ ] **CRIAR** `iniciarAnalise(requestBody) -> Promise<{ consulta_id: string }>`:
+    - [ ] Faz `POST /api/analise/iniciar`.
+  - [ ] **CRIAR** `verificarStatusAnalise(consulta_id) -> Promise<{ status: string, progresso?: string }>`:
+    - [ ] Faz `GET /api/analise/status/{consulta_id}`.
+  - [ ] **CRIAR** `obterResultadoAnalise(consulta_id) -> Promise<ResultadoAnalise>`:
+    - [ ] Faz `GET /api/analise/resultado/{consulta_id}`.
+- [ ] Atualizar `frontend/src/tipos/tiposAgentes.ts` com os novos tipos de status (`StatusAnalise = 'INICIADA' | 'PROCESSANDO' | 'CONCLUIDA' | 'ERRO'`).
+
+**Entregáveis:**
+- Serviço de API do frontend atualizado para o fluxo assíncrono.
+
+---
+
+#### 🟡 TAREFA-033: Frontend - Implementar Polling na Página de Análise
+**Prioridade:** 🔴 CRÍTICA  
+**Dependências:** TAREFA-029, TAREFA-032  
+**Estimativa:** 4-5 horas  
+**Status:** 🟡 PENDENTE
+
+**Escopo:**
+- [ ] Refatorar `frontend/src/paginas/PaginaAnalise.tsx` (TAREFA-019):
+  - [ ] Ao clicar em "Analisar":
+    - [ ] Chamar `iniciarAnalise()`.
+    - [ ] Mudar a UI para o estado de "Processando" (mostrar spinner, desabilitar botões).
+    - [ ] Armazenar o `consulta_id` no estado.
+    - [ ] Iniciar um mecanismo de polling (ex: `setInterval` ou `useInterval` hook) para chamar `verificarStatusAnalise()` a cada 2-3 segundos.
+  - [ ] **Lógica do Polling:**
+    - [ ] Se `status === "PROCESSANDO"`, continuar o polling (exibir `progresso` se disponível).
+    - [ ] Se `status === "ERRO"`, parar o polling e exibir a mensagem de erro.
+    - [ ] Se `status === "CONCLUIDA"`:
+      - [ ] Parar o polling (limpar o intervalo).
+      - [ ] Chamar `obterResultadoAnalise()`.
+      - [ ] Exibir os resultados (usando o `ComponenteExibicaoPareceres` já existente).
+  - [ ] Garantir que o polling seja limpo (`cleared`) se o usuário navegar para fora da página (ex: `useEffect` cleanup).
+
+**Entregáveis:**
+- UI que não trava e busca ativamente o resultado, eliminando timeouts.
+
+---
+
+#### 🟡 TAREFA-034: Frontend - Feedback de Progresso (Opcional, mas Recomendado)
+**Prioridade:** 🟢 MÉDIA  
+**Dependências:** TAREFA-033  
+**Estimativa:** 2-3 horas  
+**Status:** 🟡 PENDENTE
+
+**Escopo:**
+- [ ] **Backend:** Modificar o endpoint `GET /api/analise/status/{consulta_id}` para retornar mais detalhes (ex: `{ status: "PROCESSANDO", etapa_atual: "Analisando com Perito Médico", progresso_percentual: 50 }`).
+- [ ] **Backend:** O `_processar_consulta_em_background` (TAREFA-030) deve atualizar o gerenciador de estado em cada etapa (RAG, Perito 1, Advogado 1, Compilação).
+- [ ] **Frontend:** A `PaginaAnalise.tsx` (TAREFA-033) deve exibir a `etapa_atual` e barra de progresso na UI de loading (ex: "Processando... Etapa: Analisando com Perito Médico [50%]").
+
+**Entregáveis:**
+- Melhoria de UX significativa, mostrando ao usuário o progresso da análise em tempo real.
+
+**Marco:** 🎉 **REARQUITETURA ASSÍNCRONA COMPLETA** - Risco de timeout eliminado, análises podem demorar quanto necessário.
+
+---
+
+### 🔵 FASE 6: MELHORIAS E OTIMIZAÇÕES (TAREFAS 035-039)
+
+**Objetivo:** Polimento e features avançadas
+
+---
+
+#### 🟡 TAREFA-035: Sistema de Logging Completo
 **Prioridade:** 🟡 ALTA  
 **Dependências:** TAREFA-014  
 **Estimativa:** 2-3 horas  
@@ -305,7 +431,7 @@ Aqui está o **Roadmap v2.0** atualizado:
 
 ---
 
-#### 🟡 TAREFA-031: Cache de Embeddings e Respostas
+#### 🟡 TAREFA-036: Cache de Embeddings e Respostas
 **Prioridade:** 🟢 MÉDIA  
 **Dependências:** TAREFA-014  
 **Estimativa:** 2-3 horas  
@@ -320,7 +446,7 @@ Aqui está o **Roadmap v2.0** atualizado:
 
 ---
 
-#### 🟡 TAREFA-032: Autenticação e Autorização (JWT)
+#### 🟡 TAREFA-037: Autenticação e Autorização (JWT)
 **Prioridade:** 🟢 MÉDIA  
 **Dependências:** TAREFA-014  
 **Estimativa:** 4-5 horas  
@@ -337,9 +463,9 @@ Aqui está o **Roadmap v2.0** atualizado:
 
 ---
 
-#### 🟡 TAREFA-033: Melhorias de Performance
+#### 🟡 TAREFA-038: Melhorias de Performance
 **Prioridade:** 🟢 MÉDIA  
-**Dependências:** TAREFA-031  
+**Dependências:** TAREFA-036  
 **Estimativa:** 3-4 horas  
 **Status:** 🟡 PENDENTE
 
@@ -353,7 +479,7 @@ Aqui está o **Roadmap v2.0** atualizado:
 
 ---
 
-#### 🟡 TAREFA-034: Documentação de Usuário Final
+#### 🟡 TAREFA-039: Documentação de Usuário Final
 **Prioridade:** 🟢 MÉDIA  
 **Dependências:** TAREFA-029  
 **Estimativa:** 2-3 horas  
@@ -368,37 +494,39 @@ Aqui está o **Roadmap v2.0** atualizado:
 
 ---
 
-### 🔵 FASE 6: DEPLOY E INFRAESTRUTURA (TAREFAS 035-037)
+### 🔵 FASE 7: DEPLOY E INFRAESTRUTURA (TAREFAS 040-042)
 
-**Objetivo:** Colocar sistema em produção (anterior FASE 6)
+**Objetivo:** Colocar sistema em produção
 
 ---
 
-#### 🟡 TAREFA-035: Dockerização
+#### 🟡 TAREFA-040: Dockerização Completa
 **Prioridade:** 🟡 ALTA  
 **Dependências:** TAREFA-014, TAREFA-021  
 **Estimativa:** 3-4 horas  
 **Status:** 🟡 PENDENTE
+**Nota:** TAREFA-005A já fez dockerização básica, esta tarefa complementa para produção.
 
 **Escopo:**
-- [ ] Criar `backend/Dockerfile` (multi-stage, incluir Tesseract).
-- [ ] Criar `frontend/Dockerfile` (build de produção otimizado).
-- [ ] Criar `docker-compose.yml` (backend, frontend, ChromaDB persistente).
+- [ ] Otimizar `backend/Dockerfile` existente (multi-stage build, reduzir tamanho da imagem).
+- [ ] Criar `frontend/Dockerfile` (build de produção otimizado com nginx).
+- [ ] Atualizar `docker-compose.yml` para incluir frontend e configuração de produção.
+- [ ] Garantir persistência do ChromaDB entre restarts.
 
 **Entregáveis:**
-- Aplicação completamente dockerizada.
+- Aplicação completamente dockerizada e pronta para produção.
 
 ---
 
-#### 🟡 TAREFA-036: CI/CD (GitHub Actions)
+#### 🟡 TAREFA-041: CI/CD (GitHub Actions)
 **Prioridade:** 🟡 ALTA  
-**Dependências:** TAREFA-035  
+**Dependências:** TAREFA-040  
 **Estimativa:** 2-3 horas  
 **Status:** 🟡 PENDENTE
 
 **Escopo:**
-- [ ] Criar `.github/workflows/backend-ci.yml` (Rodar lint).
-- [ ] Criar `.github/workflows/frontend-ci.yml` (Rodar build e lint).
+- [ ] Criar `.github/workflows/backend-ci.yml` (Rodar lint com flake8/black).
+- [ ] Criar `.github/workflows/frontend-ci.yml` (Rodar build e lint com ESLint).
 - [ ] (Opcional) Deploy automático em staging.
 
 **Entregáveis:**
@@ -406,9 +534,9 @@ Aqui está o **Roadmap v2.0** atualizado:
 
 ---
 
-#### 🟡 TAREFA-037: Deploy em Produção
+#### 🟡 TAREFA-042: Deploy em Produção
 **Prioridade:** 🟢 MÉDIA  
-**Dependências:** TAREFA-036  
+**Dependências:** TAREFA-041  
 **Estimativa:** 4-5 horas  
 **Status:** 🟡 PENDENTE
 
@@ -423,6 +551,7 @@ Aqui está o **Roadmap v2.0** atualizado:
 
 **Marco:** 🎉 **PROJETO COMPLETO EM PRODUÇÃO!**
 
+
 ---
 
 ## 📊 ESTIMATIVAS GLOBAIS
@@ -435,10 +564,11 @@ Aqui está o **Roadmap v2.0** atualizado:
 | **FASE 2: Multi-Agent** | 009-014 (6 tarefas) | 14-20 horas | ✅ CONCLUÍDA |
 | **FASE 3: Frontend** | 015-021 (7 tarefas) | 17-24 horas | ✅ CONCLUÍDA |
 | **FASE 4: Expansão** | 022-029 (8 tarefas) | 19-27 horas | 🔴 CRÍTICA |
-| **FASE 5: Melhorias** | 030-034 (5 tarefas) | 13-18 horas | 🟢 MÉDIA |
-| **FASE 6: Deploy** | 035-037 (3 tarefas) | 9-12 horas | 🟡 ALTA |
+| **FASE 5: Rearquitetura** | 030-034 (5 tarefas) | 15-19 horas | 🔴 CRÍTICA |
+| **FASE 6: Melhorias** | 035-039 (5 tarefas) | 13-18 horas | 🟢 MÉDIA |
+| **FASE 7: Deploy** | 040-042 (3 tarefas) | 9-12 horas | 🟡 ALTA |
 
-**TOTAL:** 37 tarefas | **87-122 horas** (~3-4 meses em tempo parcial)
+**TOTAL:** 42 tarefas | **102-141 horas** (~3-5 meses em tempo parcial)
 
 ---
 
@@ -448,8 +578,9 @@ Aqui está o **Roadmap v2.0** atualizado:
 2. **✅ FLUXO 1 OPERACIONAL** (TAREFA-008) - Upload e processamento funcionando
 3. **✅ FLUXO 2 OPERACIONAL** (TAREFA-014) - Análise multi-agent (v1.0) funcionando
 4. **✅ INTERFACE COMPLETA** (TAREFA-021) - Frontend (v1.0) funcional
-5. **🎉 EXPANSÃO V2 COMPLETA** (TAREFA-029) - Seleção de contexto e advogados especialistas
-6. **🎉 SISTEMA EM PRODUÇÃO** (TAREFA-037) - Disponível publicamente
+5. **� EXPANSÃO V2 COMPLETA** (TAREFA-029) - Seleção de contexto e advogados especialistas
+6. **🔴 REARQUITETURA ASSÍNCRONA** (TAREFA-034) - Sistema robusto com polling (resolve timeouts)
+7. **🎉 SISTEMA EM PRODUÇÃO** (TAREFA-042) - Disponível publicamente
 
 ---
 
@@ -458,24 +589,38 @@ Aqui está o **Roadmap v2.0** atualizado:
 *(Sprints 1-5 omitidos por estarem concluídos)*
 
 ### Sprint 6 (Semanas 11-12): EXPANSÃO (Back-end)
+
 - TAREFA-022: API de Seleção de Documentos
 - TAREFA-024: Refatorar Infra de Agentes
 - TAREFA-025: Agente Advogado Trabalhista
 - TAREFA-026: Agente Advogado Previdenciário
 
 ### Sprint 7 (Semanas 13-14): EXPANSÃO (Front-end)
+
 - TAREFA-023: UI de Seleção de Documentos
 - TAREFA-027: Agente Advogado Cível
 - TAREFA-028: Agente Advogado Tributário
 - TAREFA-029: UI de Seleção de Múltiplos Agentes
 
-### Sprint 8 (Semanas 15-16): DEPLOY E MELHORIAS
-- TAREFA-030: Logging
-- TAREFA-035: Dockerização
-- TAREFA-036: CI/CD
-- TAREFA-037: Deploy
+### Sprint 8 (Semanas 15-16): REARQUITETURA ASSÍNCRONA (Backend)
 
-*(Tarefas de melhoria (031-034) podem ser intercaladas conforme necessidade)*
+- TAREFA-030: Refatorar Orquestrador para Background Tasks
+- TAREFA-031: Criar Endpoints Assíncronos (/iniciar, /status, /resultado)
+
+### Sprint 9 (Semanas 17-18): REARQUITETURA ASSÍNCRONA (Frontend)
+
+- TAREFA-032: Refatorar Serviço API (polling)
+- TAREFA-033: Implementar Polling na PaginaAnalise
+- TAREFA-034: Feedback de Progresso (opcional)
+
+### Sprint 10 (Semanas 19-20): MELHORIAS E DEPLOY
+
+- TAREFA-035: Sistema de Logging Completo
+- TAREFA-040: Dockerização Completa
+- TAREFA-041: CI/CD (GitHub Actions)
+- TAREFA-042: Deploy em Produção
+
+*(Tarefas de melhorias adicionais (036-039) podem ser intercaladas conforme necessidade)*
 
 ---
 
@@ -498,13 +643,15 @@ Aqui está o **Roadmap v2.0** atualizado:
 ### Riscos Identificados:
 
 1. **Custo OpenAI:** Muitas chamadas de API podem gerar custos altos
-   - Mitigação: Cache (TAREFA-031), limites de uso
+   - Mitigação: Cache (TAREFA-036), limites de uso
 2. **Performance do OCR:** PDFs grandes podem demorar
    - Mitigação: Processamento assíncrono, feedback de progresso
 3. **Qualidade dos pareceres:** LLM pode alucinar
    - Mitigação: Prompts bem estruturados, compilação pelo Agente Coordenador
-4. **Ausência de Testes:** A remoção dos testes aumenta o risco de regressões.
-   - Mitigação: Verificação manual cuidadosa, logging exaustivo (TAREFA-030).
+4. **Timeout em análises longas:** Múltiplos agentes podem exceder 120s (arquitetura síncrona atual)
+   - Mitigação: Rearquitetura assíncrona com polling (FASE 5, TAREFAS 030-034) - **CRÍTICO**
+5. **Ausência de Testes:** A remoção dos testes aumenta o risco de regressões
+   - Mitigação: Verificação manual cuidadosa, logging exaustivo (TAREFA-035)
 
 ---
 
