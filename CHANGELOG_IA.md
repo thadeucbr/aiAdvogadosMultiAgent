@@ -94,12 +94,14 @@
 | **051** | 2025-10-25 | Frontend - Componente de Exibição de Documentos Sugeridos | ComponenteDocumentosSugeridos.tsx, AnalisePeticaoInicial.tsx | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-051_frontend-documentos-sugeridos.md) |
 | **052** | 2025-10-25 | Frontend - Componente de Seleção de Agentes para Petição | ComponenteSelecaoAgentesPeticao.tsx, AnalisePeticaoInicial.tsx | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-052_frontend-selecao-agentes-peticao.md) |
 | **053** | 2025-10-25 | Frontend - Componente de Visualização de Próximos Passos | ComponenteProximosPassos.tsx, AnalisePeticaoInicial.tsx | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-053_frontend-proximos-passos.md) |
+| **054** | 2025-10-25 | Frontend - Componente de Gráfico de Prognóstico | ComponenteGraficoPrognostico.tsx, AnalisePeticaoInicial.tsx | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-054_frontend-grafico-prognostico.md) |
 | **035-039** | 2025-01-26 | Roadmap para Upload Assíncrono (FASE 6) | ROADMAP.md, README.md, CHANGELOG_IA.md | ✅ Concluído | Planejamento |
 
 ---
 
 ## 🎯 Última Tarefa Concluída
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 **TAREFA-053** - Frontend - Componente de Visualização de Próximos Passos
 **Data:** 2025-10-25
@@ -113,6 +115,13 @@
 **Status:** ✅ CONCLUÍDA  
 **Resumo:** Implementado serviço especializado em geração automática de documentos processuais (contestação, recurso, petição intermediária, etc.) usando GPT-4. O serviço recebe o contexto completo de uma análise de petição (pareceres, estratégia, prognóstico) e gera um documento jurídico formal em Markdown, convertido para HTML para preview na interface. **Principais entregas:** (1) **Classe ServicoGeracaoDocumento (750 linhas)** - geração de documentos com GPT-4, prompt engineering otimizado, conversão MD→HTML, extração de sugestões de personalização; (2) **Método gerar_documento_continuacao()** - função principal em 7 etapas: (1) Validar contexto, (2) Determinar tipo de peça, (3) Montar prompt especializado, (4) Chamar GPT-4, (5) Extrair sugestões [PERSONALIZAR: ...], (6) Converter MD→HTML, (7) Retornar DocumentoContinuacao; (3) **Suporte a 6 tipos de peças** - contestação, réplica, recurso, petição intermediária, alegações finais, memoriais; (4) **Prompt engineering específico** - instruções diferentes para cada tipo de peça processual, estrutura jurídica formal; (5) **Sistema de marcação** - [PERSONALIZAR: ...] identifica áreas que advogado deve ajustar manualmente. **Decisões técnicas:** (1) GPT-4 (não GPT-3.5) - documentos jurídicos requerem qualidade superior, (2) Temperatura 0.4 - balance entre criatividade e formalidade, (3) Max tokens 8000 - documentos jurídicos extensos (5-15 páginas), (4) Markdown→HTML - formato editável + preview, (5) Biblioteca 'markdown' v3.5.1 adicionada aos requirements.txt. **Integração:** GerenciadorLLM (TAREFA-009), modelos Pydantic (TAREFA-040), usado por OrquestradorAnalisePeticoes (TAREFA-046). **Métricas:** Tempo de geração 30-60s, tamanho médio 3000-6000 tokens, 5-10 sugestões de personalização por documento. **PRÓXIMA TAREFA:** TAREFA-048 (Backend - Endpoint de Análise Completa Assíncrona). **MARCO:** 🎉 SERVIÇO DE GERAÇÃO DE DOCUMENTOS IMPLEMENTADO! Sistema completo capaz de gerar documentos processuais formais automaticamente com qualidade jurídica superior, pronto para personalização pelo advogado!
 >>>>>>> origin/feature-task-50-petition-upload-component
+=======
+**TAREFA-054** - Frontend - Componente de Gráfico de Prognóstico
+**Data:** 2025-10-25  
+**IA:** Jules
+**Status:** ✅ CONCLUÍDA  
+**Resumo:** Implementado componente React para visualização de prognóstico de processos. Utiliza a biblioteca `recharts` para renderizar um gráfico de pizza (donut chart) responsivo com as probabilidades de cada cenário (ex: Vitória Total, Acordo, Derrota). Apresenta também uma tabela detalhada com valores e prazos estimados para cada cenário, além da recomendação geral da IA. O componente foi integrado na página de resultados da análise de petição (FASE 7), substituindo o placeholder existente e garantindo uma interface clara e intuitiva para o advogado. O mock de dados da página foi atualizado para permitir a correta renderização e verificação do componente. **Principais entregas:** (1) **`ComponenteGraficoPrognostico.tsx`** - componente stateless, documentado e reutilizável; (2) **Integração na `AnalisePeticaoInicial.tsx`**; (3) **Adição da dependência `recharts`**.
+>>>>>>> origin/feature-TASK-54-prognosis-chart
 
 ---
 

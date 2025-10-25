@@ -33,11 +33,13 @@ import { FileText, CheckCircle2, Users, BarChart3, FileCheck } from 'lucide-reac
 import { ComponenteDocumentosSugeridos } from '../componentes/peticao/ComponenteDocumentosSugeridos';
 import { ComponenteSelecaoAgentesPeticao } from '../componentes/peticao/ComponenteSelecaoAgentesPeticao';
 import { ComponenteUploadPeticaoInicial } from '../componentes/peticao/ComponenteUploadPeticaoInicial';
+import { ComponenteGraficoPrognostico } from '../componentes/peticao/ComponenteGraficoPrognostico';
 import type {
   DocumentoSugerido,
   AgentesSelecionados,
   ResultadoAnaliseProcesso,
 } from '../tipos/tiposPeticao';
+import { ComponenteGraficoPrognostico } from '../componentes/peticao/ComponenteGraficoPrognostico';
 
 // ===== TIPOS LOCAIS =====
 
@@ -453,14 +455,51 @@ function EtapaProcessamento({
           onAnaliseConcluida({
             peticao_id: peticaoId,
             proximos_passos: {
-              estrategia_recomendada: 'Estratégia simulada',
+              estrategia_recomendada: 'A estratégia recomendada é focar na negociação de um acordo, mas preparar-se para o litígio se necessário.',
               passos: [],
+              caminhos_alternativos: [],
             },
             prognostico: {
-              cenario_mais_provavel: 'Vitória parcial',
-              cenarios: [],
-              recomendacao_geral: 'Recomendação simulada',
-              fatores_criticos: [],
+              cenario_mais_provavel: 'VITORIA_PARCIAL',
+              recomendacao_geral: 'A análise sugere uma probabilidade moderada de sucesso, com maiores chances de uma vitória parcial. Recomenda-se a coleta de provas adicionais para fortalecer o caso.',
+              fatores_criticos: [
+                'A qualidade da prova testemunhal será determinante.',
+                'A jurisprudência recente sobre casos similares é mista.',
+              ],
+              cenarios: [
+                {
+                  tipo_cenario: 'VITORIA_TOTAL',
+                  probabilidade: 15,
+                  valor_estimado_min: 70000,
+                  valor_estimado_max: 90000,
+                  tempo_estimado_meses: 24,
+                  descricao: 'Ganhos totais, cobrindo todos os pedidos da petição inicial.',
+                },
+                {
+                  tipo_cenario: 'VITORIA_PARCIAL',
+                  probabilidade: 45,
+                  valor_estimado_min: 35000,
+                  valor_estimado_max: 55000,
+                  tempo_estimado_meses: 18,
+                  descricao: 'Ganhos parciais, cobrindo os principais pedidos mas não os secundários.',
+                },
+                {
+                  tipo_cenario: 'ACORDO',
+                  probabilidade: 25,
+                  valor_estimado_min: 25000,
+                  valor_estimado_max: 40000,
+                  tempo_estimado_meses: 9,
+                  descricao: 'Acordo judicial ou extrajudicial antes da sentença final.',
+                },
+                {
+                  tipo_cenario: 'DERROTA_TOTAL',
+                  probabilidade: 15,
+                  valor_estimado_min: 0,
+                  valor_estimado_max: 0,
+                  tempo_estimado_meses: 24,
+                  descricao: 'Perda total da ação, com possível condenação em custas sucumbenciais.',
+                },
+              ],
             },
             pareceres_advogados: {},
             pareceres_peritos: {},
@@ -498,6 +537,7 @@ function EtapaResultados({
   onNovaAnalise: () => void;
 }) {
   return (
+<<<<<<< HEAD
     <div className="space-y-8 py-4">
       <div className="text-center">
         <CheckCircle2 className="w-12 h-12 text-green-600 mx-auto mb-2" />
@@ -526,11 +566,8 @@ function EtapaResultados({
 
         {/* Coluna Lateral (Prognóstico e Documento Gerado) */}
         <div className="space-y-8">
-          {/* Placeholder para TAREFA-054 (Prognóstico) */}
-          <div className="p-6 bg-white rounded-lg shadow-md">
-            <h3 className="text-xl font-semibold text-gray-800">Prognóstico do Processo</h3>
-            <p className="text-gray-600 mt-2">Componente a ser implementado na TAREFA-054.</p>
-          </div>
+          {/* TAREFA-054: Componente de Gráfico de Prognóstico */}
+          <ComponenteGraficoPrognostico prognostico={resultado.prognostico} />
 
           {/* Placeholder para TAREFA-056 (Documento Gerado) */}
           <div className="p-6 bg-white rounded-lg shadow-md">
@@ -542,6 +579,47 @@ function EtapaResultados({
       </div>
 
       <div className="text-center pt-4">
+=======
+    <div className="space-y-8 py-8">
+      <div className="text-center">
+        <CheckCircle2 className="w-16 h-16 text-green-600 mx-auto mb-4" />
+        <h2 className="text-3xl font-bold text-gray-900">
+          Análise Concluída!
+        </h2>
+        <p className="text-gray-600 mt-2">
+          Abaixo estão os resultados detalhados da análise multi-agent.
+        </p>
+      </div>
+
+      {/* Container para os componentes de resultado */}
+      <div className="space-y-12">
+        {/* Placeholder para Próximos Passos (TAREFA-053) */}
+        <div className="p-6 bg-gray-50 rounded-lg border">
+          <h3 className="text-xl font-semibold text-center text-gray-700">
+            [Placeholder: Componente de Próximos Passos - TAREFA-053]
+          </h3>
+        </div>
+
+        {/* Componente de Prognóstico */}
+        <ComponenteGraficoPrognostico prognostico={resultado.prognostico} />
+
+        {/* Placeholder para Pareceres (TAREFA-055) */}
+        <div className="p-6 bg-gray-50 rounded-lg border">
+          <h3 className="text-xl font-semibold text-center text-gray-700">
+            [Placeholder: Componente de Pareceres Individualizados - TAREFA-055]
+          </h3>
+        </div>
+
+        {/* Placeholder para Documento de Continuação (TAREFA-056) */}
+        <div className="p-6 bg-gray-50 rounded-lg border">
+          <h3 className="text-xl font-semibold text-center text-gray-700">
+            [Placeholder: Componente de Documento de Continuação - TAREFA-056]
+          </h3>
+        </div>
+      </div>
+
+      <div className="text-center pt-6">
+>>>>>>> origin/feature-TASK-54-prognosis-chart
         <button onClick={onNovaAnalise} className="btn btn-primary">
           Iniciar Nova Análise
         </button>
