@@ -77,8 +77,10 @@ Aqui está o **Roadmap v2.0** atualizado:
 - ✅ TAREFA-051: Frontend - Componente de Exibição de Documentos Sugeridos
 - ✅ TAREFA-052: Frontend - Componente de Seleção de Agentes para Petição
 - ✅ TAREFA-053: Frontend - Componente de Próximos Passos Estratégicos
+- ✅ TAREFA-054: Frontend - Componente de Gráfico de Prognóstico
+- ✅ TAREFA-055: Frontend - Componente de Pareceres Individualizados
 
-**Próximo passo:** TAREFA-055 (Frontend - Componente de Pareceres Individualizados)
+**Próximo passo:** TAREFA-056 (Frontend - Componente de Documento de Continuação)
 
 ---
 
@@ -441,7 +443,7 @@ Esta é uma nova funcionalidade estratégica que diferencia o produto. O fluxo �
 - TAREFA-052: Componente de seleção de agentes (advogados + peritos)
 - TAREFA-053: Componente de próximos passos (timeline estratégica)
 - ✅ TAREFA-054: Componente de gráfico de prognóstico (pizza + tabela)
-- TAREFA-055: Componente de pareceres individualizados (boxes separados)
+- ✅ TAREFA-055: Componente de pareceres individualizados (boxes separados)
 - TAREFA-056: Componente de documento de continuação gerado
 
 **Estimativa Total:** 52-65 horas (6-8 semanas em tempo parcial)
@@ -1058,45 +1060,51 @@ Esta é uma nova funcionalidade estratégica que diferencia o produto. O fluxo �
 
 ---
 
-#### 🟡 TAREFA-055: Frontend - Componente de Pareceres Individualizados
+#### ✅ TAREFA-055: Frontend - Componente de Pareceres Individualizados
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-049, TAREFA-048 (Resultado Backend)  
 **Estimativa:** 3-4 horas  
-**Status:** 🟡 PENDENTE
+**Status:** ✅ CONCLUÍDA
 
 **Escopo:**
-- [ ] Criar `frontend/src/componentes/peticao/ComponentePareceresIndividualizados.tsx`:
-  - [ ] Recebe `pareceres_advogados` e `pareceres_peritos` como props
-  - [ ] Layout em grid responsivo (2 colunas em desktop, 1 em mobile)
-  - [ ] **Seção "Pareceres Jurídicos"**:
-    - [ ] 1 card por advogado especialista
-    - [ ] Cada card contém:
-      - [ ] Título: Tipo de advogado (ex: "Advogado Trabalhista")
-      - [ ] Ícone distintivo (balança, martelo, etc.)
-      - [ ] Análise jurídica (texto longo, bem formatado)
-      - [ ] Fundamentos legais (lista de artigos/leis citados)
-      - [ ] Riscos identificados (lista com ícones de alerta)
-      - [ ] Recomendações (lista com checkmarks)
-    - [ ] Expansível/Colapsável se muito longo
-  - [ ] **Seção "Pareceres Técnicos"**:
-    - [ ] 1 card por perito
-    - [ ] Cada card contém:
-      - [ ] Título: Tipo de perito (ex: "Perito Médico")
-      - [ ] Ícone distintivo (estetoscópio, capacete, etc.)
-      - [ ] Análise técnica (texto longo)
-      - [ ] Conclusões (lista destacada)
-      - [ ] Recomendações técnicas (lista)
-    - [ ] Expansível/Colapsável
-  - [ ] Cards visualmente distintos (cores/bordas diferentes para advogados vs peritos)
-  - [ ] Formatação de texto rica (negrito, listas, citações)
+- [x] Criar `frontend/src/componentes/peticao/ComponentePareceresIndividualizados.tsx`:
+  - [x] Recebe `pareceres_advogados` e `pareceres_peritos` como props
+  - [x] Layout em grid responsivo (2 colunas em desktop, 1 em mobile)
+  - [x] **Seção "Pareceres Jurídicos"**:
+    - [x] 1 card por advogado especialista
+    - [x] Cada card contém:
+      - [x] Título: Tipo de advogado (ex: "Advogado Trabalhista")
+      - [x] Ícone distintivo (balança, martelo, etc.)
+      - [x] Análise jurídica (texto longo, bem formatado)
+      - [x] Fundamentos legais (lista de artigos/leis citados)
+      - [x] Riscos identificados (lista com ícones de alerta)
+      - [x] Recomendações (lista com checkmarks)
+    - [x] Expansível/Colapsável se muito longo (>500 caracteres)
+  - [x] **Seção "Pareceres Técnicos"**:
+    - [x] 1 card por perito
+    - [x] Cada card contém:
+      - [x] Título: Tipo de perito (ex: "Perito Médico")
+      - [x] Ícone distintivo (estetoscópio, capacete, etc.)
+      - [x] Análise técnica (texto longo)
+      - [x] Conclusões (lista destacada)
+      - [x] Recomendações técnicas (lista)
+    - [x] Expansível/Colapsável
+  - [x] Cards visualmente distintos (cores/bordas diferentes para advogados vs peritos)
+  - [x] Formatação de texto rica (negrito, listas, citações)
+- [x] Integrar em `AnalisePeticaoInicial.tsx` (substituir placeholder da Etapa 5, Seção 3)
 
 **Entregáveis:**
-- Componente de pareceres individualizados por agente
-- 1 box/card por advogado especialista
-- 1 box/card por perito
-- Formatação rica e profissional
-- Layout responsivo
-- Changelog completo: `changelogs/TAREFA-055_frontend-pareceres-individualizados.md`
+- ✅ Componente de pareceres individualizados por agente (600 linhas)
+- ✅ 1 box/card por advogado especialista (4 tipos: trabalhista, previdenciario, civel, tributario)
+- ✅ 1 box/card por perito (2 tipos: medico, seguranca_trabalho)
+- ✅ Formatação rica e profissional (listas, cards destacados, ícones)
+- ✅ Layout responsivo (grid 2 colunas desktop, 1 mobile)
+- ✅ Sistema de expansão para análises longas (trunca em 500 caracteres)
+- ✅ Metadados visuais (cores e ícones personalizados por tipo)
+- ✅ Fallback para tipos desconhecidos (cor cinza genérica)
+- ✅ Changelog completo: `changelogs/TAREFA-055_frontend-pareceres-individualizados.md`
+
+**Marco:** 🎉 **TERCEIRA SEÇÃO DA ETAPA 5 COMPLETA** - Pareceres individualizados implementados com visualização profissional, diferenciação clara entre advogados e peritos, formatação rica (listas, cards destacados), sistema de expansão para conteúdo longo.
 
 ---
 
