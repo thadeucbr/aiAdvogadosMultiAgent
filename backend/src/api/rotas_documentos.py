@@ -47,7 +47,10 @@ from src.api.modelos import (
     StatusDocumento,
     RespostaListarDocumentos,
     RespostaDeletarDocumento,
-    ResultadoProcessamentoDocumento
+    ResultadoProcessamentoDocumento,
+    RespostaIniciarUpload,
+    RespostaStatusUpload,
+    RespostaResultadoUpload
 )
 
 # Importar configurações
@@ -56,6 +59,7 @@ from src.configuracao.configuracoes import obter_configuracoes
 # Importar serviços
 from src.servicos import servico_ingestao_documentos
 from src.servicos import servico_banco_vetorial
+from src.servicos.gerenciador_estado_uploads import obter_gerenciador_estado_uploads
 
 
 # ===== CONFIGURAÇÃO DO ROUTER =====
@@ -1029,6 +1033,503 @@ async def endpoint_deletar_documento(documento_id: str) -> RespostaDeletarDocume
             detail=f"Erro ao deletar documento: {str(erro)}"
         )
 
+
+# ===== ENDPOINTS DE UPLOAD ASSÍNCRONO (TAREFA-036) =====
+
+@router.post(
+    "/iniciar-upload",
+    response_model=RespostaIniciarUpload,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Iniciar upload assíncrono de documento",
+    description="""
+    Inicia o processamento assíncrono de upload de um documento.
+    
+    **DIFERENÇA DO ENDPOINT SÍNCRONO (/upload):**
+    - Este endpoint retorna IMEDIATAMENTE (<100ms) com um upload_id
+    - O processamento ocorre em background (sem bloquear a requisição)
+    - Cliente usa upload_id para fazer polling do progresso
+    
+    **BENEFÍCIOS:**
+    - Zero timeouts HTTP (mesmo para arquivos grandes ou OCR demorado)
+    - Suporte a múltiplos uploads simultâneos
+    - Feedback de progresso em tempo real (0-100%)
+    - UI responsiva (não trava durante upload)
+    
+    **FLUXO:**
+    1. Cliente faz POST /iniciar-upload com arquivo
+    2. Backend valida tipo e tamanho
+    3. Backend salva arquivo temporariamente
+    4. Backend gera upload_id (UUID)
+    5. Backend agenda processamento em background
+    6. Backend retorna upload_id IMEDIATAMENTE (202 Accepted)
+    7. Cliente usa GET /status-upload/{upload_id} para acompanhar progresso
+    8. Quando status = CONCLUIDO, cliente usa GET /resultado-upload/{upload_id}
+    
+    **Tipos de arquivo aceitos:**
+    - PDF (.pdf): Documentos em formato PDF (texto ou escaneado)
+    - DOCX (.docx): Documentos do Microsoft Word
+    - Imagens (.png, .jpg, .jpeg): Documentos escaneados
+    
+    **Validações aplicadas:**
+    - Tamanho máximo: 50MB (configurável)
+    - Apenas extensões permitidas
+    
+    **Etapas de Processamento (acompanhe via polling):**
+    1. Salvando arquivo (0-10%)
+    2. Detectando tipo (10-15%)
+    3. Extraindo texto (15-30%)
+    4. OCR se necessário (30-60%)
+    5. Chunking (60-70%)
+    6. Gerando embeddings (70-90%)
+    7. Salvando no ChromaDB (90-100%)
+    """
+)
+async def endpoint_iniciar_upload_assincrono(
+    arquivo: UploadFile = File(
+        ...,
+        description="Arquivo a fazer upload (um documento por requisição)"
+    ),
+    background_tasks: BackgroundTasks = BackgroundTasks()
+) -> RespostaIniciarUpload:
+    """
+    Endpoint para iniciar upload assíncrono de documento.
+    
+    CONTEXTO DE NEGÓCIO (TAREFA-036):
+    Este endpoint implementa o padrão assíncrono de upload, similar ao padrão
+    implementado para análise multi-agent (TAREFAS 030-034). Elimina timeouts
+    HTTP e permite feedback de progresso em tempo real.
+    
+    PADRÃO ASSÍNCRONO:
+    1. Validar arquivo (tipo e tamanho)
+    2. Salvar arquivo temporariamente
+    3. Gerar upload_id (UUID)
+    4. Criar registro no GerenciadorEstadoUploads (status: INICIADO)
+    5. Agendar processamento em background via BackgroundTasks
+    6. Retornar upload_id imediatamente (202 Accepted)
+    
+    PROCESSAMENTO EM BACKGROUND:
+    - Função: servico_ingestao_documentos.processar_documento_em_background()
+    - Reporta progresso via GerenciadorEstadoUploads
+    - 7 micro-etapas de progresso (0-100%)
+    - Trata erros e atualiza status para ERRO se falhar
+    
+    Args:
+        arquivo: UploadFile enviado via multipart/form-data
+        background_tasks: FastAPI BackgroundTasks para processamento assíncrono
+    
+    Returns:
+        RespostaIniciarUpload com upload_id e status INICIADO
+    
+    Raises:
+        HTTPException 400: Se nenhum arquivo for enviado ou validação falhar
+        HTTPException 413: Se arquivo exceder tamanho máximo
+        HTTPException 415: Se tipo de arquivo não for suportado
+    """
+    
+    # ===== VALIDAÇÃO INICIAL =====
+    
+    if not arquivo or not arquivo.filename:
+        logger.warning("Tentativa de upload sem arquivo")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Nenhum arquivo foi enviado. Por favor, envie um documento."
+        )
+    
+    nome_original = arquivo.filename
+    logger.info(f"[UPLOAD ASSÍNCRONO] Recebida requisição de upload: {nome_original}")
+    
+    # ===== VALIDAÇÃO DE TIPO =====
+    
+    if not validar_tipo_de_arquivo(nome_original):
+        extensao_atual = obter_extensao_do_arquivo(nome_original)
+        mensagem_erro = (
+            f"Tipo de arquivo '{extensao_atual}' não é suportado. "
+            f"Tipos aceitos: {', '.join(EXTENSOES_PERMITIDAS)}"
+        )
+        logger.warning(f"[UPLOAD ASSÍNCRONO] {mensagem_erro}")
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=mensagem_erro
+        )
+    
+    extensao = obter_extensao_do_arquivo(nome_original)
+    tipo_documento = MAPEAMENTO_EXTENSAO_PARA_TIPO[extensao]
+    
+    # ===== VALIDAÇÃO DE TAMANHO =====
+    
+    # UploadFile.file é um SpooledTemporaryFile
+    arquivo.file.seek(0, 2)  # Mover para o final do arquivo
+    tamanho_bytes = arquivo.file.tell()  # Obter posição (tamanho)
+    arquivo.file.seek(0)  # Voltar para o início
+    
+    if not validar_tamanho_de_arquivo(tamanho_bytes):
+        tamanho_mb = tamanho_bytes / (1024 * 1024)
+        mensagem_erro = (
+            f"Arquivo muito grande ({tamanho_mb:.2f}MB). "
+            f"Tamanho máximo permitido: {configuracoes.TAMANHO_MAXIMO_ARQUIVO_MB}MB"
+        )
+        logger.warning(f"[UPLOAD ASSÍNCRONO] {mensagem_erro}")
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=mensagem_erro
+        )
+    
+    # ===== GERAR IDS ÚNICOS =====
+    
+    # upload_id: UUID para rastrear progresso do upload
+    upload_id = str(uuid.uuid4())
+    
+    # documento_id: UUID do documento (será usado no ChromaDB)
+    documento_id = str(uuid.uuid4())
+    
+    logger.info(
+        f"[UPLOAD ASSÍNCRONO] Upload iniciado - upload_id: {upload_id}, "
+        f"documento_id: {documento_id}, arquivo: {nome_original}"
+    )
+    
+    # ===== SALVAR ARQUIVO TEMPORARIAMENTE =====
+    
+    try:
+        pasta_uploads = obter_caminho_pasta_uploads_temp()
+        
+        # Nome do arquivo: {documento_id}{extensao}
+        nome_arquivo_uuid = f"{documento_id}{extensao}"
+        caminho_arquivo = pasta_uploads / nome_arquivo_uuid
+        
+        # Salvar arquivo no disco
+        bytes_escritos = await salvar_arquivo_no_disco(arquivo, caminho_arquivo)
+        
+        logger.info(
+            f"[UPLOAD ASSÍNCRONO] Arquivo salvo temporariamente: {caminho_arquivo} "
+            f"({bytes_escritos} bytes)"
+        )
+        
+    except Exception as erro:
+        mensagem_erro = f"Erro ao salvar arquivo: {str(erro)}"
+        logger.error(f"[UPLOAD ASSÍNCRONO] {mensagem_erro}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=mensagem_erro
+        )
+    
+    # ===== CRIAR REGISTRO NO GERENCIADOR DE ESTADO =====
+    
+    try:
+        gerenciador = obter_gerenciador_estado_uploads()
+        
+        # Criar upload com status INICIADO e progresso 0%
+        gerenciador.criar_upload(
+            upload_id=upload_id,
+            nome_arquivo=nome_original,
+            tamanho_bytes=tamanho_bytes,
+            tipo_documento=tipo_documento.value,
+            documento_id=documento_id
+        )
+        
+        logger.info(
+            f"[UPLOAD ASSÍNCRONO] Registro criado no gerenciador: "
+            f"upload_id={upload_id}, status=INICIADO"
+        )
+        
+    except ValueError as erro:
+        # upload_id duplicado (improvável, mas possível)
+        mensagem_erro = f"Erro ao criar registro de upload: {str(erro)}"
+        logger.error(f"[UPLOAD ASSÍNCRONO] {mensagem_erro}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=mensagem_erro
+        )
+    
+    # ===== AGENDAR PROCESSAMENTO EM BACKGROUND =====
+    
+    # Data de upload atual
+    data_hora_atual = datetime.now()
+    data_upload_iso = data_hora_atual.isoformat()
+    
+    background_tasks.add_task(
+        servico_ingestao_documentos.processar_documento_em_background,
+        upload_id=upload_id,
+        caminho_arquivo=str(caminho_arquivo),
+        documento_id=documento_id,
+        nome_arquivo_original=nome_original,
+        tipo_documento=tipo_documento.value,
+        data_upload=data_upload_iso
+    )
+    
+    logger.info(
+        f"[UPLOAD ASSÍNCRONO] Processamento agendado em background para "
+        f"upload_id={upload_id}"
+    )
+    
+    # ===== PREPARAR RESPOSTA =====
+    
+    resposta = RespostaIniciarUpload(
+        upload_id=upload_id,
+        status="INICIADO",
+        nome_arquivo=nome_original,
+        tamanho_bytes=tamanho_bytes,
+        timestamp_criacao=data_upload_iso
+    )
+    
+    logger.info(
+        f"[UPLOAD ASSÍNCRONO] Upload iniciado com sucesso - "
+        f"retornando upload_id={upload_id} ao cliente"
+    )
+    
+    return resposta
+
+
+@router.get(
+    "/status-upload/{upload_id}",
+    response_model=RespostaStatusUpload,
+    status_code=status.HTTP_200_OK,
+    summary="Consultar status de upload assíncrono",
+    description="""
+    Consulta o status e progresso de um upload em processamento.
+    
+    **POLLING:**
+    - Frontend deve chamar este endpoint repetidamente (a cada 2s)
+    - Continua até status = CONCLUIDO ou ERRO
+    - Exibe barra de progresso e etapa atual em tempo real
+    
+    **ESTADOS POSSÍVEIS:**
+    - INICIADO: Upload criado, aguardando processamento (0%)
+    - SALVANDO: Salvando arquivo no disco (0-10%)
+    - PROCESSANDO: Processamento em andamento (10-100%)
+    - CONCLUIDO: Processamento finalizado com sucesso (100%)
+    - ERRO: Falha durante processamento
+    
+    **EXEMPLO DE PROGRESSÃO:**
+    1. status=INICIADO, progresso=0%, etapa="Aguardando processamento"
+    2. status=SALVANDO, progresso=10%, etapa="Salvando arquivo no servidor"
+    3. status=PROCESSANDO, progresso=20%, etapa="Extraindo texto do PDF"
+    4. status=PROCESSANDO, progresso=45%, etapa="Executando OCR"
+    5. status=PROCESSANDO, progresso=70%, etapa="Dividindo em chunks"
+    6. status=PROCESSANDO, progresso=90%, etapa="Gerando embeddings"
+    7. status=CONCLUIDO, progresso=100%, etapa="Processamento concluído"
+    
+    **Quando status = CONCLUIDO:**
+    - Pare o polling
+    - Chame GET /resultado-upload/{upload_id} para obter informações completas
+    
+    **Quando status = ERRO:**
+    - Pare o polling
+    - Exiba mensagem_erro ao usuário
+    """
+)
+async def endpoint_status_upload_assincrono(
+    upload_id: str
+) -> RespostaStatusUpload:
+    """
+    Endpoint para consultar status de upload assíncrono (polling).
+    
+    CONTEXTO DE NEGÓCIO (TAREFA-036):
+    Este endpoint é chamado repetidamente pelo frontend para acompanhar
+    o progresso de um upload em processamento. Fornece feedback em tempo
+    real sobre qual etapa está sendo executada e o progresso percentual.
+    
+    PADRÃO DE POLLING:
+    - Frontend chama a cada 2 segundos
+    - Atualiza barra de progresso (0-100%)
+    - Exibe etapa atual (ex: "Executando OCR - 45%")
+    - Para quando status = CONCLUIDO ou ERRO
+    
+    CONSULTA:
+    1. Buscar upload no GerenciadorEstadoUploads
+    2. Extrair status, etapa_atual, progresso_percentual
+    3. Retornar informações ao cliente
+    
+    Args:
+        upload_id: UUID do upload (fornecido em POST /iniciar-upload)
+    
+    Returns:
+        RespostaStatusUpload com status, etapa, progresso, timestamp
+    
+    Raises:
+        HTTPException 404: Se upload_id não existir
+    """
+    
+    logger.info(f"[POLLING] Consultando status de upload: {upload_id}")
+    
+    # ===== BUSCAR UPLOAD NO GERENCIADOR =====
+    
+    gerenciador = obter_gerenciador_estado_uploads()
+    upload = gerenciador.obter_upload(upload_id)
+    
+    if upload is None:
+        logger.warning(f"[POLLING] Upload não encontrado: {upload_id}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Upload {upload_id} não encontrado. Verifique se o upload_id está correto."
+        )
+    
+    # ===== PREPARAR RESPOSTA =====
+    
+    resposta = RespostaStatusUpload(
+        upload_id=upload.upload_id,
+        status=upload.status,
+        etapa_atual=upload.etapa_atual,
+        progresso_percentual=upload.progresso_percentual,
+        timestamp_atualizacao=upload.timestamp_atualizacao,
+        mensagem_erro=upload.mensagem_erro
+    )
+    
+    logger.debug(
+        f"[POLLING] Status: {upload.status}, "
+        f"Progresso: {upload.progresso_percentual}%, "
+        f"Etapa: {upload.etapa_atual}"
+    )
+    
+    return resposta
+
+
+@router.get(
+    "/resultado-upload/{upload_id}",
+    response_model=RespostaResultadoUpload,
+    status_code=status.HTTP_200_OK,
+    summary="Obter resultado de upload concluído",
+    description="""
+    Obtém as informações completas de um documento após upload concluído.
+    
+    **IMPORTANTE:**
+    - Só chame este endpoint quando status = CONCLUIDO
+    - Se status ainda for PROCESSANDO → Retorna erro 425 (Too Early)
+    - Se status for ERRO → Retorna erro 500 com mensagem
+    
+    **RETORNA:**
+    - ID do documento no sistema (para usar em análises)
+    - Nome original do arquivo
+    - Tamanho em bytes
+    - Tipo de documento (pdf, docx, etc.)
+    - Número de chunks criados
+    - Tempo total de processamento
+    - Timestamps de início e fim
+    
+    **USO:**
+    Frontend pode:
+    - Adicionar documento à lista de documentos disponíveis
+    - Habilitar botões de análise (agora que há documentos no RAG)
+    - Mostrar confirmação de sucesso ao usuário
+    """
+)
+async def endpoint_resultado_upload_assincrono(
+    upload_id: str
+) -> RespostaResultadoUpload:
+    """
+    Endpoint para obter resultado de upload assíncrono concluído.
+    
+    CONTEXTO DE NEGÓCIO (TAREFA-036):
+    Quando o polling detecta status = CONCLUIDO, o frontend chama este
+    endpoint para obter as informações completas do documento processado.
+    
+    VALIDAÇÕES:
+    - Se upload não existir → 404
+    - Se status = PROCESSANDO → 425 Too Early (ainda não concluído)
+    - Se status = ERRO → 500 com mensagem de erro
+    - Se status = CONCLUIDO → Retorna informações completas
+    
+    Args:
+        upload_id: UUID do upload (fornecido em POST /iniciar-upload)
+    
+    Returns:
+        RespostaResultadoUpload com informações completas do documento
+    
+    Raises:
+        HTTPException 404: Se upload_id não existir
+        HTTPException 425: Se upload ainda não foi concluído
+        HTTPException 500: Se upload falhou com erro
+    """
+    
+    logger.info(f"[RESULTADO] Consultando resultado de upload: {upload_id}")
+    
+    # ===== BUSCAR UPLOAD NO GERENCIADOR =====
+    
+    gerenciador = obter_gerenciador_estado_uploads()
+    upload = gerenciador.obter_upload(upload_id)
+    
+    if upload is None:
+        logger.warning(f"[RESULTADO] Upload não encontrado: {upload_id}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Upload {upload_id} não encontrado. Verifique se o upload_id está correto."
+        )
+    
+    # ===== VALIDAR STATUS =====
+    
+    if upload.status in ["INICIADO", "SALVANDO", "PROCESSANDO"]:
+        logger.warning(
+            f"[RESULTADO] Upload ainda em processamento: {upload_id} "
+            f"(status={upload.status}, progresso={upload.progresso_percentual}%)"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_425_TOO_EARLY,
+            detail=(
+                f"Upload ainda não foi concluído. "
+                f"Status atual: {upload.status} ({upload.progresso_percentual}%). "
+                f"Continue fazendo polling em /status-upload/{upload_id}"
+            )
+        )
+    
+    if upload.status == "ERRO":
+        logger.error(
+            f"[RESULTADO] Upload falhou com erro: {upload_id} - "
+            f"{upload.mensagem_erro}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Upload falhou: {upload.mensagem_erro}"
+        )
+    
+    # ===== STATUS = CONCLUIDO → EXTRAIR RESULTADO =====
+    
+    if upload.resultado is None:
+        logger.error(
+            f"[RESULTADO] Upload marcado como CONCLUIDO mas sem resultado: {upload_id}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro interno: upload concluído mas sem resultado disponível"
+        )
+    
+    resultado = upload.resultado
+    
+    # Calcular tempo de processamento
+    from datetime import datetime
+    try:
+        tempo_inicio = datetime.fromisoformat(upload.timestamp_criacao)
+        tempo_fim = datetime.fromisoformat(upload.timestamp_atualizacao)
+        tempo_processamento = (tempo_fim - tempo_inicio).total_seconds()
+    except Exception as erro:
+        logger.warning(f"Erro ao calcular tempo de processamento: {erro}")
+        tempo_processamento = 0.0
+    
+    # ===== PREPARAR RESPOSTA =====
+    
+    resposta = RespostaResultadoUpload(
+        sucesso=True,
+        upload_id=upload.upload_id,
+        status=upload.status,
+        documento_id=resultado.get("documento_id", "desconhecido"),
+        nome_arquivo=upload.nome_arquivo,
+        tamanho_bytes=upload.tamanho_bytes,
+        tipo_documento=upload.tipo_documento,
+        numero_chunks=resultado.get("numero_chunks", 0),
+        timestamp_inicio=upload.timestamp_criacao,
+        timestamp_fim=upload.timestamp_atualizacao,
+        tempo_processamento_segundos=tempo_processamento
+    )
+    
+    logger.info(
+        f"[RESULTADO] Upload concluído com sucesso - "
+        f"documento_id={resultado.get('documento_id')}, "
+        f"chunks={resultado.get('numero_chunks')}, "
+        f"tempo={tempo_processamento:.2f}s"
+    )
+    
+    return resposta
+
+
+# ===== ENDPOINT DE DEBUG =====
 
 @router.get(
     "/debug/status-cache",

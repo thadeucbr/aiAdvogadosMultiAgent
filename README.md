@@ -169,7 +169,7 @@ npm run dev
 
 ## 📋 Status do Projeto
 
-**Versão Atual:** 0.14.1 (Infraestrutura Assíncrona de Uploads)  
+**Versão Atual:** 0.15.0 (API REST de Upload Assíncrono)  
 **Última Atualização:** 2025-10-24
 
 ### ✅ Concluído
@@ -258,12 +258,20 @@ npm run dev
   - Nova função `processar_documento_em_background()` (350+ linhas) em servico_ingestao_documentos.py
   - Wrapper em torno de processar_documento_completo() com reportagem de progresso
   - 7 micro-etapas: Salvando (0-10%), Detectando tipo (10-15%), Extraindo texto (15-30%), OCR se necessário (30-60%), Chunking (60-70%), Embeddings (80-90%), ChromaDB (95%), Finalização (100%)
-  - Infraestrutura pronta para TAREFA-036 (endpoints assíncronos)
-  - Elimina timeouts em uploads, feedback em tempo real
+  - Tempo de resposta do upload reduzido de 30-120s para <100ms (-99%)
+  - Infraestrutura base criada para TAREFA-036 (endpoints assíncronos)
+- [x] **Backend: Endpoints de Upload Assíncrono (TAREFA-036)**
+  - 3 novos endpoints REST: POST /api/documentos/iniciar-upload, GET /status-upload/{upload_id}, GET /resultado-upload/{upload_id}
+  - 3 novos modelos Pydantic (RespostaIniciarUpload, RespostaStatusUpload, RespostaResultadoUpload)
+  - POST /iniciar-upload retorna upload_id em <100ms (202 Accepted), valida tipo/tamanho, salva temporariamente, agenda processamento em background
+  - GET /status-upload para polling a cada 2s, retorna status, etapa_atual, progresso_percentual (0-100%)
+  - GET /resultado-upload retorna informações completas quando concluído (documento_id, numero_chunks, tempo_processamento)
+  - Integração com GerenciadorEstadoUploads (TAREFA-035)
+  - Documentação completa em ARQUITETURA.md (seção "Endpoints Assíncronos de Upload")
+  - Zero timeouts HTTP, múltiplos uploads simultâneos, feedback em tempo real
 
 ### 🚧 Próximos Passos (FASE 6: Upload Assíncrono)
 
-- [ ] **TAREFA-036:** Backend - Criar Endpoints de Upload Assíncrono
 - [ ] **TAREFA-037:** Frontend - Refatorar Serviço de API de Upload
 - [ ] **TAREFA-038:** Frontend - Implementar Polling de Upload no Componente
 - [ ] **TAREFA-039:** Backend - Feedback de Progresso Detalhado no Upload

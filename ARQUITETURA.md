@@ -667,6 +667,351 @@ Se o arquivo físico não for encontrado em disco (por exemplo, já foi deletado
 
 ---
 
+### Endpoints Assíncronos de Upload (TAREFA-036)
+
+**CONTEXTO:** Os endpoints abaixo implementam o fluxo de upload **assíncrono** para resolver o problema de **TIMEOUT HTTP** em uploads de arquivos grandes ou documentos que requerem OCR demorado. Diferente do endpoint síncrono `POST /api/documentos/upload`, o fluxo assíncrono permite que uploads demorem quanto tempo for necessário sem risco de timeout.
+
+**PROBLEMA RESOLVIDO:**
+- ❌ **Antes (Síncrono):** Upload de PDF escaneado grande (20+ páginas) demora 60-120s → TIMEOUT HTTP
+- ✅ **Depois (Assíncrono):** Upload retorna `upload_id` em <100ms → Processamento em background → Cliente acompanha progresso via polling
+
+**PADRÃO IMPLEMENTADO:**
+Mesmo padrão usado para análise multi-agent assíncrona (TAREFAS 030-034):
+1. Cliente inicia operação → Recebe UUID imediatamente
+2. Processamento ocorre em background
+3. Cliente faz polling para acompanhar progresso (0-100%)
+4. Cliente busca resultado final quando concluído
+
+**BENEFÍCIOS:**
+- ✅ Zero timeouts HTTP (retorno em <100ms)
+- ✅ Suporte a múltiplos uploads simultâneos
+- ✅ Feedback de progresso em tempo real (barra de progresso 0-100%)
+- ✅ UI responsiva (não trava durante upload)
+- ✅ Transparência total (usuário vê cada etapa do processamento)
+
+---
+
+#### `POST /api/documentos/iniciar-upload`
+**Status:** ✅ IMPLEMENTADO (TAREFA-036)
+
+**Descrição:** Inicia o processamento assíncrono de upload de um documento. Retorna **imediatamente** (<100ms) com um `upload_id`, permitindo que o processamento ocorra em background sem bloquear a requisição HTTP.
+
+**Diferença do Endpoint Síncrono (`/upload`):**
+- **Síncrono:** Retorna após processar completamente (30-120s) → Risco de timeout
+- **Assíncrono:** Retorna imediatamente com UUID (<100ms) → Zero timeout
+
+**Validações Aplicadas:**
+- Tamanho máximo: 50MB (configurável via `TAMANHO_MAXIMO_ARQUIVO_MB`)
+- Tipos aceitos: PDF, DOCX, PNG, JPG, JPEG
+- Apenas um arquivo por requisição (múltiplos uploads = múltiplas requisições)
+
+**Fluxo Completo:**
+1. Cliente faz POST /iniciar-upload com arquivo
+2. Backend valida tipo e tamanho
+3. Backend salva arquivo temporariamente em `uploads_temp/`
+4. Backend gera `upload_id` (UUID) e `documento_id` (UUID)
+5. Backend cria registro no `GerenciadorEstadoUploads` (status: INICIADO)
+6. Backend agenda processamento em background via `BackgroundTasks`
+7. Backend retorna `upload_id` **IMEDIATAMENTE** (202 Accepted)
+8. Cliente usa `upload_id` para fazer polling do progresso
+
+**Etapas de Processamento em Background (7 micro-etapas):**
+1. Salvando arquivo no servidor (0-10%)
+2. Detectando tipo de documento (10-15%)
+3. Extraindo texto do PDF/DOCX (15-30%)
+4. Executando OCR se necessário (30-60%) ← **Etapa mais demorada**
+5. Dividindo texto em chunks (60-70%)
+6. Gerando embeddings com OpenAI (70-90%)
+7. Salvando no ChromaDB (90-100%)
+
+**Request:** Multipart/form-data com arquivo
+
+**Request Body (form-data):**
+- `arquivo` (file, required): Arquivo a fazer upload
+
+**Response (202 Accepted - Sucesso):**
+```json
+{
+  "upload_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "INICIADO",
+  "nome_arquivo": "processo_trabalhista_123.pdf",
+  "tamanho_bytes": 2048576,
+  "timestamp_criacao": "2025-10-24T16:00:00.000Z"
+}
+```
+
+**Response (400 Bad Request - Nenhum Arquivo):**
+```json
+{
+  "detail": "Nenhum arquivo foi enviado. Por favor, envie um documento."
+}
+```
+
+**Response (413 Payload Too Large - Arquivo Muito Grande):**
+```json
+{
+  "detail": "Arquivo muito grande (75.50MB). Tamanho máximo permitido: 50MB"
+}
+```
+
+**Response (415 Unsupported Media Type - Tipo Não Suportado):**
+```json
+{
+  "detail": "Tipo de arquivo '.xlsx' não é suportado. Tipos aceitos: .pdf, .docx, .png, .jpg, .jpeg"
+}
+```
+
+**Status HTTP:**
+- `202 Accepted`: Upload iniciado com sucesso (processamento em background)
+- `400 Bad Request`: Nenhum arquivo enviado
+- `413 Payload Too Large`: Arquivo excede tamanho máximo
+- `415 Unsupported Media Type`: Tipo de arquivo não aceito
+- `500 Internal Server Error`: Erro ao salvar arquivo
+
+**Uso Típico (Frontend):**
+```javascript
+// Iniciar upload assíncrono
+const formData = new FormData();
+formData.append('arquivo', file);
+
+const response = await fetch('/api/documentos/iniciar-upload', {
+  method: 'POST',
+  body: formData
+});
+
+if (response.status === 202) {
+  const data = await response.json();
+  const uploadId = data.upload_id;
+  
+  // Iniciar polling para acompanhar progresso
+  iniciarPolling(uploadId);
+}
+```
+
+---
+
+#### `GET /api/documentos/status-upload/{upload_id}`
+**Status:** ✅ IMPLEMENTADO (TAREFA-036)
+
+**Descrição:** Consulta o status e progresso de um upload em processamento. Este endpoint é chamado **repetidamente** (polling) pelo frontend para acompanhar o progresso em tempo real.
+
+**Estratégia de Polling:**
+- Frontend chama a cada **2 segundos**
+- Continua até `status = CONCLUIDO` ou `status = ERRO`
+- Exibe barra de progresso (0-100%) e etapa atual
+
+**Estados Possíveis:**
+- `INICIADO`: Upload criado, aguardando processamento (0%)
+- `SALVANDO`: Salvando arquivo no disco (0-10%)
+- `PROCESSANDO`: Processamento em andamento (10-100%)
+- `CONCLUIDO`: Processamento finalizado com sucesso (100%)
+- `ERRO`: Falha durante processamento (mensagem_erro preenchida)
+
+**Exemplo de Progressão Típica:**
+```
+1. status=INICIADO,     progresso=0%,   etapa="Aguardando processamento"
+2. status=SALVANDO,     progresso=10%,  etapa="Salvando arquivo no servidor"
+3. status=PROCESSANDO,  progresso=20%,  etapa="Extraindo texto do PDF"
+4. status=PROCESSANDO,  progresso=45%,  etapa="Executando OCR (reconhecimento de texto em imagem)"
+5. status=PROCESSANDO,  progresso=70%,  etapa="Dividindo texto em chunks"
+6. status=PROCESSANDO,  progresso=90%,  etapa="Gerando embeddings com OpenAI"
+7. status=CONCLUIDO,    progresso=100%, etapa="Processamento concluído"
+```
+
+**Path Parameters:**
+- `upload_id` (string, required): UUID retornado em POST /iniciar-upload
+
+**Request:** Nenhum parâmetro adicional necessário
+
+**Response (Processando):**
+```json
+{
+  "upload_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "PROCESSANDO",
+  "etapa_atual": "Executando OCR (reconhecimento de texto em imagem)",
+  "progresso_percentual": 45,
+  "timestamp_atualizacao": "2025-10-24T16:01:30.000Z",
+  "mensagem_erro": null
+}
+```
+
+**Response (Concluído):**
+```json
+{
+  "upload_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "CONCLUIDO",
+  "etapa_atual": "Processamento concluído",
+  "progresso_percentual": 100,
+  "timestamp_atualizacao": "2025-10-24T16:01:45.500Z",
+  "mensagem_erro": null
+}
+```
+
+**Response (Erro):**
+```json
+{
+  "upload_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "ERRO",
+  "etapa_atual": "Falha no processamento",
+  "progresso_percentual": 45,
+  "timestamp_atualizacao": "2025-10-24T16:01:30.000Z",
+  "mensagem_erro": "Erro ao executar OCR: Tesseract não instalado"
+}
+```
+
+**Response (Upload Não Encontrado):**
+```json
+{
+  "detail": "Upload 550e8400-e29b-41d4-a716-446655440000 não encontrado. Verifique se o upload_id está correto."
+}
+```
+
+**Status HTTP:**
+- `200 OK`: Status consultado com sucesso
+- `404 Not Found`: upload_id não existe
+
+**Quando Parar o Polling:**
+- ✅ `status = CONCLUIDO` → Chamar GET /resultado-upload/{upload_id}
+- ❌ `status = ERRO` → Exibir mensagem_erro ao usuário
+
+**Uso Típico (Frontend):**
+```javascript
+// Polling a cada 2 segundos
+async function iniciarPolling(uploadId) {
+  const interval = setInterval(async () => {
+    const response = await fetch(`/api/documentos/status-upload/${uploadId}`);
+    const data = await response.json();
+    
+    // Atualizar UI
+    atualizarBarraProgresso(data.progresso_percentual);
+    exibirEtapaAtual(data.etapa_atual);
+    
+    // Parar polling se concluído ou erro
+    if (data.status === 'CONCLUIDO') {
+      clearInterval(interval);
+      buscarResultado(uploadId);
+    } else if (data.status === 'ERRO') {
+      clearInterval(interval);
+      exibirErro(data.mensagem_erro);
+    }
+  }, 2000); // 2 segundos
+}
+```
+
+---
+
+#### `GET /api/documentos/resultado-upload/{upload_id}`
+**Status:** ✅ IMPLEMENTADO (TAREFA-036)
+
+**Descrição:** Obtém as informações completas de um documento após upload concluído. Este endpoint só deve ser chamado quando o polling detectar `status = CONCLUIDO`.
+
+**IMPORTANTE:**
+- ✅ **Quando chamar:** Apenas quando `status = CONCLUIDO`
+- ❌ **Não chamar se:** `status = PROCESSANDO` → Retorna erro 425 (Too Early)
+- ❌ **Não chamar se:** `status = ERRO` → Retorna erro 500 com mensagem
+
+**Informações Retornadas:**
+- `documento_id`: UUID do documento no sistema (usar em análises)
+- `nome_arquivo`: Nome original do arquivo
+- `tamanho_bytes`: Tamanho do arquivo
+- `tipo_documento`: Tipo (pdf, docx, png, jpg, jpeg)
+- `numero_chunks`: Quantos chunks foram criados para vetorização
+- `tempo_processamento_segundos`: Tempo total de processamento
+- Timestamps de início e fim
+
+**Path Parameters:**
+- `upload_id` (string, required): UUID retornado em POST /iniciar-upload
+
+**Request:** Nenhum parâmetro adicional necessário
+
+**Response (Sucesso - Status 200):**
+```json
+{
+  "sucesso": true,
+  "upload_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "CONCLUIDO",
+  "documento_id": "doc-123e4567-e89b-12d3-a456-426614174000",
+  "nome_arquivo": "processo_trabalhista_123.pdf",
+  "tamanho_bytes": 2048576,
+  "tipo_documento": "pdf",
+  "numero_chunks": 42,
+  "timestamp_inicio": "2025-10-24T16:00:00.000Z",
+  "timestamp_fim": "2025-10-24T16:01:45.500Z",
+  "tempo_processamento_segundos": 105.5
+}
+```
+
+**Response (Upload Ainda Processando - Status 425):**
+```json
+{
+  "detail": "Upload ainda não foi concluído. Status atual: PROCESSANDO (45%). Continue fazendo polling em /status-upload/550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+**Response (Upload Falhou com Erro - Status 500):**
+```json
+{
+  "detail": "Upload falhou: Erro ao executar OCR: Tesseract não instalado"
+}
+```
+
+**Response (Upload Não Encontrado - Status 404):**
+```json
+{
+  "detail": "Upload 550e8400-e29b-41d4-a716-446655440000 não encontrado. Verifique se o upload_id está correto."
+}
+```
+
+**Status HTTP:**
+- `200 OK`: Resultado obtido com sucesso
+- `404 Not Found`: upload_id não existe
+- `425 Too Early`: Upload ainda não concluído (continue polling)
+- `500 Internal Server Error`: Upload falhou com erro
+
+**Uso Típico (Frontend):**
+```javascript
+// Chamar quando polling detectar status = CONCLUIDO
+async function buscarResultado(uploadId) {
+  try {
+    const response = await fetch(`/api/documentos/resultado-upload/${uploadId}`);
+    
+    if (response.ok) {
+      const data = await response.json();
+      
+      // Exibir confirmação de sucesso
+      alert(`Upload concluído! ${data.numero_chunks} chunks criados em ${data.tempo_processamento_segundos}s`);
+      
+      // Adicionar documento à lista de documentos disponíveis
+      adicionarDocumentoNaLista({
+        id: data.documento_id,
+        nome: data.nome_arquivo,
+        chunks: data.numero_chunks
+      });
+      
+      // Habilitar botões de análise
+      habilitarBotoesAnalise();
+      
+    } else if (response.status === 425) {
+      // Ainda processando (improvável se polling funcionou corretamente)
+      console.warn('Upload ainda não concluído, continue fazendo polling');
+    }
+    
+  } catch (erro) {
+    console.error('Erro ao buscar resultado:', erro);
+  }
+}
+```
+
+**Nota sobre Tempo de Processamento:**
+O tempo real de processamento pode variar drasticamente dependendo do documento:
+- **PDF com texto selecionável (5 páginas):** ~5-10 segundos
+- **PDF escaneado com OCR (10 páginas):** ~30-60 segundos
+- **PDF escaneado com OCR (50+ páginas):** ~2-5 minutos
+
+Com o padrão assíncrono, não há mais risco de timeout independente do tempo necessário.
+
+---
+
 ### Análise Multi-Agent
 
 #### `POST /api/analise/multi-agent`

@@ -549,6 +549,277 @@ class RespostaDeletarDocumento(BaseModel):
         }
 
 
+# ===== MODELOS PARA UPLOAD ASSÍNCRONO (TAREFA-036) =====
+
+class RespostaIniciarUpload(BaseModel):
+    """
+    Resposta do endpoint POST /api/documentos/iniciar-upload.
+    
+    CONTEXTO (TAREFA-036):
+    Este endpoint inicia o processamento assíncrono de upload de documentos.
+    Diferente do endpoint síncrono (POST /upload), este endpoint retorna
+    IMEDIATAMENTE (<100ms) com um upload_id, permitindo que o processamento
+    ocorra em background.
+    
+    FLUXO ASSÍNCRONO:
+    1. Cliente faz POST /iniciar-upload com arquivo
+    2. Backend salva arquivo temporariamente
+    3. Backend cria registro no GerenciadorEstadoUploads
+    4. Backend agenda processamento em BackgroundTasks
+    5. Backend retorna upload_id IMEDIATAMENTE
+    6. Cliente usa upload_id para fazer polling do progresso
+    
+    BENEFÍCIOS:
+    - Zero timeouts (retorno em <100ms)
+    - Suporte a múltiplos uploads simultâneos
+    - Feedback de progresso em tempo real
+    - UI responsiva (não trava)
+    
+    CAMPOS:
+    - upload_id: UUID único para rastrear este upload específico
+    - status: Sempre "INICIADO" nesta resposta
+    - nome_arquivo: Nome original do arquivo enviado
+    - tamanho_bytes: Tamanho do arquivo em bytes
+    - timestamp_criacao: Quando o upload foi iniciado (ISO 8601)
+    """
+    upload_id: str = Field(
+        ...,
+        description="UUID único para rastrear o progresso deste upload"
+    )
+    
+    status: str = Field(
+        ...,
+        description="Status inicial (sempre 'INICIADO' nesta resposta)"
+    )
+    
+    nome_arquivo: str = Field(
+        ...,
+        description="Nome original do arquivo enviado pelo usuário"
+    )
+    
+    tamanho_bytes: int = Field(
+        ...,
+        gt=0,
+        description="Tamanho do arquivo em bytes"
+    )
+    
+    timestamp_criacao: str = Field(
+        ...,
+        description="Timestamp ISO 8601 de quando o upload foi iniciado"
+    )
+    
+    class Config:
+        """Exemplo para documentação Swagger"""
+        json_schema_extra = {
+            "example": {
+                "upload_id": "550e8400-e29b-41d4-a716-446655440000",
+                "status": "INICIADO",
+                "nome_arquivo": "processo_trabalhista_123.pdf",
+                "tamanho_bytes": 2048576,
+                "timestamp_criacao": "2025-10-24T16:00:00.000Z"
+            }
+        }
+
+
+class RespostaStatusUpload(BaseModel):
+    """
+    Resposta do endpoint GET /api/documentos/status-upload/{upload_id}.
+    
+    CONTEXTO (TAREFA-036):
+    Este endpoint é chamado repetidamente (polling) pelo frontend para
+    acompanhar o progresso de um upload em processamento.
+    
+    ESTRATÉGIA DE POLLING:
+    - Frontend chama a cada 2 segundos
+    - Continua até status = CONCLUIDO ou ERRO
+    - Exibe barra de progresso e etapa atual em tempo real
+    
+    ESTADOS POSSÍVEIS:
+    - INICIADO: Upload criado, aguardando processamento (0%)
+    - SALVANDO: Salvando arquivo no disco (0-10%)
+    - PROCESSANDO: Processamento em andamento (10-100%)
+    - CONCLUIDO: Processamento finalizado com sucesso (100%)
+    - ERRO: Falha durante processamento (mensagem_erro preenchida)
+    
+    CAMPOS:
+    - upload_id: UUID do upload (mesmo fornecido na requisição)
+    - status: Estado atual (ver estados acima)
+    - etapa_atual: Descrição textual da etapa (ex: "Executando OCR")
+    - progresso_percentual: Progresso de 0 a 100% (para barra de progresso)
+    - timestamp_atualizacao: Última atualização do status (ISO 8601)
+    - mensagem_erro: Mensagem de erro (apenas se status = ERRO)
+    
+    EXEMPLO DE PROGRESSÃO:
+    1. status=INICIADO, progresso=0%, etapa="Aguardando processamento"
+    2. status=SALVANDO, progresso=10%, etapa="Salvando arquivo no servidor"
+    3. status=PROCESSANDO, progresso=20%, etapa="Extraindo texto do PDF"
+    4. status=PROCESSANDO, progresso=45%, etapa="Executando OCR"
+    5. status=PROCESSANDO, progresso=70%, etapa="Dividindo em chunks"
+    6. status=PROCESSANDO, progresso=90%, etapa="Gerando embeddings"
+    7. status=CONCLUIDO, progresso=100%, etapa="Processamento concluído"
+    """
+    upload_id: str = Field(
+        ...,
+        description="UUID do upload (mesmo fornecido na requisição)"
+    )
+    
+    status: str = Field(
+        ...,
+        description="Estado atual: INICIADO, SALVANDO, PROCESSANDO, CONCLUIDO, ERRO"
+    )
+    
+    etapa_atual: str = Field(
+        ...,
+        description="Descrição textual da etapa em execução (ex: 'Executando OCR')"
+    )
+    
+    progresso_percentual: int = Field(
+        ...,
+        ge=0,
+        le=100,
+        description="Progresso de 0 a 100% (para barra de progresso)"
+    )
+    
+    timestamp_atualizacao: str = Field(
+        ...,
+        description="Timestamp ISO 8601 da última atualização de status"
+    )
+    
+    mensagem_erro: Optional[str] = Field(
+        default=None,
+        description="Mensagem de erro se status for ERRO (None caso contrário)"
+    )
+    
+    class Config:
+        """Exemplo para documentação Swagger"""
+        json_schema_extra = {
+            "example": {
+                "upload_id": "550e8400-e29b-41d4-a716-446655440000",
+                "status": "PROCESSANDO",
+                "etapa_atual": "Executando OCR (reconhecimento de texto em imagem)",
+                "progresso_percentual": 45,
+                "timestamp_atualizacao": "2025-10-24T16:01:30.000Z",
+                "mensagem_erro": None
+            }
+        }
+
+
+class RespostaResultadoUpload(BaseModel):
+    """
+    Resposta do endpoint GET /api/documentos/resultado-upload/{upload_id}.
+    
+    CONTEXTO (TAREFA-036):
+    Quando o status do upload é "CONCLUIDO", o frontend chama este endpoint
+    para obter as informações completas do documento processado.
+    
+    IMPORTANTE:
+    - Se status ainda for PROCESSANDO → Retorna erro 425 (Too Early)
+    - Se status for ERRO → Retorna erro com mensagem
+    - Se status for CONCLUIDO → Retorna este modelo com informações completas
+    
+    ESTRUTURA:
+    Similar ao InformacaoDocumentoUploadado (endpoint síncrono), mas com campos adicionais:
+    - upload_id: UUID do upload (já conhecido pelo frontend)
+    - status: Sempre "CONCLUIDO" (se chegou aqui)
+    - tempo_processamento_segundos: Tempo REAL de processamento
+    - Todos os campos de documento (id, nome, tamanho, tipo, chunks, etc.)
+    
+    USO:
+    Frontend exibe confirmação de sucesso e pode:
+    - Adicionar documento à lista de documentos disponíveis
+    - Habilitar botões de análise (agora que há documentos no RAG)
+    - Mostrar shortcuts sugeridos baseados no tipo de documento
+    
+    CAMPOS:
+    - sucesso: Indica se upload foi concluído com sucesso
+    - upload_id: UUID do upload
+    - status: Status do upload (sempre 'CONCLUIDO' se chegou aqui)
+    - documento_id: UUID único do documento no sistema
+    - nome_arquivo: Nome original do arquivo
+    - tamanho_bytes: Tamanho do arquivo em bytes
+    - tipo_documento: Tipo/extensão do arquivo (pdf, docx, etc.)
+    - numero_chunks: Número de chunks criados para vetorização
+    - timestamp_inicio: Quando o upload foi iniciado (ISO 8601)
+    - timestamp_fim: Quando o processamento foi concluído (ISO 8601)
+    - tempo_processamento_segundos: Tempo total de processamento
+    """
+    sucesso: bool = Field(
+        ...,
+        description="Indica se o upload foi concluído com sucesso"
+    )
+    
+    upload_id: str = Field(
+        ...,
+        description="UUID do upload"
+    )
+    
+    status: str = Field(
+        ...,
+        description="Status do upload (sempre 'CONCLUIDO' se chegou aqui)"
+    )
+    
+    documento_id: str = Field(
+        ...,
+        description="UUID único do documento no sistema"
+    )
+    
+    nome_arquivo: str = Field(
+        ...,
+        description="Nome original do arquivo enviado"
+    )
+    
+    tamanho_bytes: int = Field(
+        ...,
+        gt=0,
+        description="Tamanho do arquivo em bytes"
+    )
+    
+    tipo_documento: str = Field(
+        ...,
+        description="Tipo/extensão do arquivo (pdf, docx, png, jpg, jpeg)"
+    )
+    
+    numero_chunks: int = Field(
+        ...,
+        ge=0,
+        description="Número de chunks criados para vetorização no RAG"
+    )
+    
+    timestamp_inicio: str = Field(
+        ...,
+        description="Timestamp ISO 8601 de início do upload"
+    )
+    
+    timestamp_fim: str = Field(
+        ...,
+        description="Timestamp ISO 8601 de conclusão do processamento"
+    )
+    
+    tempo_processamento_segundos: float = Field(
+        ...,
+        ge=0.0,
+        description="Tempo total de processamento em segundos"
+    )
+    
+    class Config:
+        """Exemplo para documentação Swagger"""
+        json_schema_extra = {
+            "example": {
+                "sucesso": True,
+                "upload_id": "550e8400-e29b-41d4-a716-446655440000",
+                "status": "CONCLUIDO",
+                "documento_id": "doc-123e4567-e89b-12d3-a456-426614174000",
+                "nome_arquivo": "processo_trabalhista_123.pdf",
+                "tamanho_bytes": 2048576,
+                "tipo_documento": "pdf",
+                "numero_chunks": 42,
+                "timestamp_inicio": "2025-10-24T16:00:00.000Z",
+                "timestamp_fim": "2025-10-24T16:01:45.500Z",
+                "tempo_processamento_segundos": 105.5
+            }
+        }
+
+
 # ===== MODELOS PARA ANÁLISE MULTI-AGENT =====
 
 class RequestAnaliseMultiAgent(BaseModel):
