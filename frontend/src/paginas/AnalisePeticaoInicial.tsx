@@ -38,6 +38,7 @@ import type {
 import { ComponenteUploadPeticaoInicial } from '../componentes/peticao/ComponenteUploadPeticaoInicial';
 import { ComponenteDocumentosSugeridos } from '../componentes/peticao/ComponenteDocumentosSugeridos';
 import { ComponenteSelecaoAgentesPeticao } from '../componentes/peticao/ComponenteSelecaoAgentesPeticao';
+import { ComponenteProximosPassos } from '../componentes/peticao/ComponenteProximosPassos';
 
 // ===== TIPOS LOCAIS =====
 
@@ -572,8 +573,11 @@ function EtapaProcessamento({
 /**
  * ETAPA 5: Resultados
  * 
- * NOTA: Este é um placeholder. Componentes completos de visualização serão
- * implementados nas TAREFAS 053-056.
+ * IMPLEMENTAÇÃO:
+ * - TAREFA-053: Próximos Passos (ComponenteProximosPassos) ✅
+ * - TAREFA-054: Gráfico de Prognóstico (ComponenteGraficoPrognostico) 🟡 PENDENTE
+ * - TAREFA-055: Pareceres Individualizados (ComponentePareceresIndividualizados) 🟡 PENDENTE
+ * - TAREFA-056: Documento de Continuação (ComponenteDocumentoContinuacao) 🟡 PENDENTE
  */
 function EtapaResultados({
   resultado,
@@ -583,29 +587,131 @@ function EtapaResultados({
   onNovaAnalise: () => void;
 }) {
   return (
-    <div className="text-center py-12">
-      <CheckCircle2 className="w-16 h-16 text-green-600 mx-auto mb-4" />
-      <h2 className="text-xl font-semibold text-gray-900 mb-2">
-        Análise Concluída!
-      </h2>
-      <p className="text-gray-600 mb-6">
-        Componentes de visualização completos serão implementados nas TAREFAS 053-056
-      </p>
-      
-      <div className="text-left max-w-2xl mx-auto mb-6 bg-gray-50 rounded-lg p-4">
-        <h3 className="font-semibold text-gray-900 mb-2">Prévia do Resultado:</h3>
-        <ul className="text-sm text-gray-700 space-y-1">
-          <li>• Próximos Passos: {resultado.proximos_passos.estrategia_recomendada}</li>
-          <li>• Prognóstico: {resultado.prognostico.cenario_mais_provavel}</li>
-          <li>• Pareceres de Advogados: {Object.keys(resultado.pareceres_advogados).length}</li>
-          <li>• Pareceres de Peritos: {Object.keys(resultado.pareceres_peritos).length}</li>
-          <li>• Documento Gerado: {resultado.documento_continuacao.tipo_peca}</li>
-        </ul>
+    <div className="space-y-8">
+      {/* Header de Conclusão */}
+      <div className="text-center">
+        <CheckCircle2 className="w-16 h-16 text-green-600 mx-auto mb-4" />
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          Análise Concluída com Sucesso!
+        </h2>
+        <p className="text-gray-600">
+          Confira os resultados completos da análise multi-agent abaixo
+        </p>
       </div>
       
-      <button onClick={onNovaAnalise} className="btn btn-primary">
-        Nova Análise
-      </button>
+      {/* Próximos Passos (TAREFA-053 - Implementado) */}
+      <div>
+        <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+          <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary-100 text-primary-600 font-bold text-sm">
+            1
+          </span>
+          Próximos Passos Estratégicos
+        </h3>
+        <ComponenteProximosPassos proximosPassos={resultado.proximos_passos} />
+      </div>
+      
+      {/* Prognóstico (TAREFA-054 - Placeholder) */}
+      <div>
+        <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+          <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary-100 text-primary-600 font-bold text-sm">
+            2
+          </span>
+          Prognóstico e Cenários
+        </h3>
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 text-yellow-600">
+              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div>
+              <h4 className="text-sm font-medium text-yellow-800 mb-1">
+                Componente em Desenvolvimento
+              </h4>
+              <p className="text-sm text-yellow-700">
+                O componente de visualização de prognóstico (gráfico de pizza + tabela de cenários) 
+                será implementado na <strong>TAREFA-054</strong>.
+              </p>
+              <p className="text-sm text-yellow-700 mt-2">
+                <strong>Preview:</strong> {resultado.prognostico.cenario_mais_provavel} ({resultado.prognostico.cenarios.length} cenários analisados)
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Pareceres (TAREFA-055 - Placeholder) */}
+      <div>
+        <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+          <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary-100 text-primary-600 font-bold text-sm">
+            3
+          </span>
+          Pareceres Especializados
+        </h3>
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 text-yellow-600">
+              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div>
+              <h4 className="text-sm font-medium text-yellow-800 mb-1">
+                Componente em Desenvolvimento
+              </h4>
+              <p className="text-sm text-yellow-700">
+                O componente de pareceres individualizados (1 box por advogado/perito) 
+                será implementado na <strong>TAREFA-055</strong>.
+              </p>
+              <p className="text-sm text-yellow-700 mt-2">
+                <strong>Preview:</strong> {Object.keys(resultado.pareceres_advogados).length} pareceres jurídicos, {Object.keys(resultado.pareceres_peritos).length} pareceres técnicos
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Documento de Continuação (TAREFA-056 - Placeholder) */}
+      <div>
+        <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+          <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary-100 text-primary-600 font-bold text-sm">
+            4
+          </span>
+          Documento Gerado
+        </h3>
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 text-yellow-600">
+              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div>
+              <h4 className="text-sm font-medium text-yellow-800 mb-1">
+                Componente em Desenvolvimento
+              </h4>
+              <p className="text-sm text-yellow-700">
+                O componente de visualização e download do documento gerado 
+                será implementado na <strong>TAREFA-056</strong>.
+              </p>
+              <p className="text-sm text-yellow-700 mt-2">
+                <strong>Preview:</strong> {resultado.documento_continuacao.tipo_peca} ({resultado.documento_continuacao.sugestoes_personalizacao.length} sugestões de personalização)
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Botão de Nova Análise */}
+      <div className="flex justify-center pt-6 border-t border-gray-200">
+        <button
+          onClick={onNovaAnalise}
+          className="btn btn-primary px-8 py-3"
+        >
+          🔄 Iniciar Nova Análise
+        </button>
+      </div>
     </div>
   );
 }

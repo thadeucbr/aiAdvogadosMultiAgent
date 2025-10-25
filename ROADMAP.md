@@ -77,7 +77,7 @@ Aqui está o **Roadmap v2.0** atualizado:
 - ✅ TAREFA-051: Frontend - Componente de Exibição de Documentos Sugeridos
 - ✅ TAREFA-052: Frontend - Componente de Seleção de Agentes para Petição
 
-**Próximo passo:** TAREFA-053 (Frontend - Componente de Próximos Passos)
+**Próximo passo:** TAREFA-054 (Frontend - Componente de Gráfico de Prognóstico)
 
 ---
 
@@ -395,7 +395,7 @@ Atualmente, o upload de documentos é **síncrono** (bloqueante). Quando o usuá
 
 ### 🔵 FASE 7: ANÁLISE DE PETIÇÃO INICIAL E PROGNÓSTICO DE PROCESSO (TAREFAS 040-056)
 
-**Status:** 🟡 EM ANDAMENTO  
+**Status:** 🟡 EM ANDAMENTO (TAREFA-054 em execução)  
 **Objetivo:** Implementar sistema completo de análise de petições iniciais com sugestão de documentos, análise contextual multi-agent, prognóstico de cenários e geração de documento de continuação.
 
 **Contexto:**
@@ -971,34 +971,44 @@ Esta é uma nova funcionalidade estratégica que diferencia o produto. O fluxo �
 
 ---
 
-#### 🟡 TAREFA-053: Frontend - Componente de Visualização de Próximos Passos
+#### ✅ TAREFA-053: Frontend - Componente de Visualização de Próximos Passos
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-049, TAREFA-048 (Resultado Backend)  
 **Estimativa:** 3-4 horas  
-**Status:** 🟡 PENDENTE
+**Status:** ✅ CONCLUÍDA
 
 **Escopo:**
-- [ ] Criar `frontend/src/componentes/peticao/ComponenteProximosPassos.tsx`:
-  - [ ] Recebe `proximosPassos: ProximosPassos` como prop
-  - [ ] Exibe estratégia recomendada em card destacado (título + descrição narrativa)
-  - [ ] Lista de passos estratégicos em timeline vertical:
-    - [ ] Cada passo exibido como card na timeline
-    - [ ] Número do passo (1, 2, 3...)
-    - [ ] Descrição do passo
-    - [ ] Prazo estimado (badge)
-    - [ ] Documentos necessários (lista com ícones)
-  - [ ] Seção de "Caminhos Alternativos" (expansível/colapsável):
-    - [ ] Lista de estratégias alternativas
-    - [ ] Quando usar cada uma
-  - [ ] Layout limpo e profissional (similar a Trello roadmap)
-  - [ ] Ícones visuais para cada tipo de ação
+- [x] Criar `frontend/src/componentes/peticao/ComponenteProximosPassos.tsx`:
+  - [x] Recebe `proximosPassos: ProximosPassos` como prop
+  - [x] Exibe estratégia recomendada em card destacado (título + descrição narrativa)
+  - [x] Lista de passos estratégicos em timeline vertical:
+    - [x] Cada passo exibido como card na timeline
+    - [x] Número do passo (1, 2, 3...)
+    - [x] Descrição do passo
+    - [x] Prazo estimado (badge)
+    - [x] Documentos necessários (lista com ícones)
+  - [x] Seção de "Caminhos Alternativos" (expansível/colapsável):
+    - [x] Lista de estratégias alternativas
+    - [x] Quando usar cada uma
+  - [x] Layout limpo e profissional (similar a Trello roadmap)
+  - [x] Ícones visuais para cada tipo de ação
+- [x] Atualizar `frontend/src/paginas/AnalisePeticaoInicial.tsx`:
+  - [x] Integrar ComponenteProximosPassos na Etapa 5 (Resultados)
+  - [x] Criar layout estruturado em 4 seções numeradas
+  - [x] Adicionar placeholders para TAREFAS 054-056
 
 **Entregáveis:**
-- Componente de visualização de próximos passos estratégicos
-- Timeline visual de ações
-- Exibição de caminhos alternativos
-- Layout profissional e intuitivo
-- Changelog completo: `changelogs/TAREFA-053_frontend-proximos-passos.md`
+- ✅ Componente de visualização de próximos passos estratégicos (352 linhas)
+- ✅ Timeline visual de ações com conectores
+- ✅ Exibição de caminhos alternativos (expansível/colapsável)
+- ✅ Layout profissional e intuitivo (inspirado em Trello)
+- ✅ Badges de prazo com cores dinâmicas (vermelho/amarelo/verde)
+- ✅ Expansão de descrições longas (>200 caracteres)
+- ✅ Integração completa com Etapa 5 da página principal
+- ✅ Placeholders informativos para próximas tarefas (054-056)
+- ✅ Changelog completo: `changelogs/TAREFA-053_frontend-proximos-passos.md`
+
+**Marco:** 🎉 **PRIMEIRA SEÇÃO DA ETAPA 5 COMPLETA** - Próximos Passos Estratégicos implementados com timeline visual profissional, preparação de layout para componentes de Prognóstico, Pareceres e Documento (TAREFAS 054-056).
 
 ---
 
