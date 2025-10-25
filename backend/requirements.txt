@@ -75,6 +75,11 @@ pytesseract==0.3.10
 # Usado para extrair texto de petições e documentos jurídicos em formato DOCX
 python-docx==1.1.0
 
+# Markdown: Conversão de Markdown para HTML
+# Usado para converter documentos jurídicos gerados (Markdown) para HTML (preview na interface)
+# CONTEXTO: TAREFA-047 - Serviço de Geração de Documentos Processuais
+markdown==3.5.1
+
 # ===== CHUNKING E PROCESSAMENTO DE TEXTO =====
 
 # LangChain: Framework para desenvolvimento de aplicações com LLMs

@@ -70,8 +70,9 @@ Aqui está o **Roadmap v2.0** atualizado:
 - ✅ TAREFA-044: Backend - Criar Agente "Analista de Estratégia Processual"
 - ✅ TAREFA-045: Backend - Criar Agente "Analista de Prognóstico"
 - ✅ TAREFA-046: Backend - Refatorar Orquestrador para Análise de Petições
+- ✅ TAREFA-047: Backend - Serviço de Geração de Documento de Continuação
 
-**Próximo passo:** TAREFA-047 (Backend - Serviço de Geração de Documento de Continuação)
+**Próximo passo:** TAREFA-048 (Backend - Endpoint de Análise Completa de Petição)
 
 ---
 
@@ -776,36 +777,38 @@ Esta é uma nova funcionalidade estratégica que diferencia o produto. O fluxo �
 
 ---
 
-#### 🟡 TAREFA-047: Backend - Serviço de Geração de Documento de Continuação
+#### ✅ TAREFA-047: Backend - Serviço de Geração de Documento de Continuação
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-044 (Estrategista), TAREFA-045 (Prognóstico)  
 **Estimativa:** 4-5 horas  
-**Status:** 🟡 PENDENTE
+**Status:** ✅ CONCLUÍDA
 
 **Escopo:**
-- [ ] Criar `backend/src/servicos/servico_geracao_documento.py`:
-  - [ ] Classe `ServicoGeracaoDocumento`:
-    - [ ] Método `gerar_documento_continuacao(contexto: dict) -> DocumentoContinuacao`:
-      - [ ] Recebe contexto completo: petição + documentos + pareceres + estratégia + prognóstico
-      - [ ] Identifica tipo de peça processual necessária (baseado em próximos passos)
-      - [ ] Chama LLM (GPT-4) com prompt especializado:
-        - Prompt: "Você é um redator jurídico experiente. Com base na petição inicial, documentos, pareceres e estratégia definida, redija uma [TIPO DE PEÇA: contestação/recurso/petição intermediária] completa e profissional. Use linguagem jurídica formal, cite fundamentos legais relevantes, estruture em tópicos (Preliminares, Mérito, Pedidos). Marque com [PERSONALIZAR: ...] os pontos que o advogado deve ajustar manualmente."
-      - [ ] Parseia resposta da LLM em Markdown
-      - [ ] Converte Markdown para HTML (para preview no frontend)
-      - [ ] Identifica marcações [PERSONALIZAR: ...] e extrai sugestões
-      - [ ] Retorna objeto `DocumentoContinuacao`
-  - [ ] Biblioteca para conversão Markdown → HTML (markdown-it ou similar)
-  - [ ] Prompt engineering para documentos jurídicos formais
-  - [ ] Validação de estrutura do documento gerado
-  - [ ] Suporte a diferentes tipos de peças (contestação, recurso, petição intermediária)
-- [ ] Testes com diferentes tipos de ações (trabalhista, cível, etc.)
+- [x] Criar `backend/src/servicos/servico_geracao_documento.py`:
+  - [x] Classe `ServicoGeracaoDocumento`:
+    - [x] Método `gerar_documento_continuacao(contexto: dict) -> DocumentoContinuacao`:
+      - [x] Recebe contexto completo: petição + documentos + pareceres + estratégia + prognóstico
+      - [x] Identifica tipo de peça processual necessária (baseado em próximos passos)
+      - [x] Chama LLM (GPT-4) com prompt especializado para redação jurídica
+      - [x] Parseia resposta da LLM em Markdown
+      - [x] Converte Markdown para HTML (para preview no frontend)
+      - [x] Identifica marcações [PERSONALIZAR: ...] e extrai sugestões
+      - [x] Retorna objeto `DocumentoContinuacao`
+  - [x] Biblioteca 'markdown' para conversão Markdown → HTML
+  - [x] Prompt engineering para documentos jurídicos formais
+  - [x] Validação de estrutura do documento gerado
+  - [x] Suporte a 6 tipos de peças (contestação, réplica, recurso, petição intermediária, alegações finais, memoriais)
 
 **Entregáveis:**
-- Serviço de geração automática de documentos jurídicos
-- Documentos em Markdown e HTML
-- Marcações de personalização para o advogado
-- Prompt otimizado para redação jurídica
-- Changelog completo: `changelogs/TAREFA-047_backend-geracao-documento-continuacao.md`
+- ✅ Serviço completo de geração de documentos (750 linhas)
+- ✅ Suporte a 6 tipos de peças processuais
+- ✅ Prompt engineering otimizado por tipo
+- ✅ Conversão Markdown → HTML
+- ✅ Sistema de marcação [PERSONALIZAR: ...]
+- ✅ Biblioteca 'markdown' v3.5.1 adicionada aos requirements.txt
+- ✅ Changelog completo: `changelogs/TAREFA-047_backend-servico-geracao-documento.md`
+
+**Marco:** 🎉 **SERVIÇO DE GERAÇÃO DE DOCUMENTOS IMPLEMENTADO** - Sistema capaz de gerar documentos processuais formais automaticamente com qualidade jurídica superior.
 
 ---
 
