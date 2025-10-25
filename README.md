@@ -169,7 +169,7 @@ npm run dev
 
 ## 📋 Status do Projeto
 
-**Versão Atual:** 0.13.0 (Backend - Feedback de Progresso Detalhado)  
+**Versão Atual:** 0.14.0 (Roadmap para Upload Assíncrono)  
 **Última Atualização:** 2025-10-24
 
 ### ✅ Concluído
@@ -243,11 +243,21 @@ npm run dev
   - Etapas específicas para cada agente (ex: "Consultando parecer do Perito: Medico - 35%")
   - Documentação completa em ARQUITETURA.md (seção "Sistema de Feedback de Progresso Detalhado")
   - Transparência +80%, Precisão +55%, Feedback específico +100%
+- [x] **Roadmap para Upload Assíncrono (TAREFAS 035-039)**
+  - Criado roadmap detalhado para aplicar o padrão assíncrono ao fluxo de upload
+  - 5 novas tarefas: Refatorar ingestão para background, Endpoints assíncronos, API frontend, Polling no componente, Feedback detalhado
+  - Mesmo padrão da análise: POST /iniciar-upload, GET /status-upload, GET /resultado-upload
+  - 7 micro-etapas de progresso: salvando (0-10%), extraindo texto (10-30%), OCR (30-60%), chunking (60-80%), vetorizando (80-95%), salvando ChromaDB (95-100%)
+  - Objetivo: Eliminar timeouts em uploads de arquivos grandes (>10MB) ou PDFs escaneados
+  - Renumeração de fases: FASE 6 (Upload Assíncrono), FASE 7 (Melhorias), FASE 8 (Deploy)
 
-### 🚧 Próximos Passos
+### 🚧 Próximos Passos (FASE 6: Upload Assíncrono)
 
-- [ ] Sistema de Logging Completo (TAREFA-035)
-- [ ] Cache de Embeddings e Respostas (TAREFA-036)
+- [ ] **TAREFA-035:** Backend - Refatorar Serviço de Ingestão para Background
+- [ ] **TAREFA-036:** Backend - Criar Endpoints de Upload Assíncrono
+- [ ] **TAREFA-037:** Frontend - Refatorar Serviço de API de Upload
+- [ ] **TAREFA-038:** Frontend - Implementar Polling de Upload no Componente
+- [ ] **TAREFA-039:** Backend - Feedback de Progresso Detalhado no Upload
 
 ---
 

@@ -75,38 +75,39 @@
 | **032** | 2025-10-24 | Frontend - Refatorar Serviço de API de Análise | tiposAgentes.ts, servicoApiAnalise.ts | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-032_frontend-servico-api-analise-assincrona.md) |
 | **033** | 2025-10-24 | Frontend - Implementar Polling na Página de Análise | PaginaAnalise.tsx | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-033_frontend-polling-analise.md) |
 | **034** | 2025-10-24 | Backend - Feedback de Progresso Detalhado | gerenciador_estado_tarefas.py, orquestrador_multi_agent.py, ARQUITETURA.md | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-034_backend-feedback-progresso-detalhado.md) |
+| **035-039** | 2025-01-26 | Roadmap para Upload Assíncrono (FASE 6) | ROADMAP.md, README.md, CHANGELOG_IA.md | ✅ Concluído | Planejamento |
 
 ---
 
 ## 🎯 Última Tarefa Concluída
 
-**TAREFA-034** - Backend - Feedback de Progresso Detalhado  
-**Data:** 2025-10-24  
+**TAREFA-035-039** - Roadmap para Upload Assíncrono (FASE 6)  
+**Data:** 2025-01-26  
 **IA:** GitHub Copilot  
 **Status:** ✅ CONCLUÍDA  
-**Resumo:** Implementação de feedback de progresso **REAL** no backend para substituir estimativas do frontend. O orquestrador multi-agent agora reporta progresso detalhado em cada micro-etapa do processamento (consulta RAG, delegação para peritos, delegação para advogados, compilação), permitindo que o usuário veja **exatamente** o que está acontecendo em tempo real. **Principais entregas:** (1) **Novo método no gerenciador** - `atualizar_progresso(consulta_id, etapa, progresso)` (~110 linhas) para atualizar apenas progresso sem alterar status, thread-safe com lock, validação 0-100%, transição automática INICIADA→PROCESSANDO, logging detalhado; (2) **Integração no orquestrador** - 5 pontos de atualização de progresso em `processar_consulta()`: início RAG (5%), fim RAG (20%), delegação peritos (20-50% proporcional), delegação advogados (50-80% proporcional), compilação (85-95%); (3) **Progresso proporcional** - Cálculo automático baseado no número de agentes (ex: 2 peritos = 15% cada, 3 advogados = 10% cada), garantindo progresso sempre atinge 100%; (4) **Faixas de progresso definidas** - RAG: 5-20%, Peritos: 20-50%, Advogados: 50-80%, Compilação: 80-95%, com pulo automático de faixas se agentes não selecionados; (5) **Documentação completa** - Nova seção em ARQUITETURA.md (~200 linhas) com tabela de faixas, 3 exemplos de fluxos (1 perito, 2+2 agentes, 4 advogados), implementação técnica, consumo no frontend; (6) **Benefícios de UX** - Transparência +80% (usuário vê "Consultando parecer do Perito: Medico" em vez de "Processando..."), Precisão +55% (progresso baseado em execução real, não estimativas temporais), Feedback específico +100% (cada agente reportado individualmente); (7) **Thread-safety garantido** - Todas as operações usam lock interno do gerenciador, seguro para múltiplas requisições concorrentes; (8) **Retrocompatibilidade** - Frontend (TAREFA-033) JÁ estava preparado para consumir progresso_percentual e etapa_atual, nenhuma mudança necessária no frontend, apenas origem dos dados mudou (backend real vs estimativas). **Fluxo exemplo (2 peritos + 2 advogados):** 5% "Consultando RAG" → 20% "RAG consultado - 5 docs" → 20% "Perito: Medico" → 35% "Perito: Segurança" → 50% "Peritos concluídos (2/2)" → 50% "Advogado: Trabalhista" → 65% "Advogado: Previdenciario" → 80% "Advogados concluídos (2/2)" → 85% "Compilando resposta" → 95% "Resposta compilada" → 100% CONCLUÍDA. **Arquivos modificados:** gerenciador_estado_tarefas.py (~110 linhas), orquestrador_multi_agent.py (~80 linhas), ARQUITETURA.md (~200 linhas). **Decisões arquiteturais:** (1) Método dedicado atualizar_progresso() vs reusar atualizar_status() - escolhido dedicado por semântica e garantia de manter status PROCESSANDO; (2) Faixas fixas vs dinâmicas - escolhido fixas por simplicidade e previsibilidade; (3) Reportar progresso ANTES de chamar agentes - permite debugging (saber qual agente travou); (4) Progresso proporcional calculado - faixa_total / num_agentes garante progresso exato. **Limitações conhecidas:** (1) Progresso "salta" quando agentes executam em paralelo (reportado ANTES da execução, não DURANTE) - solução futura requer callbacks em delegar_para_agentes(); (2) Progresso não é tempo real dentro de cada chamada LLM (trava durante 15-30s) - solução futura requer OpenAI Streaming API. **PRÓXIMA TAREFA:** TAREFA-035 (Sistema de Logging Completo). **MARCO:** 🎉 FEEDBACK DE PROGRESSO DETALHADO IMPLEMENTADO! Usuários veem exatamente o que está acontecendo em cada etapa da análise multi-agent com progresso real baseado na execução do backend.
+**Resumo:** Criação de roadmap detalhado para implementar o mesmo padrão assíncrono (polling, background tasks, progresso detalhado) usado no fluxo de análise multi-agent (TAREFAS 030-034) para o fluxo de upload e processamento de documentos. **Contexto:** Atualmente, o upload de documentos é **síncrono** (bloqueante) - POST /api/documentos/upload recebe arquivo, salva, processa (extração, OCR, vetorização), e retorna resposta (pode demorar 30s-2min para arquivos grandes ou escaneados). **Problemas identificados:** (1) Upload de arquivos grandes (>10MB) pode causar timeout HTTP; (2) PDFs escaneados com OCR podem demorar 1-2 minutos; (3) Usuário não sabe se arquivo está sendo processado ou travou; (4) UI trava durante processamento; (5) Impossível fazer upload de múltiplos arquivos em paralelo. **Solução (Padrão Assíncrono):** (1) Upload retorna UUID imediatamente (<100ms); (2) Processamento em background (sem bloqueio); (3) Polling para acompanhar progresso (0-100%); (4) Feedback detalhado de cada etapa; (5) UI responsiva com barra de progresso; (6) Suporte a múltiplos uploads simultâneos. **Principais entregas:** (1) **TAREFA-035** - Backend: Refatorar Serviço de Ingestão para Background (3-4h) - Criar `gerenciador_estado_uploads.py` (similar ao `gerenciador_estado_tarefas.py`), singleton pattern, thread-safe, métodos para criar_upload, atualizar_status, atualizar_progresso, registrar_resultado, registrar_erro; Refatorar `servico_ingestao_documentos.py` para criar wrapper `_processar_documento_em_background()` que atualiza progresso em 7 micro-etapas; (2) **TAREFA-036** - Backend: Criar Endpoints de Upload Assíncrono (3-4h) - POST /api/documentos/iniciar-upload (valida, salva temp, gera UUID, agenda background, retorna 202 Accepted), GET /api/documentos/status-upload/{id} (retorna status/etapa/progresso), GET /api/documentos/resultado-upload/{id} (retorna info documento se CONCLUIDO); 4 novos modelos Pydantic; Atualizar ARQUITETURA.md; (3) **TAREFA-037** - Frontend: Refatorar Serviço de API de Upload (2-3h) - 3 novas funções em `servicoApiDocumentos.ts` (iniciarUploadAssincrono, verificarStatusUpload, obterResultadoUpload), 4 novos tipos TypeScript, depreciar uploadDocumentos() mas manter compatibilidade, JSDoc exaustiva; (4) **TAREFA-038** - Frontend: Implementar Polling de Upload no Componente (4-5h) - Refatorar `ComponenteUploadDocumentos.tsx` para usar polling individual por arquivo, novos estados (uploadId, statusUpload, etapaAtual, progressoPercentual, intervalId), polling a cada 2s, barra de progresso individual, etapa atual abaixo da barra, suporte a múltiplos uploads simultâneos, cleanup robusto (previne memory leaks); (5) **TAREFA-039** - Backend: Feedback de Progresso Detalhado no Upload (2-3h, OPCIONAL mas RECOMENDADO) - 7 micro-etapas de progresso: Salvando (0-10%), Extraindo texto (10-30%), Detectando escaneado (30-35%), OCR (35-60%), Chunking (60-80%), Vetorização (80-95%), Salvando ChromaDB (95-100%); Documentação em ARQUITETURA.md com exemplos de fluxo (PDF normal vs escaneado). **Micro-etapas de progresso (TAREFA-039):** (1) Salvando arquivo no servidor (0-10%); (2) Extraindo texto do PDF/DOCX (10-30%); (3) Verificando se documento é escaneado (30-35%); (4) Executando OCR se necessário (35-60%); (5) Dividindo texto em chunks (60-80%); (6) Gerando embeddings com OpenAI (80-95%); (7) Salvando no ChromaDB (95-100%). **Renumeração de fases:** FASE 6 (Upload Assíncrono - TAREFAS 035-039), FASE 7 (Melhorias - TAREFAS 040-044), FASE 8 (Deploy - TAREFAS 045-046). **Estimativa total FASE 6:** 14-17 horas. **Benefícios esperados:** (1) Eliminação total de timeouts HTTP; (2) Feedback em tempo real por arquivo; (3) UI responsiva (não trava); (4) Suporte a uploads massivos (10+ arquivos simultâneos); (5) Experiência idêntica ao fluxo de análise (consistência); (6) Transparência +80% (usuário vê exatamente o que está acontecendo). **Arquivos modificados:** ROADMAP.md (~400 linhas adicionadas - nova FASE 6 completa), README.md (versão atualizada para 0.14.0, seção "Próximos Passos" com TAREFAS 035-039), CHANGELOG_IA.md (nova entrada no índice). **Decisões arquiteturais:** (1) Criar novo gerenciador `gerenciador_estado_uploads.py` separado do `gerenciador_estado_tarefas.py` - separação de responsabilidades, evita confusão entre uploads e análises; (2) 7 micro-etapas de progresso - suficientemente granular para boa UX sem sobrecarregar com atualizações; (3) Polling individual por arquivo - permite múltiplos uploads simultâneos com progresso independente; (4) TAREFA-039 opcional mas recomendada - progresso básico (0-100%) funciona, mas micro-etapas melhoram muito a UX; (5) Depreciar endpoint síncrono mas mantê-lo - compatibilidade retroativa, migração gradual. **PRÓXIMA TAREFA:** TAREFA-035 (Backend - Refatorar Serviço de Ingestão para Background). **MARCO:** 🎉 ROADMAP PARA UPLOAD ASSÍNCRONO CRIADO! Caminho claro definido para eliminar timeouts em uploads e fornecer feedback em tempo real, replicando o sucesso do padrão assíncrono da análise multi-agent.
 
 ---
 
 ## 🚀 Próxima Tarefa Sugerida
 
-**TAREFA-035:** Sistema de Logging Completo
+**TAREFA-035:** Backend - Refatorar Serviço de Ingestão para Background
 
 **Escopo:**
-- Melhorar feedback de progresso no backend (TAREFA-030/031) para enviar etapas reais
-- Modificar `gerenciador_estado_tarefas.py` para atualizar progresso em cada etapa
-- Modificar `orquestrador_multi_agent.py` para reportar etapas específicas:
-  - "Consultando base de conhecimento (RAG)" (0-20%)
-  - "Delegando para Perito Médico" (20-35%)
-  - "Delegando para Perito Segurança do Trabalho" (35-50%)
-  - "Aguardando pareceres dos peritos" (50-70%)
-  - "Delegando para advogados especialistas" (70-85%)
-  - "Compilando resposta final" (85-100%)
-- Frontend (PaginaAnalise.tsx) já está pronto - apenas exibirá as etapas reais em vez de estimativas
-- Cleanup: parar polling (clearInterval) quando análise concluir, falhar ou componente desmontar
-- Garantir UI responsiva (não trava durante processamento)
+- Criar `backend/src/servicos/gerenciador_estado_uploads.py` (similar ao `gerenciador_estado_tarefas.py`)
+- Classe `GerenciadorEstadoUploads` com dicionário em memória para rastrear estado de uploads
+- Métodos: criar_upload, atualizar_status, atualizar_progresso, registrar_resultado, registrar_erro
+- Thread-safety com locks (threading.Lock)
+- Refatorar `backend/src/servicos/servico_ingestao_documentos.py` para criar wrapper `_processar_documento_em_background()`
+- Wrapper atualiza progresso em 7 micro-etapas: salvando (0-10%), extraindo texto (10-30%), OCR (30-60%), chunking (60-80%), vetorização (80-95%), ChromaDB (95-100%)
+- Singleton pattern para `GerenciadorEstadoUploads`
+- Changelog completo: `changelogs/TAREFA-035_backend-refatorar-ingestao-background.md`
 
-**Objetivo:** Migrar interface de análise para usar fluxo assíncrono com feedback de progresso em tempo real, eliminando definitivamente o problema de timeout HTTP.
+**Objetivo:** Preparar backend para processar uploads em background com feedback de progresso, eliminando timeouts HTTP e melhorando UX.
+
+**Estimativa:** 3-4 horas
+
+**Prioridade:** 🔴 CRÍTICA (base para todas as outras tarefas da FASE 6)
 
 ---
 
@@ -153,6 +154,6 @@
 
 ---
 
-**Última Atualização deste Índice:** 2025-10-24  
-**Total de Tarefas Registradas:** 26  
+**Última Atualização deste Índice:** 2025-01-26  
+**Total de Tarefas Registradas:** 35 (TAREFAS 001-034 concluídas + TAREFAS 035-039 planejadas)  
 **Mantido por:** IAs seguindo o padrão "Manutenibilidade por LLM"

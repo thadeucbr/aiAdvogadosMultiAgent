@@ -111,342 +111,255 @@ Aqui está o **Roadmap v2.0** atualizado:
 
 ### 🔵 FASE 4: EXPANSÃO - AGENTES E CONTEXTO (TAREFAS 022-029)
 
+**Status:** ✅ **CONCLUÍDA**  
 **Objetivo:** Adicionar seleção granular de contexto (arquivos) e expandir o sistema para incluir advogados especialistas.
+*(Tarefas 022 a 029 omitidas para brevidade, pois estão concluídas)*
 
----
-
-#### ✅ TAREFA-022: Atualizar API de Análise para Seleção de Documentos
-**Prioridade:** 🔴 CRÍTICA  
-**Dependências:** TAREFA-014  
-**Estimativa:** 2-3 horas  
-**Status:** ✅ CONCLUÍDA (2025-10-24)
-
-**Escopo:**
-- [x] Modificar `POST /api/analise/multi-agent`
-- [x] Adicionar ao Request Body: `documento_ids: list[str] (opcional)`
-- [x] Atualizar `OrquestradorMultiAgent` (TAREFA-013)
-- [x] Modificar `AgenteAdvogado` (TAREFA-010) para que o método `consultar_rag` use os `documento_ids` para filtrar a busca no ChromaDB.
-- [x] Se `documento_ids` for nulo ou vazio, manter comportamento atual (buscar em todos os documentos).
-- [x] Documentar nova opção no `ARQUITETURA.md`
-
-**Entregáveis:**
-- ✅ API de análise capaz de filtrar o contexto RAG por documentos específicos.
-- ✅ Changelog completo: `changelogs/TAREFA-022_selecao-documentos-analise.md`
-
----
-
-#### ✅ TAREFA-023: Componente de Seleção de Documentos na Análise
-**Prioridade:** 🔴 CRÍTICA  
-**Dependências:** TAREFA-021, TAREFA-022  
-**Estimativa:** 3-4 horas  
-**Status:** ✅ CONCLUÍDA (2025-10-24)
-
-**Escopo:**
-- [x] Criar `frontend/src/componentes/analise/ComponenteSelecionadorDocumentos.tsx`
-- [x] Na `PaginaAnalise.tsx`, antes do campo de prompt, buscar a lista de documentos (usando `servicoApiDocumentos.listarDocumentos()`, da TAREFA-021).
-- [x] Exibir uma lista de checkboxes com os documentos disponíveis.
-- [x] Adicionar botões "Selecionar Todos" / "Limpar Seleção".
-- [x] Modificar `PaginaAnalise.tsx` para passar a lista de `documento_ids` selecionados na chamada da API `realizarAnaliseMultiAgent`.
-
-**Entregáveis:**
-- ✅ UI que permite ao usuário selecionar quais arquivos específicos serão usados na análise.
-- ✅ Changelog completo: `changelogs/TAREFA-023_componente-selecao-documentos-analise.md`
-
----
-
-#### ✅ TAREFA-024: Refatorar Infra de Agentes para Advogados Especialistas
-**Prioridade:** 🔴 CRÍTICA  
-**Dependências:** TAREFA-013  
-**Estimativa:** 3-4 horas  
-**Status:** ✅ CONCLUÍDA (2025-10-24)
-
-**Escopo:**
-- [x] Criar `backend/src/agentes/agente_advogado_base.py` (similar ao `agente_base.py` mas para advogados).
-- [x] Atualizar `OrquestradorMultiAgent` (TAREFA-013) para aceitar uma *segunda lista* de agentes: `advogados_selecionados: list[str]`.
-- [x] Atualizar `AgenteAdvogadoCoordenador` (TAREFA-010):
-  - [x] O Coordenador agora irá delegar para Peritos *E* para Advogados Especialistas (em paralelo).
-  - [x] O método `compilar_resposta` agora deve compilar os pareceres dos peritos + os pareceres dos advogados especialistas.
-- [x] Criar endpoint `GET /api/analise/advogados` para listar especialistas disponíveis.
-
-**Entregáveis:**
-- ✅ Infraestrutura de orquestração capaz de lidar com dois tipos de agentes (Peritos e Advogados).
-- ✅ Changelog completo: `changelogs/TAREFA-024_refatorar-infra-agentes-advogados.md`
-
----
-
-#### ✅ TAREFA-025: Criar Agente Advogado Especialista - Direito do Trabalho
-**Prioridade:** 🟡 ALTA  
-**Dependências:** TAREFA-024  
-**Estimativa:** 2-3 horas  
-**Status:** ✅ CONCLUÍDA (2025-10-24)
-
-**Escopo:**
-- [x] Criar `backend/src/agentes/agente_advogado_trabalhista.py`
-- [x] Herdar de `AgenteAdvogadoBase`.
-- [x] Criar prompt focado na análise jurídica (visão do advogado) de:
-  - Verbas rescisórias, justa causa.
-  - Horas extras, adicional noturno, intrajornada.
-  - Dano moral, assédio.
-  - Análise de conformidade com CLT e Súmulas do TST.
-- [x] Registrar agente no `OrquestradorMultiAgent`.
-
-**Entregáveis:**
-- ✅ Agente Advogado Trabalhista funcional.
-- ✅ Testes unitários completos (test_agente_advogado_trabalhista.py)
-- ✅ Changelog completo: `changelogs/TAREFA-025_agente-advogado-trabalhista.md`
-
----
-
-#### ✅ TAREFA-026: Criar Agente Advogado Especialista - Direito Previdenciário
-**Prioridade:** 🟡 ALTA  
-**Dependências:** TAREFA-024  
-**Estimativa:** 2-3 horas  
-**Status:** ✅ CONCLUÍDA (2025-10-24)
-
-**Escopo:**
-- [x] Criar `backend/src/agentes/agente_advogado_previdenciario.py`
-- [x] Herdar de `AgenteAdvogadoBase`
-- [x] Criar prompt focado na análise jurídica de:
-  - Concessão de benefícios (Auxílio-doença, Aposentadoria por Invalidez, BPC/LOAS)
-  - Análise de nexo causal (visão jurídica) para fins de benefício acidentário
-  - Tempo de contribuição, carência, qualidade de segurado
-  - Legislação: Lei 8.213/91, Decreto 3.048/99, Lei 8.742/93 (LOAS)
-- [x] Registrar agente no Coordenador (via import dinâmico)
-- [x] Criar testes unitários completos
-
-**Entregáveis:**
-- ✅ Agente Advogado Previdenciário funcional
-- ✅ Testes unitários completos (test_agente_advogado_previdenciario.py)
-- ✅ Changelog completo: `changelogs/TAREFA-026_agente-advogado-previdenciario.md`
-
----
-
-#### ✅ TAREFA-027: Criar Agente Advogado Especialista - Direito Cível
-**Prioridade:** 🟢 MÉDIA  
-**Dependências:** TAREFA-024  
-**Estimativa:** 2-3 horas  
-**Status:** ✅ CONCLUÍDA (2025-10-24)
-
-**Escopo:**
-- [x] Criar `backend/src/agentes/agente_advogado_civel.py`
-- [x] Herdar de `AgenteAdvogadoBase`.
-- [x] Criar prompt focado na análise jurídica de:
-  - [x] Responsabilidade civil (dano material, dano moral).
-  - [x] Análise de contratos (cláusulas, validade, inadimplemento).
-  - [x] Direito do consumidor.
-- [x] Registrar agente no `OrquestradorMultiAgent`.
-- [x] Criar testes unitários completos
-
-**Entregáveis:**
-- ✅ Agente Advogado Cível funcional.
-- ✅ Testes unitários completos (test_agente_advogado_civel.py)
-- ✅ Changelog completo: `changelogs/TAREFA-027_agente-advogado-civel.md`
-
----
-
-#### ✅ TAREFA-028: Criar Agente Advogado Especialista - Direito Tributário
-**Prioridade:** 🟢 MÉDIA  
-**Dependências:** TAREFA-024  
-**Estimativa:** 2-3 horas  
-**Status:** ✅ CONCLUÍDA (2025-10-24)
-
-**Escopo:**
-- [x] Criar `backend/src/agentes/agente_advogado_tributario.py`
-- [x] Herdar de `AgenteAdvogadoBase`.
-- [x] Criar prompt focado na análise jurídica de:
-  - Fato gerador, base de cálculo de tributos (ICMS, PIS/COFINS, IRPJ).
-  - Execução fiscal, defesa.
-  - Bitributação, planejamento tributário.
-- [x] Registrar agente no `OrquestradorMultiAgent` (via import dinâmico)
-- [x] Criar testes unitários completos
-
-**Entregáveis:**
-- ✅ Agente Advogado Tributário funcional.
-- ✅ Testes unitários completos (test_agente_advogado_tributario.py)
-- ✅ Changelog completo: `changelogs/TAREFA-028_agente-advogado-tributario.md`
-
----
-
-#### 🟡 TAREFA-029: Atualizar UI para Seleção de Múltiplos Agentes
-**Prioridade:** 🔴 CRÍTICA  
-**Dependências:** TAREFA-023, TAREFA-028  
-**Estimativa:** 3-4 horas  
-**Status:** 🟡 PENDENTE
-
-**Escopo:**
-- [ ] Modificar `frontend/src/componentes/analise/ComponenteSelecionadorAgentes.tsx` (TAREFA-018).
-- [ ] Dividir a UI em duas seções claras: "Peritos Técnicos" (Médico, S. Trabalho) e "Advogados Especialistas" (Trabalhista, Previdenciário, etc.).
-- [ ] Chamar o novo endpoint `GET /api/analise/advogados` (criado na TAREFA-024).
-- [ ] Atualizar o `armazenamentoAgentes.ts` (Zustand) para armazenar as duas listas.
-- [ ] Atualizar `PaginaAnalise.tsx` para passar ambas as listas (`peritos_selecionados` e `advogados_selecionados`) para a API.
-
-**Entregáveis:**
-- UI que permite selecionar Peritos E Advogados de forma independente.
-- Resposta compilada final considerando todos os agentes selecionados.
 
 **Marco:** 🎉 **EXPANSÃO V2.0 COMPLETA** - Sistema agora suporta seleção de contexto e múltiplos advogados especialistas.
+
+*(Detalhes completos das tarefas disponíveis nos changelogs individuais em `/changelogs/TAREFA-022_*.md` a `/changelogs/TAREFA-029_*.md`)*
 
 ---
 
 ### 🔵 FASE 5: REARQUITETURA - FLUXO DE ANÁLISE ASSÍNCRONO (TAREFAS 030-034)
 
+**Status:** ✅ **CONCLUÍDA**  
 **Objetivo:** Migrar o processo de análise de síncrono (request/response) para assíncrono (polling) para eliminar o risco de timeouts da API.
+*(Tarefas 030 a 034 omitidas para brevidade, pois estão concluídas)*
 
-**Contexto:** Análises com múltiplos agentes podem exceder 2 minutos, causando timeout HTTP. A arquitetura assíncrona resolve isso permitindo que o frontend faça polling do status.
-
----
-
-#### ✅ TAREFA-030: Backend - Refatorar Orquestrador para Background Tasks
-**Prioridade:** 🔴 CRÍTICA  
-**Dependências:** TAREFA-013, TAREFA-024  
-**Estimativa:** 4-5 horas  
-**Status:** ✅ CONCLUÍDA (2025-10-24)
-
-**Escopo:**
-- [x] Criar um gerenciador de estado de tarefas (dicionário em memória) para armazenar `(consulta_id, {status, resultado})`.
-- [x] Refatorar `backend/src/agentes/orquestrador_multi_agent.py`:
-  - [x] Manter o método `processar_consulta` (TAREFA-013) como `async`.
-  - [x] Criar um novo método wrapper `_processar_consulta_em_background` para `BackgroundTask` do FastAPI.
-  - [x] Este wrapper chama o `processar_consulta` original e atualiza o gerenciador de estado com o resultado ou erro.
-- [x] Garantir que o `OrquestradorMultiAgent` seja instanciado como singleton via dependência do FastAPI.
-
-**Entregáveis:**
-- ✅ Orquestrador capaz de executar a análise em background e armazenar o resultado
-- ✅ GerenciadorEstadoTarefas implementado (criar_tarefa, obter_tarefa, atualizar_status)
-- ✅ Changelog completo: `changelogs/TAREFA-030_backend-refatorar-orquestrador-background.md`
-
----
-
-#### ✅ TAREFA-031: Backend - Criar Endpoints de Análise Assíncrona
-**Prioridade:** 🔴 CRÍTICA  
-**Dependências:** TAREFA-030  
-**Estimativa:** 3-4 horas  
-**Status:** ✅ CONCLUÍDA (2025-10-24)
-
-**Escopo:**
-- [x] Em `backend/src/api/rotas_analise.py`:
-  - [x] DEPRECIAR (mas manter) o endpoint síncrono `POST /api/analise/multi-agent` (TAREFA-014).
-  - [x] **CRIAR** `POST /api/analise/iniciar`:
-    - [x] Recebe o mesmo body da TAREFA-014/022/029 (prompt, agentes, documentos).
-    - [x] Gera um `consulta_id` (UUID).
-    - [x] Inicia a `_processar_consulta_em_background` usando `BackgroundTasks` do FastAPI.
-    - [x] Retorna imediatamente um JSON: `{ "consulta_id": "...", "status": "INICIADA" }` (202 Accepted).
-  - [x] **CRIAR** `GET /api/analise/status/{consulta_id}`:
-    - [x] Consulta o gerenciador de estado.
-    - [x] Retorna JSON: `{ "consulta_id": "...", "status": "PROCESSANDO | CONCLUIDA | ERRO", "etapa_atual": "...", "progresso_percentual": 0-100 }`.
-  - [x] **CRIAR** `GET /api/analise/resultado/{consulta_id}`:
-    - [x] Consulta o gerenciador de estado.
-    - [x] Se status `"CONCLUIDA"`, retorna o JSON completo da análise.
-    - [x] Se `"ERRO"`, retorna mensagem de erro.
-    - [x] Se `"PROCESSANDO"`, retorna 425 Too Early.
-- [x] Atualizar `ARQUITETURA.md` com os novos endpoints.
-
-**Entregáveis:**
-- ✅ API REST completa para fluxo de análise assíncrono
-- ✅ 3 novos endpoints (POST /iniciar, GET /status, GET /resultado)
-- ✅ 4 novos modelos Pydantic (RequestIniciarAnalise, RespostaIniciarAnalise, RespostaStatusAnalise, RespostaResultadoAnalise)
-- ✅ Feedback de progresso em tempo real (etapa_atual, progresso_percentual)
-- ✅ Documentação completa em ARQUITETURA.md (~250 linhas)
-- ✅ Changelog completo: `changelogs/TAREFA-031_backend-endpoints-analise-assincrona.md`
-
----
-
-#### ✅ TAREFA-032: Frontend - Refatorar Serviço de API de Análise
-**Prioridade:** 🔴 CRÍTICA  
-**Dependências:** TAREFA-031  
-**Estimativa:** 2-3 horas  
-**Status:** ✅ CONCLUÍDA (2025-10-24)
-
-**Escopo:**
-- [x] Em `frontend/src/servicos/servicoApiAnalise.ts`:
-  - [x] MANTER `realizarAnaliseMultiAgent` por compatibilidade, mas marcá-la como `@deprecated`.
-  - [x] Remover o timeout de 120s da configuração do Axios (mantido para compatibilidade).
-  - [x] **CRIAR** `iniciarAnaliseAssincrona(requestBody) -> Promise<AxiosResponse<RespostaIniciarAnalise>>`:
-    - [x] Faz `POST /api/analise/iniciar`.
-  - [x] **CRIAR** `verificarStatusAnalise(consulta_id) -> Promise<AxiosResponse<RespostaStatusAnalise>>`:
-    - [x] Faz `GET /api/analise/status/{consulta_id}`.
-  - [x] **CRIAR** `obterResultadoAnalise(consulta_id) -> Promise<AxiosResponse<RespostaResultadoAnalise>>`:
-    - [x] Faz `GET /api/analise/resultado/{consulta_id}`.
-- [x] Atualizar `frontend/src/tipos/tiposAgentes.ts`:
-  - [x] Criar tipo `StatusAnalise = 'INICIADA' | 'PROCESSANDO' | 'CONCLUIDA' | 'ERRO'`
-  - [x] Criar alias `RequestIniciarAnalise = RequestAnaliseMultiAgent`
-  - [x] Criar interface `RespostaIniciarAnalise` (sucesso, consulta_id, status, mensagem, timestamp_criacao)
-  - [x] Criar interface `RespostaStatusAnalise` (consulta_id, status, etapa_atual, progresso_percentual, timestamp_atualizacao, mensagem_erro?)
-  - [x] Criar interface `RespostaResultadoAnalise` (estende RespostaAnaliseMultiAgent + consulta_id)
-
-**Entregáveis:**
-- ✅ Serviço de API do frontend atualizado para o fluxo assíncrono
-- ✅ 3 novas funções assíncronas (iniciar, verificar status, obter resultado)
-- ✅ 5 novos tipos TypeScript para garantir type safety
-- ✅ Documentação exaustiva (~480 linhas de JSDoc) com exemplos práticos
-- ✅ Depreciação clara da função síncrona com exemplo de migração
-- ✅ Compatibilidade retroativa mantida
-- ✅ Changelog completo: `changelogs/TAREFA-032_frontend-servico-api-analise-assincrona.md`
-
----
-
-#### ✅ TAREFA-033: Frontend - Implementar Polling na Página de Análise
-**Prioridade:** 🔴 CRÍTICA  
-**Dependências:** TAREFA-029, TAREFA-032  
-**Estimativa:** 4-5 horas  
-**Status:** ✅ CONCLUÍDA (2025-10-24)
-
-**Escopo:**
-- [x] Refatorar `frontend/src/paginas/PaginaAnalise.tsx` (TAREFA-019):
-  - [x] Ao clicar em "Analisar":
-    - [x] Chamar `iniciarAnaliseAssincrona()`.
-    - [x] Mudar a UI para o estado de "Processando" (mostrar spinner, desabilitar botões).
-    - [x] Armazenar o `consulta_id` no estado.
-    - [x] Iniciar um mecanismo de polling (ex: `setInterval` ou `useInterval` hook) para chamar `verificarStatusAnalise()` a cada 2-3 segundos.
-  - [x] **Lógica do Polling:**
-    - [x] Se `status === "PROCESSANDO"`, continuar o polling (exibir `progresso` se disponível).
-    - [x] Se `status === "ERRO"`, parar o polling e exibir a mensagem de erro.
-    - [x] Se `status === "CONCLUIDA"`:
-      - [x] Parar o polling (limpar o intervalo).
-      - [x] Chamar `obterResultadoAnalise()`.
-      - [x] Exibir os resultados (usando o `ComponenteExibicaoPareceres` já existente).
-  - [x] Garantir que o polling seja limpo (`cleared`) se o usuário navegar para fora da página (ex: `useEffect` cleanup).
-
-**Entregáveis:**
-- ✅ UI que não trava e busca ativamente o resultado, eliminando timeouts.
-- ✅ Barra de progresso visual com percentual (0-100%)
-- ✅ Exibição de etapa atual da análise
-- ✅ Cleanup robusto de intervalos (useEffect)
-- ✅ Changelog completo: `changelogs/TAREFA-033_frontend-polling-analise.md`
-
-**Marco:** 🎉 **REARQUITETURA ASSÍNCRONA COMPLETA** - Risco de timeout eliminado, análises podem demorar quanto necessário.
-
----
-
-#### ✅ TAREFA-034: Frontend - Feedback de Progresso (Opcional, mas Recomendado)
-**Prioridade:** 🟢 MÉDIA  
-**Dependências:** TAREFA-033  
-**Estimativa:** 2-3 horas  
-**Status:** ✅ CONCLUÍDA (2025-10-24)
-
-**Escopo:**
-- [x] **Backend:** Modificar o endpoint `GET /api/analise/status/{consulta_id}` para retornar mais detalhes (ex: `{ status: "PROCESSANDO", etapa_atual: "Analisando com Perito Médico", progresso_percentual: 50 }`).
-- [x] **Backend:** O `_processar_consulta_em_background` (TAREFA-030) deve atualizar o gerenciador de estado em cada etapa (RAG, Perito 1, Advogado 1, Compilação).
-- [x] **Frontend:** A `PaginaAnalise.tsx` (TAREFA-033) já exibe a `etapa_atual` e barra de progresso na UI de loading (ex: "Processando... Etapa: Analisando com Perito Médico [50%]").
-
-**Entregáveis:**
-- ✅ Melhoria de UX significativa, mostrando ao usuário o progresso da análise em tempo real.
-- ✅ Método `atualizar_progresso()` criado no `GerenciadorEstadoTarefas`
-- ✅ Progresso proporcional baseado no número de agentes selecionados
-- ✅ Documentação completa em `ARQUITETURA.md` (seção "Sistema de Feedback de Progresso Detalhado")
-- ✅ Changelog completo: `changelogs/TAREFA-034_backend-feedback-progresso-detalhado.md`
 
 **Marco:** 🎉 **REARQUITETURA ASSÍNCRONA COMPLETA** - Risco de timeout eliminado, análises podem demorar quanto necessário, com feedback de progresso REAL em tempo real.
 
+*(Detalhes completos das tarefas disponíveis nos changelogs individuais em `/changelogs/TAREFA-030_*.md` a `/changelogs/TAREFA-034_*.md`)*
+
 ---
 
-### 🔵 FASE 6: MELHORIAS E OTIMIZAÇÕES (TAREFAS 035-039)
+### 🔵 FASE 6: UPLOAD ASSÍNCRONO COM FEEDBACK DE PROGRESSO (TAREFAS 035-039)
+
+**Objetivo:** Aplicar o mesmo padrão de processamento assíncrono do fluxo de análise (TAREFAS 030-034) para o fluxo de upload e processamento de documentos.
+
+**Contexto:**
+Atualmente, o upload de documentos é **síncrono** (bloqueante). Quando o usuário faz upload de um arquivo:
+1. POST /api/documentos/upload recebe o arquivo
+2. Salva no disco
+3. Processa o documento (extração de texto, OCR, chunking, vetorização)
+4. Retorna resposta (pode demorar 30s-2min para arquivos grandes ou escaneados)
+
+**Problema:**
+- ❌ Upload de arquivos grandes (>10MB) pode causar timeout HTTP
+- ❌ PDFs escaneados com OCR podem demorar 1-2 minutos
+- ❌ Usuário não sabe se o arquivo está sendo processado ou travou
+- ❌ UI trava durante todo o processamento
+- ❌ Impossível fazer upload de múltiplos arquivos em paralelo
+
+**Solução (Padrão Assíncrono - igual TAREFAS 030-034):**
+- ✅ Upload retorna UUID imediatamente (<100ms)
+- ✅ Processamento em background (sem bloqueio)
+- ✅ Polling para acompanhar progresso (0-100%)
+- ✅ Feedback detalhado de cada etapa (salvando, extraindo texto, OCR, vetorizando)
+- ✅ UI responsiva com barra de progresso
+- ✅ Suporte a múltiplos uploads simultâneos
+
+---
+
+#### 🟡 TAREFA-035: Backend - Refatorar Serviço de Ingestão para Background
+**Prioridade:** 🔴 CRÍTICA  
+**Dependências:** TAREFA-008 (Orquestração do Fluxo de Ingestão)  
+**Estimativa:** 3-4 horas  
+**Status:** 🟡 PENDENTE
+
+**Escopo:**
+- [ ] Criar `backend/src/servicos/gerenciador_estado_uploads.py` (similar ao `gerenciador_estado_tarefas.py` da TAREFA-030)
+  - [ ] Classe `GerenciadorEstadoUploads` com dicionário em memória
+  - [ ] Método `criar_upload(upload_id, nome_arquivo, tamanho_bytes)` → Status: INICIADO
+  - [ ] Método `atualizar_status(upload_id, status, etapa, progresso)` → SALVANDO | PROCESSANDO | CONCLUIDO | ERRO
+  - [ ] Método `atualizar_progresso(upload_id, etapa, progresso)` → Progresso 0-100%
+  - [ ] Método `registrar_resultado(upload_id, documento_info)` → Status: CONCLUIDO
+  - [ ] Método `registrar_erro(upload_id, mensagem_erro)` → Status: ERRO
+  - [ ] Thread-safety com locks (threading.Lock)
+- [ ] Refatorar `backend/src/servicos/servico_ingestao_documentos.py`:
+  - [ ] Manter método `processar_documento_completo()` (TAREFA-008) como está
+  - [ ] Criar wrapper `_processar_documento_em_background()` para BackgroundTasks
+  - [ ] Wrapper atualiza `GerenciadorEstadoUploads` em cada etapa:
+    - Salvando arquivo (0-10%)
+    - Extraindo texto (10-30%)
+    - OCR se necessário (30-60%)
+    - Chunking (60-80%)
+    - Vetorização (80-95%)
+    - Salvando no ChromaDB (95-100%)
+- [ ] Singleton pattern para `GerenciadorEstadoUploads` (função factory `obter_gerenciador_estado_uploads()`)
+
+**Entregáveis:**
+- ✅ Gerenciador de estado de uploads funcional (thread-safe)
+- ✅ Serviço de ingestão capaz de executar em background e reportar progresso
+- ✅ Changelog completo: `changelogs/TAREFA-035_backend-refatorar-ingestao-background.md`
+
+---
+
+#### 🟡 TAREFA-036: Backend - Criar Endpoints de Upload Assíncrono
+**Prioridade:** 🔴 CRÍTICA  
+**Dependências:** TAREFA-035  
+**Estimativa:** 3-4 horas  
+**Status:** 🟡 PENDENTE
+
+**Escopo:**
+- [ ] Em `backend/src/api/rotas_documentos.py`:
+  - [ ] **DEPRECIAR** (mas manter) endpoint síncrono `POST /api/documentos/upload` (TAREFA-003)
+  - [ ] **CRIAR** `POST /api/documentos/iniciar-upload`:
+    - [ ] Recebe arquivo via multipart/form-data
+    - [ ] Valida tipo e tamanho (mesmas validações do endpoint antigo)
+    - [ ] Salva arquivo temporariamente em `uploads_temp/`
+    - [ ] Gera `upload_id` (UUID)
+    - [ ] Cria registro no `GerenciadorEstadoUploads` (status: INICIADO, progresso: 0%)
+    - [ ] Agenda processamento em background via `BackgroundTasks`
+    - [ ] Retorna imediatamente: `{ "upload_id": "...", "status": "INICIADO", "nome_arquivo": "..." }` (202 Accepted)
+  - [ ] **CRIAR** `GET /api/documentos/status-upload/{upload_id}`:
+    - [ ] Consulta `GerenciadorEstadoUploads`
+    - [ ] Retorna: `{ "upload_id": "...", "status": "PROCESSANDO", "etapa_atual": "Extraindo texto", "progresso_percentual": 25 }`
+    - [ ] Estados possíveis: INICIADO | SALVANDO | PROCESSANDO | CONCLUIDO | ERRO
+  - [ ] **CRIAR** `GET /api/documentos/resultado-upload/{upload_id}`:
+    - [ ] Se status = CONCLUIDO → Retorna informações do documento (id, nome, tamanho, tipo, timestamp)
+    - [ ] Se status = PROCESSANDO → Retorna 425 Too Early
+    - [ ] Se status = ERRO → Retorna 500 com mensagem de erro
+- [ ] Criar novos modelos Pydantic em `backend/src/api/modelos.py`:
+  - [ ] `RequestIniciarUpload` (nome_arquivo, tamanho_bytes - apenas metadados, arquivo vem via multipart)
+  - [ ] `RespostaIniciarUpload` (upload_id, status, nome_arquivo, timestamp_criacao)
+  - [ ] `RespostaStatusUpload` (upload_id, status, etapa_atual, progresso_percentual, timestamp_atualizacao, mensagem_erro?)
+  - [ ] `RespostaResultadoUpload` (upload_id, status, documento_id, nome_arquivo, tamanho_bytes, tipo_documento, timestamp_conclusao)
+- [ ] Atualizar `ARQUITETURA.md` com novos endpoints (seção "Endpoints de Upload Assíncrono")
+
+**Entregáveis:**
+- ✅ API REST completa para upload assíncrono
+- ✅ 3 novos endpoints (POST /iniciar-upload, GET /status-upload, GET /resultado-upload)
+- ✅ 4 novos modelos Pydantic
+- ✅ Feedback de progresso em tempo real (etapa_atual, progresso_percentual)
+- ✅ Documentação completa em ARQUITETURA.md
+- ✅ Changelog completo: `changelogs/TAREFA-036_backend-endpoints-upload-assincrono.md`
+
+---
+
+#### 🟡 TAREFA-037: Frontend - Refatorar Serviço de API de Upload
+**Prioridade:** 🔴 CRÍTICA  
+**Dependências:** TAREFA-036  
+**Estimativa:** 2-3 horas  
+**Status:** 🟡 PENDENTE
+
+**Escopo:**
+- [ ] Em `frontend/src/servicos/servicoApiDocumentos.ts`:
+  - [ ] **MANTER** `uploadDocumentos()` por compatibilidade, mas marcá-la como `@deprecated`
+  - [ ] **CRIAR** `iniciarUploadAssincrono(arquivo: File) -> Promise<AxiosResponse<RespostaIniciarUpload>>`:
+    - [ ] Faz POST /api/documentos/iniciar-upload (multipart/form-data)
+    - [ ] Retorna upload_id imediatamente
+  - [ ] **CRIAR** `verificarStatusUpload(upload_id: string) -> Promise<AxiosResponse<RespostaStatusUpload>>`:
+    - [ ] Faz GET /api/documentos/status-upload/{upload_id}
+    - [ ] Retorna status, etapa_atual, progresso_percentual
+  - [ ] **CRIAR** `obterResultadoUpload(upload_id: string) -> Promise<AxiosResponse<RespostaResultadoUpload>>`:
+    - [ ] Faz GET /api/documentos/resultado-upload/{upload_id}
+    - [ ] Retorna informações completas do documento processado
+- [ ] Atualizar `frontend/src/tipos/tiposDocumentos.ts`:
+  - [ ] Criar tipo `StatusUpload = 'INICIADO' | 'SALVANDO' | 'PROCESSANDO' | 'CONCLUIDO' | 'ERRO'`
+  - [ ] Criar interface `RespostaIniciarUpload` (upload_id, status, nome_arquivo, timestamp_criacao)
+  - [ ] Criar interface `RespostaStatusUpload` (upload_id, status, etapa_atual, progresso_percentual, timestamp_atualizacao, mensagem_erro?)
+  - [ ] Criar interface `RespostaResultadoUpload` (upload_id, status, documento_id, nome_arquivo, tamanho_bytes, tipo_documento, timestamp_conclusao)
+
+**Entregáveis:**
+- ✅ Serviço de API do frontend atualizado para upload assíncrono
+- ✅ 3 novas funções assíncronas (iniciar, verificar status, obter resultado)
+- ✅ 4 novos tipos TypeScript para garantir type safety
+- ✅ Documentação JSDoc exaustiva com exemplos práticos
+- ✅ Depreciação clara da função síncrona
+- ✅ Compatibilidade retroativa mantida
+- ✅ Changelog completo: `changelogs/TAREFA-037_frontend-servico-api-upload-assincrono.md`
+
+---
+
+#### 🟡 TAREFA-038: Frontend - Implementar Polling de Upload no Componente
+**Prioridade:** 🔴 CRÍTICA  
+**Dependências:** TAREFA-037, TAREFA-016 (Componente de Upload)  
+**Estimativa:** 4-5 horas  
+**Status:** 🟡 PENDENTE
+
+**Escopo:**
+- [ ] Refatorar `frontend/src/componentes/upload/ComponenteUploadDocumentos.tsx`:
+  - [ ] Adicionar novos estados por arquivo:
+    - [ ] `uploadId` (UUID retornado pelo backend)
+    - [ ] `statusUpload` (INICIADO | SALVANDO | PROCESSANDO | CONCLUIDO | ERRO)
+    - [ ] `etapaAtual` (descrição textual: "Salvando arquivo", "Extraindo texto", "Vetorizando")
+    - [ ] `progressoPercentual` (0-100)
+    - [ ] `intervalId` (controle do polling por arquivo)
+  - [ ] Modificar handler de upload:
+    - [ ] Substituir `uploadDocumentos()` (síncrono) por `iniciarUploadAssincrono()`
+    - [ ] Para cada arquivo, receber `upload_id` em <100ms
+    - [ ] Iniciar polling individual por arquivo (`iniciarPollingUpload(upload_id)`)
+  - [ ] Criar função `iniciarPollingUpload(upload_id)`:
+    - [ ] setInterval a cada 2s chamando `verificarStatusUpload(upload_id)`
+    - [ ] Atualizar UI com progresso e etapa atual
+    - [ ] Se status = CONCLUIDO → Chamar `obterResultadoUpload(upload_id)` e parar polling
+    - [ ] Se status = ERRO → Exibir mensagem de erro e parar polling
+  - [ ] UI de progresso por arquivo:
+    - [ ] Barra de progresso individual (0-100%)
+    - [ ] Etapa atual abaixo da barra (ex: "Extraindo texto - 25%")
+    - [ ] Ícone de status (loading, check, error)
+    - [ ] Botão de cancelar (opcional - limpa polling e remove da lista)
+  - [ ] Cleanup robusto:
+    - [ ] useEffect com cleanup function para limpar intervalos quando componente desmontar
+    - [ ] Prevenir memory leaks e requisições desnecessárias
+  - [ ] Suporte a múltiplos uploads simultâneos:
+    - [ ] Cada arquivo tem seu próprio polling independente
+    - [ ] UI mostra progresso de todos os arquivos em paralelo
+
+**Entregáveis:**
+- ✅ Componente de upload com polling assíncrono
+- ✅ Barra de progresso individual por arquivo
+- ✅ Feedback detalhado de cada etapa (salvando, extraindo, OCR, vetorizando)
+- ✅ Suporte a múltiplos uploads simultâneos
+- ✅ Cleanup robusto (previne memory leaks)
+- ✅ Changelog completo: `changelogs/TAREFA-038_frontend-polling-upload.md`
+
+**Marco:** 🎉 **UPLOAD ASSÍNCRONO IMPLEMENTADO** - Uploads de qualquer tamanho/duração sem timeout, feedback em tempo real por arquivo.
+
+---
+
+#### 🟡 TAREFA-039: Backend - Feedback de Progresso Detalhado no Upload
+**Prioridade:** 🟢 MÉDIA (Opcional, mas Recomendado)  
+**Dependências:** TAREFA-038  
+**Estimativa:** 2-3 horas  
+**Status:** 🟡 PENDENTE
+
+**Escopo:**
+- [ ] Modificar `backend/src/servicos/servico_ingestao_documentos.py`:
+  - [ ] Atualizar método wrapper `_processar_documento_em_background()` para reportar progresso granular:
+    - [ ] Salvando arquivo (0-10%): "Salvando arquivo no servidor"
+    - [ ] Extraindo texto (10-30%): "Extraindo texto do PDF/DOCX"
+    - [ ] Detectando se é escaneado (30-35%): "Verificando se documento é escaneado"
+    - [ ] OCR se necessário (35-60%): "Executando OCR (reconhecimento de texto em imagem)"
+    - [ ] Chunking (60-80%): "Dividindo texto em chunks para vetorização"
+    - [ ] Vetorização (80-95%): "Gerando embeddings com OpenAI"
+    - [ ] Salvando no ChromaDB (95-100%): "Salvando no banco vetorial"
+  - [ ] Chamar `gerenciador.atualizar_progresso(upload_id, etapa, progresso)` em cada micro-etapa
+- [ ] Adicionar documentação em `ARQUITETURA.md`:
+  - [ ] Seção "Sistema de Feedback de Progresso de Upload"
+  - [ ] Tabela de faixas de progresso (0-100%)
+  - [ ] Exemplos de fluxo (PDF normal vs PDF escaneado)
+
+**Entregáveis:**
+- ✅ Progresso detalhado reportado em cada etapa do processamento
+- ✅ Usuário vê exatamente o que está acontecendo (ex: "Executando OCR - 45%")
+- ✅ Documentação completa em ARQUITETURA.md
+- ✅ Changelog completo: `changelogs/TAREFA-039_backend-feedback-progresso-upload.md`
+
+**Marco:** 🎉 **UPLOAD ASSÍNCRONO COMPLETO** - Upload e processamento de documentos totalmente assíncrono com feedback de progresso REAL em tempo real, idêntico ao fluxo de análise multi-agent.
+
+---
+
+### 🔵 FASE 7: MELHORIAS E OTIMIZAÇÕES (TAREFAS 040-044)
 
 **Objetivo:** Polimento e features avançadas
 
 ---
 
-#### 🟡 TAREFA-035: Sistema de Logging Completo
+#### 🟡 TAREFA-040: Sistema de Logging Completo
 **Prioridade:** 🟡 ALTA  
 **Dependências:** TAREFA-014  
 **Estimativa:** 2-3 horas  
@@ -463,7 +376,7 @@ Aqui está o **Roadmap v2.0** atualizado:
 
 ---
 
-#### 🟡 TAREFA-036: Cache de Embeddings e Respostas
+#### 🟡 TAREFA-041: Cache de Embeddings e Respostas
 **Prioridade:** 🟢 MÉDIA  
 **Dependências:** TAREFA-014  
 **Estimativa:** 2-3 horas  
@@ -478,7 +391,7 @@ Aqui está o **Roadmap v2.0** atualizado:
 
 ---
 
-#### 🟡 TAREFA-037: Autenticação e Autorização (JWT)
+#### 🟡 TAREFA-042: Autenticação e Autorização (JWT)
 **Prioridade:** 🟢 MÉDIA  
 **Dependências:** TAREFA-014  
 **Estimativa:** 4-5 horas  
@@ -495,9 +408,9 @@ Aqui está o **Roadmap v2.0** atualizado:
 
 ---
 
-#### 🟡 TAREFA-038: Melhorias de Performance
+#### 🟡 TAREFA-043: Melhorias de Performance
 **Prioridade:** 🟢 MÉDIA  
-**Dependências:** TAREFA-036  
+**Dependências:** TAREFA-041  
 **Estimativa:** 3-4 horas  
 **Status:** 🟡 PENDENTE
 
@@ -511,7 +424,7 @@ Aqui está o **Roadmap v2.0** atualizado:
 
 ---
 
-#### 🟡 TAREFA-039: Documentação de Usuário Final
+#### 🟡 TAREFA-044: Documentação de Usuário Final
 **Prioridade:** 🟢 MÉDIA  
 **Dependências:** TAREFA-029  
 **Estimativa:** 2-3 horas  
@@ -526,13 +439,13 @@ Aqui está o **Roadmap v2.0** atualizado:
 
 ---
 
-### 🔵 FASE 7: DEPLOY E INFRAESTRUTURA (TAREFAS 040-042)
+### 🔵 FASE 8: DEPLOY E INFRAESTRUTURA (TAREFAS 045-047)
 
 **Objetivo:** Colocar sistema em produção
 
 ---
 
-#### 🟡 TAREFA-040: Dockerização Completa
+#### 🟡 TAREFA-045: Dockerização Completa
 **Prioridade:** 🟡 ALTA  
 **Dependências:** TAREFA-014, TAREFA-021  
 **Estimativa:** 3-4 horas  
@@ -550,9 +463,9 @@ Aqui está o **Roadmap v2.0** atualizado:
 
 ---
 
-#### 🟡 TAREFA-041: CI/CD (GitHub Actions)
+#### 🟡 TAREFA-046: CI/CD (GitHub Actions)
 **Prioridade:** 🟡 ALTA  
-**Dependências:** TAREFA-040  
+**Dependências:** TAREFA-045  
 **Estimativa:** 2-3 horas  
 **Status:** 🟡 PENDENTE
 
@@ -566,9 +479,9 @@ Aqui está o **Roadmap v2.0** atualizado:
 
 ---
 
-#### 🟡 TAREFA-042: Deploy em Produção
+#### 🟡 TAREFA-047: Deploy em Produção
 **Prioridade:** 🟢 MÉDIA  
-**Dependências:** TAREFA-041  
+**Dependências:** TAREFA-046  
 **Estimativa:** 4-5 horas  
 **Status:** 🟡 PENDENTE
 
@@ -586,73 +499,16 @@ Aqui está o **Roadmap v2.0** atualizado:
 
 ---
 
-## 📊 ESTIMATIVAS GLOBAIS
-
-### Por Fase:
-
-| Fase | Tarefas | Estimativa Total | Prioridade Geral |
-|------|---------|------------------|------------------|
-| **FASE 1: Ingestão** | 003-008 (6 tarefas) | 15-21 horas | ✅ CONCLUÍDA |
-| **FASE 2: Multi-Agent** | 009-014 (6 tarefas) | 14-20 horas | ✅ CONCLUÍDA |
-| **FASE 3: Frontend** | 015-021 (7 tarefas) | 17-24 horas | ✅ CONCLUÍDA |
-| **FASE 4: Expansão** | 022-029 (8 tarefas) | 19-27 horas | 🔴 CRÍTICA |
-| **FASE 5: Rearquitetura** | 030-034 (5 tarefas) | 15-19 horas | 🔴 CRÍTICA |
-| **FASE 6: Melhorias** | 035-039 (5 tarefas) | 13-18 horas | 🟢 MÉDIA |
-| **FASE 7: Deploy** | 040-042 (3 tarefas) | 9-12 horas | 🟡 ALTA |
-
-**TOTAL:** 42 tarefas | **102-141 horas** (~3-5 meses em tempo parcial)
-
----
-
 ## 🎯 MARCOS (MILESTONES)
 
 1. **✅ FUNDAÇÃO COMPLETA** (TAREFA-002) - Concluído
 2. **✅ FLUXO 1 OPERACIONAL** (TAREFA-008) - Upload e processamento funcionando
 3. **✅ FLUXO 2 OPERACIONAL** (TAREFA-014) - Análise multi-agent (v1.0) funcionando
 4. **✅ INTERFACE COMPLETA** (TAREFA-021) - Frontend (v1.0) funcional
-5. **� EXPANSÃO V2 COMPLETA** (TAREFA-029) - Seleção de contexto e advogados especialistas
-6. **🔴 REARQUITETURA ASSÍNCRONA** (TAREFA-034) - Sistema robusto com polling (resolve timeouts)
-7. **🎉 SISTEMA EM PRODUÇÃO** (TAREFA-042) - Disponível publicamente
-
----
-
-## 🚦 PRIORIZAÇÃO SUGERIDA
-
-*(Sprints 1-5 omitidos por estarem concluídos)*
-
-### Sprint 6 (Semanas 11-12): EXPANSÃO (Back-end)
-
-- TAREFA-022: API de Seleção de Documentos
-- TAREFA-024: Refatorar Infra de Agentes
-- TAREFA-025: Agente Advogado Trabalhista
-- TAREFA-026: Agente Advogado Previdenciário
-
-### Sprint 7 (Semanas 13-14): EXPANSÃO (Front-end)
-
-- TAREFA-023: UI de Seleção de Documentos
-- TAREFA-027: Agente Advogado Cível
-- TAREFA-028: Agente Advogado Tributário
-- TAREFA-029: UI de Seleção de Múltiplos Agentes
-
-### Sprint 8 (Semanas 15-16): REARQUITETURA ASSÍNCRONA (Backend)
-
-- TAREFA-030: Refatorar Orquestrador para Background Tasks
-- TAREFA-031: Criar Endpoints Assíncronos (/iniciar, /status, /resultado)
-
-### Sprint 9 (Semanas 17-18): REARQUITETURA ASSÍNCRONA (Frontend)
-
-- TAREFA-032: Refatorar Serviço API (polling)
-- TAREFA-033: Implementar Polling na PaginaAnalise
-- TAREFA-034: Feedback de Progresso (opcional)
-
-### Sprint 10 (Semanas 19-20): MELHORIAS E DEPLOY
-
-- TAREFA-035: Sistema de Logging Completo
-- TAREFA-040: Dockerização Completa
-- TAREFA-041: CI/CD (GitHub Actions)
-- TAREFA-042: Deploy em Produção
-
-*(Tarefas de melhorias adicionais (036-039) podem ser intercaladas conforme necessidade)*
+5. **✅ EXPANSÃO V2 COMPLETA** (TAREFA-029) - Seleção de contexto e advogados especialistas
+6. **✅ REARQUITETURA ASSÍNCRONA** (TAREFA-034) - Sistema robusto com polling (resolve timeouts)
+7. **🔴 UPLOAD ASSÍNCRONO** (TAREFA-039) - Uploads sem timeout com feedback em tempo real
+8. **🎉 SISTEMA EM PRODUÇÃO** (TAREFA-047) - Disponível publicamente
 
 ---
 
