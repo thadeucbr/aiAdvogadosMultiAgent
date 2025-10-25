@@ -169,7 +169,7 @@ npm run dev
 
 ## 📋 Status do Projeto
 
-**Versão Atual:** 0.20.0 (FASE 7 - Upload de Documentos Complementares para Petição)  
+**Versão Atual:** 0.21.0 (FASE 7 - Agente Estrategista Processual)  
 **Última Atualização:** 2025-10-25
 
 ### ✅ Concluído
@@ -329,24 +329,24 @@ npm run dev
   - Listagem retorna: documentos_sugeridos (LLM) + documentos_enviados (com status de processamento)
   - Documentação completa em ARQUITETURA.md (+450 linhas) com exemplos UI e JavaScript
   - **UPLOAD COMPLEMENTARES:** Advogado envia múltiplos documentos com progresso individual em tempo real
+- [x] **Backend: Criar Agente "Analista de Estratégia Processual" (TAREFA-044)** 🆕
+  - Novo agente `agente_estrategista_processual.py` (600 linhas) especializado em análise estratégica de processos
+  - Classe AgenteEstrategistaProcessual(AgenteBase) com método analisar() que retorna ProximosPassos
+  - Método montar_prompt() com prompt engineering especializado para estratégia processual (formato JSON)
+  - Recebe contexto completo (petição + documentos + pareceres) e elabora plano de ação tático
+  - Parsing robusto de JSON com fallback (LLM pode adicionar texto extra)
+  - Integração com modelos Pydantic: ProximosPassos, PassoEstrategico, CaminhoAlternativo
+  - Temperatura 0.3 (objetividade), modelo GPT-4 (análise complexa), tratamento completo de erros
+  - Documentação exaustiva (40% do código são comentários) seguindo padrão AI_MANUAL
+  - **ESTRATÉGIA PROCESSUAL:** Elabora próximos passos ordenados, prazos realistas, caminhos alternativos
 
 ### 🔄 Em Andamento
 
-  - Novo serviço `servico_analise_documentos_relevantes.py` (860 linhas) para análise automática de petições
-  - Usa LLM (GPT-4) para sugerir documentos necessários com justificativas e prioridades
-  - 4 exceções customizadas, prompt engineering robusto com formato JSON estruturado
-  - Integração com ChromaDB (busca RAG) + GerenciadorLLM + GerenciadorEstadoPeticoes
-  - Nova função `obter_documento_por_id()` em servico_banco_vetorial.py (110 linhas)
-  - Novo endpoint: POST /api/peticoes/{peticao_id}/analisar-documentos (status 202 Accepted)
-  - Processamento assíncrono em background (10-60s), tratamento completo de erros
-  - Prompt da LLM retorna 3-15 documentos com tipo, justificativa, prioridade (essencial/importante/desejavel)
-  - Documentação completa em ARQUITETURA.md (+120 linhas)
-  - **UPLOAD COMPLEMENTARES:** Advogado envia múltiplos documentos com progresso individual em tempo real
+- [ ] FASE 7 - Análise de Petição Inicial (Tarefas 040-056)
 
-### 🚧 Próximos Passos (FASE 7: Análise de Petição Inicial)
+### 🚧 Próximos Passos
 
-- [ ] **TAREFA-044:** Backend - Criar Agente "Analista de Estratégia Processual" (PRÓXIMA)
-- [ ] **TAREFA-045:** Backend - Criar Agente "Analista de Prognóstico"
+- [ ] **TAREFA-045:** Backend - Criar Agente "Analista de Prognóstico" (PRÓXIMA)
 - [ ] **TAREFA-046:** Backend - Refatorar Orquestrador para Análise de Petições
 - [ ] **TAREFA-047:** Backend - Serviço de Geração de Documento de Continuação
 - [ ] **TAREFA-048:** Backend - Endpoint de Análise Completa de Petição
