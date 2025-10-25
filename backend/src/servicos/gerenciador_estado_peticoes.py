@@ -64,7 +64,7 @@ import threading
 from typing import Dict, List, Optional
 from datetime import datetime
 
-from modelos.processo import (
+from src.modelos.processo import (
     Peticao,
     StatusPeticao,
     DocumentoSugerido,

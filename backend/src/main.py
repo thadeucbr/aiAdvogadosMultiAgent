@@ -280,6 +280,10 @@ app.include_router(router_documentos)
 from src.api.rotas_analise import router as router_analise
 app.include_router(router_analise)
 
+# TAREFA-041: Rotas de petições iniciais (FASE 7)
+from src.api.rotas_peticoes import router as router_peticoes
+app.include_router(router_peticoes)
+
 
 # ===== FUNÇÃO MAIN (ENTRY POINT) =====
 

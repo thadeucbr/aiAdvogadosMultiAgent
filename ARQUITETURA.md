@@ -2086,6 +2086,229 @@ Usuário vê **exatamente** o que está acontecendo em tempo real, com progresso
 
 ---
 
+### Petições Iniciais (FASE 7 - TAREFA-041)
+
+**Status:** ✅ IMPLEMENTADO (TAREFA-041)  
+**Responsável:** GitHub Copilot (IA)  
+**Data:** 2025-10-25
+
+**Contexto de Negócio:**
+Sistema de análise de petição inicial com sugestão de documentos, prognóstico probabilístico e geração de documento de continuação. Este é um fluxo estratégico diferenciado do sistema de análise tradicional multi-agent.
+
+**Endpoints Implementados:**
+- `POST /api/peticoes/iniciar` - Criar petição e fazer upload assíncrono
+- `GET /api/peticoes/status/{peticao_id}` - Consultar status da petição
+- `GET /api/peticoes/health` - Health check do serviço
+
+#### `POST /api/peticoes/iniciar`
+**Status:** ✅ IMPLEMENTADO (TAREFA-041)
+
+**Descrição:** Cria uma nova análise de petição inicial e faz upload assíncrono do documento da petição.
+
+**Contexto de Negócio:**
+Este é o ponto de entrada para o fluxo de análise de petição inicial (FASE 7). Diferente da análise tradicional multi-agent, este fluxo inclui:
+- Análise estratégica de próximos passos
+- Prognóstico probabilístico de cenários (vitória, derrota, acordo, valores)
+- Sugestão automática de documentos relevantes pela LLM
+- Pareceres individualizados por especialista
+- Geração automática de documento de continuação
+
+**Request (multipart/form-data):**
+```
+arquivo: File (PDF ou DOCX da petição inicial)
+tipo_acao: string (opcional, ex: "Trabalhista - Acidente de Trabalho")
+```
+
+**Response (202 Accepted):**
+```json
+{
+  "sucesso": true,
+  "mensagem": "Petição inicial criada com sucesso. Upload do documento em andamento. Use o upload_id para acompanhar o progresso.",
+  "peticao_id": "550e8400-e29b-41d4-a716-446655440000",
+  "upload_id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+  "status": "aguardando_documentos",
+  "tipo_acao": "Trabalhista - Acidente de Trabalho",
+  "timestamp_criacao": "2025-10-25T14:30:00.000Z"
+}
+```
+
+**Campos da Response:**
+- `sucesso`: Indica se operação foi bem-sucedida
+- `mensagem`: Mensagem descritiva para o usuário
+- `peticao_id`: UUID da petição criada (usar para consultar status)
+- `upload_id`: UUID do upload assíncrono (usar para acompanhar progresso do upload)
+- `status`: Status inicial da petição (sempre "aguardando_documentos")
+- `tipo_acao`: Tipo de ação jurídica (se fornecido)
+- `timestamp_criacao`: Quando a petição foi criada
+
+**Status HTTP:**
+- `202 Accepted`: Petição criada com sucesso, upload em background
+- `400 Bad Request`: Nenhum arquivo enviado ou validação falhou
+- `413 Request Entity Too Large`: Arquivo excede tamanho máximo (50MB)
+- `415 Unsupported Media Type`: Tipo de arquivo não suportado (apenas PDF e DOCX)
+- `500 Internal Server Error`: Erro ao criar petição ou processar upload
+
+**Padrão Assíncrono:**
+1. Cliente envia petição inicial (PDF/DOCX)
+2. Backend valida arquivo (tipo e tamanho)
+3. Backend cria registro de petição (status: aguardando_documentos)
+4. Backend faz upload assíncrono do documento (reutiliza infraestrutura TAREFA-036)
+5. Backend retorna `peticao_id` e `upload_id` IMEDIATAMENTE (202 Accepted)
+6. Cliente usa `upload_id` para acompanhar progresso do upload via `GET /api/documentos/status-upload/{upload_id}`
+7. Quando upload concluir, cliente consulta status da petição via `GET /api/peticoes/status/{peticao_id}`
+
+**Tipos de arquivo aceitos:**
+- PDF (.pdf): Documentos em formato PDF
+- DOCX (.docx): Documentos do Microsoft Word
+
+**Validações:**
+- Tamanho máximo: 50MB (configurável via `TAMANHO_MAXIMO_ARQUIVO_MB`)
+- Apenas extensões .pdf e .docx permitidas para petições iniciais
+
+**Integração com Upload Assíncrono:**
+Este endpoint reutiliza a infraestrutura de upload assíncrono (TAREFA-036):
+- Gerenciador de estado de uploads
+- Processamento em background com feedback de progresso
+- Polling de progresso via `GET /api/documentos/status-upload/{upload_id}`
+
+**Próximos passos após criação:**
+1. Fazer polling do progresso do upload (`GET /api/documentos/status-upload/{upload_id}`)
+2. Quando upload concluir, consultar status da petição (`GET /api/peticoes/status/{peticao_id}`)
+3. Ver documentos sugeridos pela LLM (TAREFA-042 - futuro)
+4. Fazer upload de documentos complementares (TAREFA-043 - futuro)
+5. Selecionar agentes para análise
+6. Iniciar análise completa (TAREFA-048 - futuro)
+
+---
+
+#### `GET /api/peticoes/status/{peticao_id}`
+**Status:** ✅ IMPLEMENTADO (TAREFA-041)
+
+**Descrição:** Consulta o status atual de uma petição em processamento.
+
+**Path Parameter:**
+- `peticao_id` (string, obrigatório): UUID da petição retornado por `POST /api/peticoes/iniciar`
+
+**Request:** Nenhum body necessário
+
+**Response (Aguardando Documentos):**
+```json
+{
+  "sucesso": true,
+  "peticao_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "aguardando_documentos",
+  "tipo_acao": "Trabalhista - Acidente de Trabalho",
+  "documentos_sugeridos": [
+    {
+      "tipo_documento": "Laudo Médico Pericial",
+      "justificativa": "Necessário para comprovar nexo causal entre acidente e lesões",
+      "prioridade": "essencial"
+    },
+    {
+      "tipo_documento": "Contrato de Trabalho",
+      "justificativa": "Comprova vínculo empregatício",
+      "prioridade": "importante"
+    }
+  ],
+  "documentos_enviados": ["7c9e6679-7425-40de-944b-e07fc1f90ae7"],
+  "agentes_selecionados": {
+    "advogados": ["trabalhista"],
+    "peritos": ["medico", "seguranca_trabalho"]
+  },
+  "timestamp_criacao": "2025-10-25T14:30:00.000Z",
+  "timestamp_atualizacao": "2025-10-25T14:35:00.000Z",
+  "mensagem_erro": null
+}
+```
+
+**Response (Erro):**
+```json
+{
+  "sucesso": true,
+  "peticao_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "erro",
+  "tipo_acao": "Trabalhista - Acidente de Trabalho",
+  "documentos_sugeridos": null,
+  "documentos_enviados": [],
+  "agentes_selecionados": null,
+  "timestamp_criacao": "2025-10-25T14:30:00.000Z",
+  "timestamp_atualizacao": "2025-10-25T14:31:00.000Z",
+  "mensagem_erro": "Erro ao processar upload do documento: Arquivo corrompido"
+}
+```
+
+**Campos da Response:**
+- `sucesso`: Sempre `true` (se endpoint não lançar exceção)
+- `peticao_id`: UUID da petição
+- `status`: Estado atual da petição
+  - `aguardando_documentos`: Aguardando upload de documentos complementares
+  - `pronta_para_analise`: Documentos enviados, aguardando seleção de agentes
+  - `processando`: Análise multi-agent em andamento
+  - `concluida`: Análise finalizada, prognóstico disponível
+  - `erro`: Falha durante processamento
+- `tipo_acao`: Tipo de ação jurídica (se definido)
+- `documentos_sugeridos`: Lista de documentos identificados pela LLM como relevantes (null se ainda não analisado)
+  - `tipo_documento`: Nome do tipo de documento
+  - `justificativa`: Por que este documento é relevante
+  - `prioridade`: "essencial", "importante" ou "desejavel"
+- `documentos_enviados`: IDs dos documentos complementares já enviados
+- `agentes_selecionados`: Advogados e peritos escolhidos para análise
+- `timestamp_criacao`: Quando a petição foi criada
+- `timestamp_atualizacao`: Última atualização de status
+- `mensagem_erro`: Mensagem de erro (se status = "erro")
+
+**Status HTTP:**
+- `200 OK`: Status retornado com sucesso
+- `404 Not Found`: Petição não encontrada
+
+**Uso no Frontend:**
+Frontend faz polling periódico deste endpoint para:
+1. Verificar se pode adicionar mais documentos (status = aguardando_documentos)
+2. Ver quais documentos a LLM sugeriu como relevantes
+3. Verificar quais documentos já foram enviados
+4. Acompanhar progresso do processamento
+5. Detectar erros
+
+**Estados da Petição:**
+
+| Status | Descrição | Próxima Ação do Usuário |
+|--------|-----------|-------------------------|
+| `aguardando_documentos` | Petição criada, aguardando documentos | Fazer upload de documentos complementares |
+| `pronta_para_analise` | Documentos enviados | Selecionar agentes e iniciar análise |
+| `processando` | Análise em andamento | Aguardar conclusão (polling) |
+| `concluida` | Análise finalizada | Ver prognóstico e pareceres |
+| `erro` | Falha no processamento | Ver mensagem de erro |
+
+---
+
+#### `GET /api/peticoes/health`
+**Status:** ✅ IMPLEMENTADO (TAREFA-041)
+
+**Descrição:** Health check do serviço de petições.
+
+**Request:** Nenhum parâmetro necessário
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "servico": "Petições Iniciais",
+  "total_peticoes_em_memoria": 5,
+  "gerenciador_estado_disponivel": true
+}
+```
+
+**Status HTTP:**
+- `200 OK`: Serviço saudável
+- `503 Service Unavailable`: Serviço com problemas
+
+**Uso:**
+- Monitoramento de saúde do sistema
+- Validação antes de submeter petições
+- Dashboard de status
+
+---
+
 ## 📦 MÓDULOS DE SERVIÇOS (Backend)
 
 **NOTA:** Esta seção documenta os serviços implementados no backend que encapsulam lógica de negócios.

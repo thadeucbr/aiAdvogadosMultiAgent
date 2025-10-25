@@ -33,7 +33,7 @@ JUSTIFICATIVA PARA LLMs:
 """
 
 from pydantic import BaseModel, Field, validator
-from typing import List, Optional
+from typing import List, Optional, Dict
 from datetime import datetime
 from enum import Enum
 
@@ -1833,5 +1833,274 @@ class RespostaResultadoAnalise(BaseModel):
                 "tempo_total_segundos": 187.5,
                 "timestamp_inicio": "2025-10-24T16:00:00.000Z",
                 "timestamp_fim": "2025-10-24T16:03:07.500Z"
+            }
+        }
+
+
+# ===== MODELOS DE PETIÇÃO INICIAL (TAREFA-041) =====
+
+class RespostaIniciarPeticao(BaseModel):
+    """
+    Resposta do endpoint POST /api/peticoes/iniciar.
+    
+    CONTEXTO DE NEGÓCIO (TAREFA-041):
+    Este modelo representa a resposta imediata do endpoint de upload de petição inicial.
+    Quando um advogado envia uma petição inicial (PDF/DOCX), o sistema:
+    1. Faz upload assíncrono do documento (reutiliza infraestrutura da TAREFA-036)
+    2. Cria um registro de petição (usando modelo Peticao da TAREFA-040)
+    3. Retorna IMEDIATAMENTE com peticao_id e upload_id
+    4. Cliente pode acompanhar progresso do upload via upload_id
+    5. Cliente pode acompanhar status da petição via peticao_id
+    
+    FLUXO DE USO:
+    1. POST /api/peticoes/iniciar → Retorna RespostaIniciarPeticao
+    2. Frontend usa upload_id para fazer polling de progresso do upload
+       (GET /api/documentos/status-upload/{upload_id})
+    3. Quando upload concluir, frontend usa peticao_id para consultar status
+       (GET /api/peticoes/status/{peticao_id})
+    
+    CAMPOS:
+    - sucesso: Indica se operação foi bem-sucedida
+    - mensagem: Mensagem descritiva para o usuário
+    - peticao_id: UUID da petição criada (para rastreamento)
+    - upload_id: UUID do upload assíncrono (para acompanhar progresso)
+    - status: Status inicial da petição (sempre "aguardando_documentos")
+    - timestamp_criacao: Quando a petição foi criada
+    """
+    
+    sucesso: bool = Field(
+        ...,
+        description="Indica se a petição foi criada com sucesso (true) ou houve erro (false)"
+    )
+    
+    mensagem: str = Field(
+        ...,
+        description="Mensagem descritiva sobre o resultado da operação"
+    )
+    
+    peticao_id: str = Field(
+        ...,
+        description=(
+            "UUID único que identifica esta petição no sistema. "
+            "Use este ID para consultar status e adicionar documentos complementares."
+        )
+    )
+    
+    upload_id: str = Field(
+        ...,
+        description=(
+            "UUID do upload assíncrono do documento da petição. "
+            "Use este ID para acompanhar progresso do processamento via "
+            "GET /api/documentos/status-upload/{upload_id}"
+        )
+    )
+    
+    status: str = Field(
+        ...,
+        description=(
+            "Status inicial da petição. Sempre 'aguardando_documentos' após criação, "
+            "indicando que documentos complementares podem ser adicionados."
+        )
+    )
+    
+    tipo_acao: Optional[str] = Field(
+        None,
+        description=(
+            "Tipo de ação jurídica (ex: 'Trabalhista - Acidente de Trabalho'). "
+            "Pode ser fornecido pelo usuário ou inferido posteriormente pela LLM."
+        )
+    )
+    
+    timestamp_criacao: str = Field(
+        ...,
+        description="Data e hora de criação da petição em formato ISO 8601"
+    )
+    
+    class Config:
+        """
+        Configurações do modelo Pydantic.
+        
+        json_schema_extra: Exemplo que aparece na documentação Swagger
+        """
+        json_schema_extra = {
+            "example": {
+                "sucesso": True,
+                "mensagem": (
+                    "Petição inicial criada com sucesso. "
+                    "Upload do documento em andamento. "
+                    "Use o upload_id para acompanhar o progresso."
+                ),
+                "peticao_id": "550e8400-e29b-41d4-a716-446655440000",
+                "upload_id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                "status": "aguardando_documentos",
+                "tipo_acao": "Trabalhista - Acidente de Trabalho",
+                "timestamp_criacao": "2025-10-25T14:30:00.000Z"
+            }
+        }
+
+
+class DocumentoSugeridoResponse(BaseModel):
+    """
+    Representação de um documento sugerido pela LLM.
+    
+    CONTEXTO DE NEGÓCIO:
+    Quando a LLM analisa a petição inicial, ela sugere documentos relevantes
+    que seriam úteis para a análise completa do caso. Este modelo representa
+    cada documento sugerido.
+    
+    CAMPOS:
+    - tipo_documento: Nome do tipo de documento (ex: "Laudo Médico")
+    - justificativa: Por que este documento é relevante
+    - prioridade: Quão crítico é ter este documento (essencial/importante/desejavel)
+    """
+    
+    tipo_documento: str = Field(
+        ...,
+        description="Tipo de documento sugerido (ex: 'Laudo Médico', 'Contrato de Trabalho')"
+    )
+    
+    justificativa: str = Field(
+        ...,
+        description="Explicação de por que este documento é relevante para o caso"
+    )
+    
+    prioridade: str = Field(
+        ...,
+        description="Prioridade do documento: 'essencial', 'importante' ou 'desejavel'"
+    )
+    
+    class Config:
+        """Exemplo para documentação Swagger"""
+        json_schema_extra = {
+            "example": {
+                "tipo_documento": "Laudo Médico Pericial",
+                "justificativa": (
+                    "Necessário para comprovar nexo causal entre acidente e lesões, "
+                    "fundamental para análise de incapacidade laboral"
+                ),
+                "prioridade": "essencial"
+            }
+        }
+
+
+class RespostaStatusPeticao(BaseModel):
+    """
+    Resposta do endpoint GET /api/peticoes/status/{peticao_id}.
+    
+    CONTEXTO DE NEGÓCIO (TAREFA-041):
+    Este modelo representa o estado atual de uma petição em processamento.
+    O frontend consulta este endpoint para:
+    1. Saber se pode adicionar mais documentos (status = aguardando_documentos)
+    2. Ver quais documentos a LLM sugeriu como relevantes
+    3. Verificar quais documentos já foram enviados
+    4. Acompanhar o progresso do processamento
+    
+    ESTADOS POSSÍVEIS:
+    - aguardando_documentos: Petição criada, aguardando upload de documentos complementares
+    - pronta_para_analise: Todos documentos necessários foram enviados
+    - processando: Análise multi-agent em andamento
+    - concluida: Análise finalizada, prognóstico disponível
+    - erro: Falha durante processamento
+    
+    CAMPOS:
+    - peticao_id: UUID da petição
+    - status: Estado atual da petição
+    - tipo_acao: Tipo de ação jurídica (se definido)
+    - documentos_sugeridos: Lista de documentos que a LLM identificou como relevantes
+    - documentos_enviados: IDs dos documentos complementares já enviados
+    - agentes_selecionados: Advogados e peritos escolhidos para análise
+    - timestamp_criacao: Quando a petição foi criada
+    - timestamp_atualizacao: Última atualização de status
+    """
+    
+    sucesso: bool = Field(
+        ...,
+        description="Indica se a consulta foi bem-sucedida"
+    )
+    
+    peticao_id: str = Field(
+        ...,
+        description="UUID da petição"
+    )
+    
+    status: str = Field(
+        ...,
+        description=(
+            "Status atual da petição: "
+            "'aguardando_documentos', 'pronta_para_analise', 'processando', 'concluida', ou 'erro'"
+        )
+    )
+    
+    tipo_acao: Optional[str] = Field(
+        None,
+        description="Tipo de ação jurídica (ex: 'Trabalhista - Acidente de Trabalho')"
+    )
+    
+    documentos_sugeridos: Optional[List[DocumentoSugeridoResponse]] = Field(
+        None,
+        description=(
+            "Lista de documentos sugeridos pela LLM como relevantes para o caso. "
+            "Null se análise de documentos ainda não foi realizada."
+        )
+    )
+    
+    documentos_enviados: List[str] = Field(
+        default_factory=list,
+        description="Lista de IDs dos documentos complementares já enviados pelo advogado"
+    )
+    
+    agentes_selecionados: Optional[Dict[str, List[str]]] = Field(
+        None,
+        description=(
+            "Agentes selecionados para análise, no formato: "
+            "{'advogados': ['trabalhista', 'previdenciario'], 'peritos': ['medico']}"
+        )
+    )
+    
+    timestamp_criacao: str = Field(
+        ...,
+        description="Data e hora de criação da petição em formato ISO 8601"
+    )
+    
+    timestamp_atualizacao: str = Field(
+        ...,
+        description="Data e hora da última atualização de status em formato ISO 8601"
+    )
+    
+    mensagem_erro: Optional[str] = Field(
+        None,
+        description="Mensagem de erro se status = 'erro'"
+    )
+    
+    class Config:
+        """Exemplo para documentação Swagger"""
+        json_schema_extra = {
+            "example": {
+                "sucesso": True,
+                "peticao_id": "550e8400-e29b-41d4-a716-446655440000",
+                "status": "aguardando_documentos",
+                "tipo_acao": "Trabalhista - Acidente de Trabalho",
+                "documentos_sugeridos": [
+                    {
+                        "tipo_documento": "Laudo Médico Pericial",
+                        "justificativa": "Necessário para comprovar nexo causal",
+                        "prioridade": "essencial"
+                    },
+                    {
+                        "tipo_documento": "Contrato de Trabalho",
+                        "justificativa": "Comprova vínculo empregatício",
+                        "prioridade": "importante"
+                    }
+                ],
+                "documentos_enviados": [
+                    "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                ],
+                "agentes_selecionados": {
+                    "advogados": ["trabalhista"],
+                    "peritos": ["medico", "seguranca_trabalho"]
+                },
+                "timestamp_criacao": "2025-10-25T14:30:00.000Z",
+                "timestamp_atualizacao": "2025-10-25T14:35:00.000Z",
+                "mensagem_erro": None
             }
         }

@@ -169,7 +169,7 @@ npm run dev
 
 ## 📋 Status do Projeto
 
-**Versão Atual:** 0.17.0 (FASE 7 - Modelo de Dados para Análise de Petição Inicial)  
+**Versão Atual:** 0.18.0 (FASE 7 - Endpoint de Upload de Petição Inicial)  
 **Última Atualização:** 2025-10-25
 
 ### ✅ Concluído
