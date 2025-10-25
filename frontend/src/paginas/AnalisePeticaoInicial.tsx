@@ -36,6 +36,7 @@ import type {
   ResultadoAnaliseProcesso,
 } from '../tipos/tiposPeticao';
 import { ComponenteUploadPeticaoInicial } from '../componentes/peticao/ComponenteUploadPeticaoInicial';
+import { ComponenteDocumentosSugeridos } from '../componentes/peticao/ComponenteDocumentosSugeridos';
 
 // ===== TIPOS LOCAIS =====
 
@@ -386,7 +387,9 @@ function EtapaUploadPeticao({
       <ComponenteUploadPeticaoInicial
         aoConcluirComSucesso={(peticaoId, documentosSugeridos) => {
           console.log('[EtapaUploadPeticao] Upload concluído:', peticaoId, documentosSugeridos);
-          // Passar peticaoId e upload_id (vazio por enquanto, será usado depois)
+          // Salvar documentos sugeridos no state
+          setDocumentosSugeridos(documentosSugeridos);
+          // Passar peticaoId para a próxima etapa
           onUploadConcluido(peticaoId, '', '');
         }}
         aoOcorrerErro={(mensagemErro) => {
@@ -401,7 +404,7 @@ function EtapaUploadPeticao({
 /**
  * ETAPA 2: Documentos Complementares
  * 
- * NOTA: Este é um placeholder. O componente completo será implementado na TAREFA-051.
+ * IMPLEMENTAÇÃO (TAREFA-051): Usa ComponenteDocumentosSugeridos
  */
 function EtapaDocumentosComplementares({
   peticaoId,
@@ -421,22 +424,31 @@ function EtapaDocumentosComplementares({
   onErro: (erro: string) => void;
 }) {
   return (
-    <div className="text-center py-12">
-      <FileCheck className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-      <h2 className="text-xl font-semibold text-gray-900 mb-2">
-        Documentos Complementares
-      </h2>
-      <p className="text-gray-600 mb-6">
-        Componente completo será implementado na TAREFA-051
-      </p>
-      <div className="flex gap-4 justify-center">
-        <button onClick={onVoltar} className="btn btn-secondary">
-          Voltar
-        </button>
-        <button onClick={onAvancar} className="btn btn-primary">
-          Avançar (Dev)
+    <div className="space-y-6">
+      {/* Botão Voltar */}
+      <div className="flex justify-start">
+        <button
+          onClick={onVoltar}
+          className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
+        >
+          ← Voltar
         </button>
       </div>
+
+      {/* Componente de Documentos Sugeridos */}
+      <ComponenteDocumentosSugeridos
+        peticaoId={peticaoId}
+        documentosSugeridos={documentosSugeridos}
+        aoCompletarDocumentos={(documentosIds) => {
+          console.log('[EtapaDocumentosComplementares] Documentos enviados:', documentosIds);
+          onDocumentosEnviados(documentosIds);
+          onAvancar();
+        }}
+        aoOcorrerErro={(mensagemErro) => {
+          console.error('[EtapaDocumentosComplementares] Erro:', mensagemErro);
+          onErro(mensagemErro);
+        }}
+      />
     </div>
   );
 }

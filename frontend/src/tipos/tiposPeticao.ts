@@ -74,6 +74,23 @@ export type TipoCenario =
   | 'derrota'
   | 'acordo';
 
+/**
+ * Status de upload de um documento individual (para controle de UI)
+ * 
+ * FLUXO TÍPICO:
+ * NAO_ENVIADO → SELECIONANDO → ENVIANDO → PROCESSANDO → CONCLUIDO
+ *              ↓                ↓             ↓
+ *         MARCADO_NAO_POSSUO   ERRO          ERRO
+ */
+export type StatusUploadDocumento =
+  | 'NAO_ENVIADO'
+  | 'SELECIONANDO'
+  | 'ENVIANDO'
+  | 'PROCESSANDO'
+  | 'CONCLUIDO'
+  | 'ERRO'
+  | 'MARCADO_NAO_POSSUO';
+
 // ===== INTERFACES DE DADOS =====
 
 /**

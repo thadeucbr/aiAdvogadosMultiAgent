@@ -463,3 +463,65 @@ export function pollingAnalise(
 
   return intervalId;
 }
+
+/**
+ * Verifica status de um upload individual de documento
+ * 
+ * ENDPOINT: GET /api/documentos/status-upload/{upload_id}
+ * 
+ * @param uploadId - ID do upload retornado pelo backend
+ * @returns Promise com status, progresso e etapa atual
+ * 
+ * @example
+ * ```typescript
+ * const resposta = await verificarStatusUpload(uploadId);
+ * console.log(`Progresso: ${resposta.data.progresso_percentual}%`);
+ * console.log(`Etapa: ${resposta.data.etapa_atual}`);
+ * ```
+ */
+export async function verificarStatusUpload(
+  uploadId: string
+): Promise<AxiosResponse<{
+  upload_id: string;
+  status: string;
+  etapa_atual: string | null;
+  progresso_percentual: number;
+  timestamp_atualizacao: string;
+  mensagem_erro: string | null;
+}>> {
+  return axios.get(
+    `${API_BASE_URL}/api/documentos/status-upload/${uploadId}`
+  );
+}
+
+/**
+ * Obtém resultado completo de um upload após conclusão
+ * 
+ * ENDPOINT: GET /api/documentos/resultado-upload/{upload_id}
+ * 
+ * @param uploadId - ID do upload retornado pelo backend
+ * @returns Promise com informações do documento processado
+ * 
+ * @example
+ * ```typescript
+ * const resposta = await obterResultadoUpload(uploadId);
+ * console.log(`Documento ID: ${resposta.data.documento_id}`);
+ * console.log(`Chunks gerados: ${resposta.data.numero_chunks}`);
+ * ```
+ */
+export async function obterResultadoUpload(
+  uploadId: string
+): Promise<AxiosResponse<{
+  upload_id: string;
+  status: string;
+  documento_id: string;
+  nome_arquivo: string;
+  tamanho_bytes: number;
+  tipo_documento: string;
+  numero_chunks: number;
+  tempo_processamento_segundos: number;
+}>> {
+  return axios.get(
+    `${API_BASE_URL}/api/documentos/resultado-upload/${uploadId}`
+  );
+}

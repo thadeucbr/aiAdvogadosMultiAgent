@@ -74,7 +74,7 @@ Aqui está o **Roadmap v2.0** atualizado:
 - ✅ TAREFA-048: Backend - Endpoint de Análise Completa de Petição
 - ✅ TAREFA-049: Frontend - Criar Página de Análise de Petição Inicial
 
-**Próximo passo:** TAREFA-051 (Frontend - Componente de Exibição de Documentos Sugeridos)
+**Próximo passo:** TAREFA-052 (Frontend - Componente de Seleção de Agentes para Petição)
 
 ---
 
@@ -888,38 +888,51 @@ Esta é uma nova funcionalidade estratégica que diferencia o produto. O fluxo �
 
 ---
 
-#### 🟡 TAREFA-051: Frontend - Componente de Exibição de Documentos Sugeridos
+#### ✅ TAREFA-051: Frontend - Componente de Exibição de Documentos Sugeridos
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-049, TAREFA-042 (Análise de Documentos Backend)  
 **Estimativa:** 3-4 horas  
-**Status:** 🟡 PENDENTE
+**Status:** ✅ CONCLUÍDA
 
 **Escopo:**
-- [ ] Criar `frontend/src/componentes/peticao/ComponenteDocumentosSugeridos.tsx`:
-  - [ ] Lista de cards, cada card representa um `DocumentoSugerido`:
-    - [ ] Título: Tipo de documento (ex: "Laudo Médico")
-    - [ ] Badge de prioridade (ESSENCIAL = vermelho, IMPORTANTE = amarelo, DESEJAVEL = verde)
-    - [ ] Justificativa (por que esse documento é relevante)
-    - [ ] Status: NÃO ENVIADO | ENVIANDO | ENVIADO
-    - [ ] Botão "Fazer Upload" (abre seletor de arquivo)
-    - [ ] Botão "Não Possuo" (marca como opcional, se não for ESSENCIAL)
-  - [ ] Para cada documento com prioridade ESSENCIAL:
-    - [ ] Obrigatório fazer upload OU marcar "Não Possuo" com confirmação
-  - [ ] Ao fazer upload:
-    - [ ] Chama `POST /api/peticoes/{peticao_id}/documentos` (TAREFA-043)
-    - [ ] Exibe progresso individual por documento (barra de progresso)
-    - [ ] Atualiza status do card quando upload completo
-  - [ ] Suporte a múltiplos uploads simultâneos (1 por documento sugerido)
-  - [ ] Botão "Avançar" só habilita quando:
-    - [ ] Todos ESSENCIAIS foram enviados OU marcados como "Não Possuo"
-    - [ ] Pelo menos 1 documento foi enviado
+- [x] Criar `frontend/src/componentes/peticao/ComponenteDocumentosSugeridos.tsx`:
+  - [x] Lista de cards, cada card representa um `DocumentoSugerido`:
+    - [x] Título: Tipo de documento (ex: "Laudo Médico")
+    - [x] Badge de prioridade (ESSENCIAL = vermelho, IMPORTANTE = amarelo, DESEJAVEL = verde)
+    - [x] Justificativa (por que esse documento é relevante)
+    - [x] Status: NAO_ENVIADO | ENVIANDO | ENVIADO | CONCLUIDO | ERRO | MARCADO_NAO_POSSUO
+    - [x] Botão "Fazer Upload" (abre seletor de arquivo)
+    - [x] Botão "Não Possuo" (marca como opcional, se não for ESSENCIAL)
+  - [x] Para cada documento com prioridade ESSENCIAL:
+    - [x] Obrigatório fazer upload OU marcar "Não Possuo" com confirmação
+  - [x] Ao fazer upload:
+    - [x] Chama `POST /api/peticoes/{peticao_id}/documentos` (TAREFA-043)
+    - [x] Exibe progresso individual por documento (barra de progresso)
+    - [x] Atualiza status do card quando upload completo
+  - [x] Suporte a múltiplos uploads simultâneos (1 por documento sugerido)
+  - [x] Botão "Avançar" só habilita quando:
+    - [x] Todos ESSENCIAIS foram enviados OU marcados como "Não Possuo"
+    - [x] Pelo menos 1 documento foi enviado
+- [x] Atualizar `frontend/src/tipos/tiposPeticao.ts`:
+  - [x] Adicionar tipo `StatusUploadDocumento`
+- [x] Atualizar `frontend/src/servicos/servicoApiPeticoes.ts`:
+  - [x] Adicionar função `verificarStatusUpload(uploadId)`
+  - [x] Adicionar função `obterResultadoUpload(uploadId)`
+- [x] Integrar com `AnalisePeticaoInicial.tsx` (substituir placeholder da Etapa 2)
 
 **Entregáveis:**
-- Componente de lista de documentos sugeridos
-- Upload individual por documento com progresso
-- Validação de documentos ESSENCIAIS
-- Feedback visual de status de cada documento
-- Changelog completo: `changelogs/TAREFA-051_frontend-documentos-sugeridos.md`
+- ✅ Componente de lista de documentos sugeridos (670 linhas)
+- ✅ Upload individual por documento com progresso (polling a cada 2s)
+- ✅ Validação de documentos ESSENCIAIS
+- ✅ Feedback visual de status de cada documento (7 estados)
+- ✅ Suporte a múltiplos uploads simultâneos
+- ✅ Cleanup de memory leaks (useEffect com cleanup)
+- ✅ 2 novas funções de API (verificarStatusUpload, obterResultadoUpload)
+- ✅ Novo tipo StatusUploadDocumento
+- ✅ Integração completa com wizard (Etapa 2)
+- ✅ Changelog completo: `changelogs/TAREFA-051_frontend-documentos-sugeridos.md`
+
+**Marco:** 🎉 **ETAPA 2 DO WIZARD COMPLETA** - Documentos sugeridos exibidos, upload individual com progresso em tempo real, validação de documentos essenciais.
 
 ---
 
