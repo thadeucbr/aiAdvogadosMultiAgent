@@ -788,6 +788,123 @@ def buscar_chunks_similares(
     return resultados_formatados
 
 
+# ===== OBTER DOCUMENTO POR ID =====
+
+def obter_documento_por_id(
+    collection: Collection,
+    documento_id: str
+) -> dict[str, Any]:
+    """
+    Recupera todos os chunks de um documento específico pelo seu ID.
+    
+    CONTEXTO DE NEGÓCIO (TAREFA-042):
+    Esta função é usada para recuperar o texto completo de uma petição inicial
+    durante a análise de documentos relevantes. Dado um documento_id, retorna
+    todos os chunks que compõem esse documento.
+    
+    IMPLEMENTAÇÃO:
+    1. Busca todos os chunks onde metadados["documento_id"] == documento_id
+    2. Ordena chunks por chunk_index para manter ordem original
+    3. Retorna estrutura contendo documentos (chunks), metadados e IDs
+    
+    Args:
+        collection: Collection do ChromaDB
+        documento_id: ID único do documento a buscar
+    
+    Returns:
+        dict contendo:
+            - "documents" (list[str]): Lista de textos dos chunks ordenados
+            - "metadatas" (list[dict]): Metadados de cada chunk
+            - "ids" (list[str]): IDs de cada chunk no ChromaDB
+            - "count" (int): Número total de chunks encontrados
+    
+    Raises:
+        ErroDeBusca: Se erro ao consultar ChromaDB
+    
+    EXEMPLO:
+    ```python
+    collection = inicializar_chromadb()[1]
+    
+    resultado = obter_documento_por_id(
+        collection=collection,
+        documento_id="abc-123"
+    )
+    
+    texto_completo = "\\n\\n".join(resultado["documents"])
+    print(f"Documento tem {resultado['count']} chunks")
+    ```
+    
+    JUSTIFICATIVA PARA LLMs:
+    - Permite recuperar documento completo para análise
+    - Mantém ordem original dos chunks
+    - Interface consistente com outras funções do módulo
+    """
+    logger.info(f"🔍 Buscando documento por ID: {documento_id}")
+    
+    try:
+        # Buscar todos os chunks deste documento
+        # Usar where filter para filtrar por documento_id
+        resultados = collection.get(
+            where={"documento_id": documento_id},
+            include=["documents", "metadatas"]
+        )
+        
+        # Verificar se encontrou algum chunk
+        if not resultados or len(resultados.get("ids", [])) == 0:
+            logger.warning(f"⚠️ Documento {documento_id} não encontrado no ChromaDB")
+            return {
+                "documents": [],
+                "metadatas": [],
+                "ids": [],
+                "count": 0
+            }
+        
+        # Extrair dados
+        ids = resultados["ids"]
+        documentos = resultados["documents"]
+        metadados = resultados["metadatas"]
+        
+        # Ordenar chunks por chunk_index para manter ordem original
+        # Criar lista de tuplas (chunk_index, documento, metadado, id)
+        chunks_com_indices = []
+        for i in range(len(ids)):
+            chunk_index = int(metadados[i].get("chunk_index", i))
+            chunks_com_indices.append((
+                chunk_index,
+                documentos[i],
+                metadados[i],
+                ids[i]
+            ))
+        
+        # Ordenar por chunk_index
+        chunks_com_indices.sort(key=lambda x: x[0])
+        
+        # Reconstruir listas ordenadas
+        documentos_ordenados = [chunk[1] for chunk in chunks_com_indices]
+        metadados_ordenados = [chunk[2] for chunk in chunks_com_indices]
+        ids_ordenados = [chunk[3] for chunk in chunks_com_indices]
+        
+        logger.info(
+            f"✅ Documento {documento_id} encontrado: {len(documentos_ordenados)} chunks"
+        )
+        
+        return {
+            "documents": documentos_ordenados,
+            "metadatas": metadados_ordenados,
+            "ids": ids_ordenados,
+            "count": len(documentos_ordenados)
+        }
+        
+    except Exception as erro:
+        mensagem_erro = (
+            f"Erro ao buscar documento por ID no ChromaDB. "
+            f"documento_id: '{documento_id}'. "
+            f"Erro: {str(erro)}"
+        )
+        logger.error(mensagem_erro)
+        raise ErroDeBusca(mensagem_erro) from erro
+
+
 # ===== LISTAGEM DE DOCUMENTOS =====
 
 def listar_documentos(collection: Collection) -> list[dict[str, Any]]:

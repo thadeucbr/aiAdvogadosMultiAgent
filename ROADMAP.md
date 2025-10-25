@@ -65,8 +65,9 @@ Aqui está o **Roadmap v2.0** atualizado:
 - ✅ TAREFA-039: Backend - Feedback de Progresso Detalhado no Upload
 - ✅ TAREFA-040: Backend - Modelo de Dados para Processo/Petição
 - ✅ TAREFA-041: Backend - Endpoint de Upload de Petição Inicial
+- ✅ TAREFA-042: Backend - Serviço de Análise de Documentos Relevantes
 
-**Próximo passo:** TAREFA-042 (Backend - Serviço de Análise de Documentos Relevantes)
+**Próximo passo:** TAREFA-043 (Backend - Endpoint de Upload de Documentos Complementares)
 
 ---
 
@@ -413,8 +414,8 @@ Esta é uma nova funcionalidade estratégica que diferencia o produto. O fluxo �
 
 **Backend (TAREFAS 040-048):**
 - ✅ TAREFA-040: Modelo de dados (Petição, Prognóstico, Cenários, Pareceres)
-- TAREFA-041: Endpoint de upload de petição inicial
-- TAREFA-042: Serviço de análise de documentos relevantes (LLM)
+- ✅ TAREFA-041: Endpoint de upload de petição inicial
+- ✅ TAREFA-042: Serviço de análise de documentos relevantes (LLM)
 - TAREFA-043: Endpoint de upload de documentos complementares
 - TAREFA-044: Agente "Analista de Estratégia Processual"
 - TAREFA-045: Agente "Analista de Prognóstico"
@@ -532,74 +533,32 @@ Esta é uma nova funcionalidade estratégica que diferencia o produto. O fluxo �
 
 ---
 
-#### 🟡 TAREFA-042: Backend - Serviço de Análise de Documentos Relevantes
+#### ✅ TAREFA-042: Backend - Serviço de Análise de Documentos Relevantes
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-041, TAREFA-007 (RAG)  
 **Estimativa:** 4-5 horas  
-**Status:** 🟡 PENDENTE
+**Status:** ✅ CONCLUÍDA
 
 **Escopo:**
-- [ ] Criar `backend/src/servicos/servico_analise_documentos_relevantes.py`:
-    - [ ] `agentes_selecionados: dict[str, list[str]]` ({"advogados": [...], "peritos": [...]})
-    - [ ] `timestamp_criacao: datetime`
-    - [ ] `timestamp_analise: datetime | None`
-  - [ ] Classe `DocumentoSugerido` (Pydantic):
-    - [ ] `tipo_documento: str` (ex: "Laudo Médico", "Contrato de Trabalho")
-    - [ ] `justificativa: str` (por que esse documento é relevante)
-    - [ ] `prioridade: str` (ESSENCIAL | IMPORTANTE | DESEJAVEL)
-  - [ ] Classe `ResultadoAnaliseProcesso` (Pydantic):
-    - [ ] `peticao_id: str`
-    - [ ] `proximos_passos: ProximosPassos`
-    - [ ] `prognostico: Prognostico`
-    - [ ] `pareceres_advogados: dict[str, ParecerAdvogado]` (key = tipo_advogado)
-    - [ ] `pareceres_peritos: dict[str, ParecerPerito]` (key = tipo_perito)
-    - [ ] `documento_continuacao: DocumentoContinuacao`
-    - [ ] `timestamp_conclusao: datetime`
-  - [ ] Classe `ProximosPassos`:
-    - [ ] `estrategia_recomendada: str` (descrição narrativa da melhor estratégia)
-    - [ ] `passos: list[PassoEstrategico]` (lista ordenada de ações a tomar)
-    - [ ] `caminhos_alternativos: list[CaminhoAlternativo]` (outras opções possíveis)
-  - [ ] Classe `PassoEstrategico`:
-    - [ ] `numero: int`
-    - [ ] `descricao: str`
-    - [ ] `prazo_estimado: str` (ex: "30 dias")
-    - [ ] `documentos_necessarios: list[str]`
-  - [ ] Classe `Prognostico`:
-    - [ ] `cenarios: list[Cenario]` (lista de possíveis desfechos)
-    - [ ] `cenario_mais_provavel: str` (qual cenário tem maior probabilidade)
-    - [ ] `recomendacao_geral: str`
-  - [ ] Classe `Cenario`:
-    - [ ] `tipo: str` (VITORIA_TOTAL | VITORIA_PARCIAL | ACORDO | DERROTA | DERROTA_COM_CONDENACAO)
-    - [ ] `probabilidade_percentual: float` (0-100)
-    - [ ] `descricao: str`
-    - [ ] `valores_estimados: dict[str, float]` ({"receber": X, "pagar": Y})
-    - [ ] `tempo_estimado_meses: int`
-  - [ ] Classe `ParecerAdvogado`:
-    - [ ] `tipo_advogado: str` (ex: "Advogado Trabalhista")
-    - [ ] `analise_juridica: str` (texto longo)
-    - [ ] `fundamentos_legais: list[str]` (artigos, leis citadas)
-    - [ ] `riscos_identificados: list[str]`
-    - [ ] `recomendacoes: list[str]`
-  - [ ] Classe `ParecerPerito`:
-    - [ ] `tipo_perito: str` (ex: "Perito Médico")
-    - [ ] `analise_tecnica: str` (texto longo)
-    - [ ] `conclusoes: list[str]`
-    - [ ] `recomendacoes_tecnicas: list[str]`
-  - [ ] Classe `DocumentoContinuacao`:
-    - [ ] `tipo_peca: str` (ex: "Contestação", "Recurso", "Petição Intermediária")
-    - [ ] `conteudo_markdown: str` (documento gerado pela LLM em Markdown)
-    - [ ] `conteudo_html: str` (versão HTML para preview)
-    - [ ] `sugestoes_personalizacao: list[str]` (onde o advogado deve personalizar)
-- [ ] Gerenciador de estado em memória (similar a TAREFAS 030 e 035):
-  - [ ] Criar `backend/src/servicos/gerenciador_estado_peticoes.py`
-  - [ ] Dicionário thread-safe para armazenar estado de petições em processamento
-  - [ ] Métodos: criar, atualizar_status, registrar_resultado, registrar_erro
+- [x] Criar `backend/src/servicos/servico_analise_documentos_relevantes.py` (860 linhas)
+- [x] Classe `ServicoAnaliseDocumentosRelevantes` com análise em 6 etapas
+- [x] Prompt engineering robusto com formato JSON estruturado
+- [x] Integração ChromaDB (busca RAG) + GerenciadorLLM + GerenciadorEstadoPeticoes
+- [x] Nova função `obter_documento_por_id()` em servico_banco_vetorial.py (110 linhas)
+- [x] Novo endpoint POST /api/peticoes/{peticao_id}/analisar-documentos (status 202 Accepted)
+- [x] Processamento assíncrono em background (10-60s)
+- [x] Tratamento completo de erros (5 tipos de exceções)
+- [x] Atualizar `ARQUITETURA.md` com documentação (+120 linhas)
+- [x] Changelog completo: `changelogs/TAREFA-042_backend-analise-documentos-relevantes.md`
 
 **Entregáveis:**
-- Modelo de dados completo para petições e análises
-- Gerenciador de estado para petições em processamento
-- Estrutura de dados robusta para prognósticos e cenários
-- Changelog completo: `changelogs/TAREFA-040_backend-modelo-peticao.md`
+- ✅ Serviço de análise automática usando GPT-4
+- ✅ Sugestão de 3-15 documentos com tipo, justificativa, prioridade
+- ✅ Endpoint assíncrono com background tasks
+- ✅ Documentação completa em ARQUITETURA.md
+- ✅ Changelog completo
+
+**Marco:** 🎉 **ANÁLISE DE DOCUMENTOS RELEVANTES IMPLEMENTADA** - LLM identifica automaticamente documentos necessários para análise completa do caso.
 
 ---
 

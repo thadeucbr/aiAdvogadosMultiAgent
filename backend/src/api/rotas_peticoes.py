@@ -73,6 +73,13 @@ from src.modelos.processo import (
 # Importar serviços
 from src.servicos.gerenciador_estado_peticoes import obter_gerenciador_estado_peticoes
 from src.servicos.gerenciador_estado_uploads import obter_gerenciador_estado_uploads
+from src.servicos.servico_analise_documentos_relevantes import (
+    obter_servico_analise_documentos,
+    ErroAnaliseDocumentosRelevantes,
+    ErroPeticaoNaoEncontrada,
+    ErroDocumentoPeticaoNaoEncontrado,
+    ErroParsingRespostaLLM
+)
 
 
 # ===== CONFIGURAÇÃO DO ROUTER =====
@@ -667,3 +674,208 @@ async def endpoint_health_check_peticoes() -> dict:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Serviço de petições temporariamente indisponível"
         )
+
+
+# ===== ENDPOINT DE ANÁLISE DE DOCUMENTOS RELEVANTES (TAREFA-042) =====
+
+@router.post(
+    "/{peticao_id}/analisar-documentos",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Analisar petição e sugerir documentos relevantes",
+    description="Usa LLM para analisar petição inicial e identificar documentos necessários para análise completa do caso"
+)
+async def endpoint_analisar_documentos_peticao(
+    peticao_id: str,
+    background_tasks: BackgroundTasks
+) -> dict:
+    """
+    Analisa petição inicial usando LLM e sugere documentos relevantes.
+    
+    CONTEXTO DE NEGÓCIO (TAREFA-042):
+    Após upload da petição inicial (TAREFA-041), este endpoint dispara
+    análise automática para identificar quais documentos seriam úteis
+    para uma análise jurídica completa do caso.
+    
+    FLUXO:
+    1. Valida que petição existe
+    2. Agenda análise em background (não bloqueia request)
+    3. Retorna 202 Accepted imediatamente
+    4. Cliente faz polling via GET /api/peticoes/status/{peticao_id}
+    5. Quando análise terminar, documentos sugeridos estarão disponíveis no status
+    
+    ANÁLISE EM BACKGROUND:
+    - Recupera texto da petição do ChromaDB
+    - Faz busca RAG para contexto adicional
+    - Chama LLM (GPT-4) para identificar documentos
+    - Parseia resposta JSON em lista estruturada
+    - Atualiza estado da petição com documentos sugeridos
+    
+    Args:
+        peticao_id: UUID da petição a analisar
+        background_tasks: FastAPI BackgroundTasks para processamento assíncrono
+    
+    Returns:
+        Dict com sucesso e mensagem
+    
+    Raises:
+        404: Petição não encontrada
+        400: Petição em estado inválido para análise
+        500: Erro interno do servidor
+    
+    EXEMPLO DE REQUEST:
+    ```
+    POST /api/peticoes/550e8400-e29b-41d4-a716-446655440000/analisar-documentos
+    ```
+    
+    EXEMPLO DE RESPONSE (202 Accepted):
+    ```json
+    {
+      "sucesso": true,
+      "mensagem": "Análise de documentos iniciada...",
+      "peticao_id": "550e8400-e29b-41d4-a716-446655440000"
+    }
+    ```
+    
+    POLLING DE STATUS:
+    ```
+    GET /api/peticoes/status/550e8400-e29b-41d4-a716-446655440000
+    
+    Response:
+    {
+      "sucesso": true,
+      "peticao_id": "...",
+      "status": "aguardando_documentos",
+      "documentos_sugeridos": [
+        {
+          "tipo_documento": "Laudo Médico Pericial",
+          "justificativa": "Necessário para comprovar nexo causal...",
+          "prioridade": "essencial"
+        },
+        ...
+      ]
+    }
+    ```
+    """
+    logger.info(
+        f"[PETICAO] Solicitação de análise de documentos - peticao_id: {peticao_id}"
+    )
+    
+    # ===== VALIDAR QUE PETIÇÃO EXISTE =====
+    
+    gerenciador = obter_gerenciador_estado_peticoes()
+    peticao = gerenciador.obter_peticao(peticao_id)
+    
+    if peticao is None:
+        logger.warning(f"[PETICAO] Tentativa de analisar petição inexistente: {peticao_id}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Petição com ID '{peticao_id}' não foi encontrada"
+        )
+    
+    # ===== VALIDAR ESTADO DA PETIÇÃO =====
+    
+    # Apenas petições em AGUARDANDO_DOCUMENTOS podem ser analisadas
+    # (análise já foi feita se status for diferente)
+    if peticao.documentos_sugeridos and len(peticao.documentos_sugeridos) > 0:
+        logger.warning(
+            f"[PETICAO] Tentativa de re-analisar petição que já foi analisada: {peticao_id}"
+        )
+        return {
+            "sucesso": True,
+            "mensagem": "Petição já foi analisada anteriormente. Documentos sugeridos já estão disponíveis.",
+            "peticao_id": peticao_id,
+            "documentos_sugeridos": [
+                {
+                    "tipo_documento": doc.tipo_documento,
+                    "justificativa": doc.justificativa,
+                    "prioridade": doc.prioridade.value
+                }
+                for doc in peticao.documentos_sugeridos
+            ]
+        }
+    
+    # ===== AGENDAR ANÁLISE EM BACKGROUND =====
+    
+    async def executar_analise_em_background():
+        """
+        Função executada em background para análise da petição.
+        
+        IMPORTANTE: Esta função executa APÓS o response 202 ser enviado.
+        Qualquer erro aqui não afeta o status HTTP do request original.
+        """
+        try:
+            logger.info(f"[PETICAO] Iniciando análise em background - peticao_id: {peticao_id}")
+            
+            # Criar instância do serviço de análise
+            servico_analise = obter_servico_analise_documentos()
+            
+            # Executar análise (pode demorar 10-60s dependendo da LLM)
+            documentos_sugeridos = servico_analise.analisar_peticao_e_sugerir_documentos(
+                peticao_id=peticao_id
+            )
+            
+            logger.info(
+                f"[PETICAO] Análise concluída com sucesso - peticao_id: {peticao_id}, "
+                f"documentos_sugeridos: {len(documentos_sugeridos)}"
+            )
+            
+        except ErroPeticaoNaoEncontrada as erro:
+            # Petição foi deletada durante análise
+            logger.error(f"[PETICAO] Petição não encontrada durante análise: {erro}")
+            gerenciador.registrar_erro(
+                peticao_id=peticao_id,
+                mensagem_erro=f"Petição não encontrada: {str(erro)}"
+            )
+        
+        except ErroDocumentoPeticaoNaoEncontrado as erro:
+            # Documento da petição não existe no ChromaDB
+            logger.error(f"[PETICAO] Documento da petição não encontrado no ChromaDB: {erro}")
+            gerenciador.registrar_erro(
+                peticao_id=peticao_id,
+                mensagem_erro=f"Documento da petição não encontrado no banco vetorial: {str(erro)}"
+            )
+        
+        except ErroParsingRespostaLLM as erro:
+            # LLM retornou JSON inválido
+            logger.error(f"[PETICAO] Erro ao parsear resposta da LLM: {erro}")
+            gerenciador.registrar_erro(
+                peticao_id=peticao_id,
+                mensagem_erro=f"Erro ao processar resposta da inteligência artificial: {str(erro)}"
+            )
+        
+        except ErroAnaliseDocumentosRelevantes as erro:
+            # Erro geral na análise
+            logger.error(f"[PETICAO] Erro geral durante análise: {erro}")
+            gerenciador.registrar_erro(
+                peticao_id=peticao_id,
+                mensagem_erro=f"Erro durante análise: {str(erro)}"
+            )
+        
+        except Exception as erro:
+            # Erro inesperado
+            logger.error(
+                f"[PETICAO] Erro inesperado durante análise em background: {erro}",
+                exc_info=True
+            )
+            gerenciador.registrar_erro(
+                peticao_id=peticao_id,
+                mensagem_erro=f"Erro inesperado: {str(erro)}"
+            )
+    
+    # Adicionar tarefa em background
+    background_tasks.add_task(executar_analise_em_background)
+    
+    logger.info(
+        f"[PETICAO] Análise agendada em background - peticao_id: {peticao_id}"
+    )
+    
+    # ===== RETORNAR RESPOSTA IMEDIATA (202 ACCEPTED) =====
+    
+    return {
+        "sucesso": True,
+        "mensagem": (
+            "Análise de documentos iniciada com sucesso. "
+            "Consulte o status da petição para ver os documentos sugeridos quando a análise terminar."
+        ),
+        "peticao_id": peticao_id
+    }

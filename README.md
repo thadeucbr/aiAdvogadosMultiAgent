@@ -169,7 +169,7 @@ npm run dev
 
 ## 📋 Status do Projeto
 
-**Versão Atual:** 0.18.0 (FASE 7 - Endpoint de Upload de Petição Inicial)  
+**Versão Atual:** 0.19.0 (FASE 7 - Análise de Documentos Relevantes com LLM)  
 **Última Atualização:** 2025-10-25
 
 ### ✅ Concluído
@@ -297,12 +297,31 @@ npm run dev
   - 12 métodos públicos para gerenciar ciclo de vida completo de petições
   - Documentação exaustiva (~1420 linhas de código + comentários) com exemplos JSON em todos os modelos
   - **FUNDAÇÃO DA FASE 7:** Todas as próximas tarefas (041-056) usarão estes modelos
+- [x] **Backend: Endpoint de Upload de Petição Inicial (TAREFA-041)** 🆕
+  - Novo módulo `rotas_peticoes.py` (700 linhas) com endpoints REST para petições iniciais
+  - 3 endpoints implementados: POST /api/peticoes/iniciar, GET /api/peticoes/status/{peticao_id}, GET /api/peticoes/health
+  - 3 novos modelos Pydantic: RespostaIniciarPeticao, DocumentoSugeridoResponse, RespostaStatusPeticao
+  - POST /iniciar: upload assíncrono de petição (PDF/DOCX), retorna peticao_id + upload_id, status 202 Accepted
+  - GET /status: consulta status, documentos_sugeridos, documentos_enviados, agentes_selecionados
+  - Integração com upload assíncrono (TAREFA-036) e gerenciador de petições (TAREFA-040)
+  - Validações específicas: apenas PDF/DOCX (não imagens), tamanho máximo 50MB
+  - Documentação completa em ARQUITETURA.md (seção "Petições Iniciais FASE 7")
+  - **PONTO DE ENTRADA:** Primeira etapa do fluxo de análise de petição inicial
+- [x] **Backend: Serviço de Análise de Documentos Relevantes (TAREFA-042)** 🆕
+  - Novo serviço `servico_analise_documentos_relevantes.py` (860 linhas) para análise automática de petições
+  - Usa LLM (GPT-4) para sugerir documentos necessários com justificativas e prioridades
+  - 4 exceções customizadas, prompt engineering robusto com formato JSON estruturado
+  - Integração com ChromaDB (busca RAG) + GerenciadorLLM + GerenciadorEstadoPeticoes
+  - Nova função `obter_documento_por_id()` em servico_banco_vetorial.py (110 linhas)
+  - Novo endpoint: POST /api/peticoes/{peticao_id}/analisar-documentos (status 202 Accepted)
+  - Processamento assíncrono em background (10-60s), tratamento completo de erros
+  - Prompt da LLM retorna 3-15 documentos com tipo, justificativa, prioridade (essencial/importante/desejavel)
+  - Documentação completa em ARQUITETURA.md (+120 linhas)
+  - **SEGUNDO PASSO:** LLM identifica documentos necessários para análise completa do caso
 
 ### 🚧 Próximos Passos (FASE 7: Análise de Petição Inicial)
 
-- [ ] **TAREFA-041:** Backend - Endpoint de Upload de Petição Inicial
-- [ ] **TAREFA-042:** Backend - Serviço de Análise de Documentos Relevantes
-- [ ] **TAREFA-043:** Backend - Endpoint de Upload de Documentos Complementares
+- [ ] **TAREFA-043:** Backend - Endpoint de Upload de Documentos Complementares (PRÓXIMA)
 
 ---
 

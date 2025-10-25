@@ -2096,9 +2096,10 @@ Usuário vê **exatamente** o que está acontecendo em tempo real, com progresso
 Sistema de análise de petição inicial com sugestão de documentos, prognóstico probabilístico e geração de documento de continuação. Este é um fluxo estratégico diferenciado do sistema de análise tradicional multi-agent.
 
 **Endpoints Implementados:**
-- `POST /api/peticoes/iniciar` - Criar petição e fazer upload assíncrono
-- `GET /api/peticoes/status/{peticao_id}` - Consultar status da petição
-- `GET /api/peticoes/health` - Health check do serviço
+- `POST /api/peticoes/iniciar` - Criar petição e fazer upload assíncrono (TAREFA-041)
+- `GET /api/peticoes/status/{peticao_id}` - Consultar status da petição (TAREFA-041)
+- `POST /api/peticoes/{peticao_id}/analisar-documentos` - Analisar petição e sugerir documentos (TAREFA-042)
+- `GET /api/peticoes/health` - Health check do serviço (TAREFA-041)
 
 #### `POST /api/peticoes/iniciar`
 **Status:** ✅ IMPLEMENTADO (TAREFA-041)
@@ -2278,6 +2279,121 @@ Frontend faz polling periódico deste endpoint para:
 | `processando` | Análise em andamento | Aguardar conclusão (polling) |
 | `concluida` | Análise finalizada | Ver prognóstico e pareceres |
 | `erro` | Falha no processamento | Ver mensagem de erro |
+
+---
+
+#### `POST /api/peticoes/{peticao_id}/analisar-documentos`
+**Status:** ✅ IMPLEMENTADO (TAREFA-042)
+
+**Descrição:** Analisa petição inicial usando LLM (GPT-4) e sugere documentos relevantes necessários para análise completa do caso.
+
+**Contexto de Negócio:**
+Após upload da petição inicial (TAREFA-041), este endpoint dispara análise automática para identificar quais documentos seriam úteis para uma análise jurídica completa. A LLM analisa o conteúdo da petição e sugere documentos específicos com justificativas e prioridades.
+
+**Path Parameter:**
+- `peticao_id` (string, obrigatório): UUID da petição retornado por `POST /api/peticoes/iniciar`
+
+**Request:** Nenhum body necessário (petição já foi criada anteriormente)
+
+**Response (202 Accepted):**
+```json
+{
+  "sucesso": true,
+  "mensagem": "Análise de documentos iniciada com sucesso. Consulte o status da petição para ver os documentos sugeridos quando a análise terminar.",
+  "peticao_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+**Response (Re-análise - já analisada antes):**
+```json
+{
+  "sucesso": true,
+  "mensagem": "Petição já foi analisada anteriormente. Documentos sugeridos já estão disponíveis.",
+  "peticao_id": "550e8400-e29b-41d4-a716-446655440000",
+  "documentos_sugeridos": [
+    {
+      "tipo_documento": "Laudo Médico Pericial",
+      "justificativa": "Necessário para comprovar nexo causal entre acidente e lesões",
+      "prioridade": "essencial"
+    },
+    {
+      "tipo_documento": "Contrato de Trabalho",
+      "justificativa": "Comprova vínculo empregatício",
+      "prioridade": "importante"
+    }
+  ]
+}
+```
+
+**Status HTTP:**
+- `202 Accepted`: Análise iniciada com sucesso (processamento em background)
+- `404 Not Found`: Petição não encontrada
+- `500 Internal Server Error`: Erro ao agendar análise
+
+**Padrão Assíncrono:**
+1. Cliente envia POST /api/peticoes/{peticao_id}/analisar-documentos
+2. Backend agenda análise em background (não bloqueia request)
+3. Backend retorna 202 Accepted IMEDIATAMENTE
+4. Análise executa em background (pode demorar 10-60 segundos):
+   - Recupera texto da petição do ChromaDB
+   - Faz busca RAG para contexto adicional
+   - Chama LLM (GPT-4) para identificar documentos
+   - Parseia resposta JSON da LLM
+   - Atualiza estado da petição com documentos sugeridos
+5. Cliente faz polling via `GET /api/peticoes/status/{peticao_id}`
+6. Quando análise terminar, `documentos_sugeridos` estará preenchido no status
+
+**Prompt da LLM:**
+A LLM recebe:
+- **Sistema:** Instruções sobre como identificar documentos relevantes, formato JSON de resposta
+- **Usuário:** Texto da petição + contexto RAG (chunks similares de outros documentos)
+
+A LLM retorna JSON:
+```json
+{
+  "documentos_sugeridos": [
+    {
+      "tipo_documento": "Nome específico do documento",
+      "justificativa": "Explicação clara de por que é relevante",
+      "prioridade": "essencial | importante | desejavel"
+    }
+  ]
+}
+```
+
+**Prioridades de Documentos:**
+- **essencial**: Documento absolutamente necessário (sem ele, análise será incompleta)
+- **importante**: Documento muito útil (recomendado fortemente)
+- **desejavel**: Documento complementar (melhora análise, mas não crítico)
+
+**Tratamento de Erros em Background:**
+Se análise falhar durante processamento background, o erro é registrado no estado da petição:
+- Status da petição muda para "erro"
+- `mensagem_erro` é preenchida com descrição do problema
+- Cliente detecta erro ao fazer polling do status
+
+**Exemplos de Documentos Sugeridos:**
+Para um caso de acidente de trabalho, a LLM pode sugerir:
+- Laudo Médico Pericial (essencial)
+- Contrato de Trabalho (importante)
+- CAT - Comunicação de Acidente de Trabalho (essencial)
+- Prontuário Médico (importante)
+- Testemunhas (desejavel)
+
+**Integração com ChromaDB:**
+- Busca documento da petição usando `documento_peticao_id`
+- Faz busca RAG com primeiros 1000 caracteres da petição
+- Retorna até 5 chunks similares como contexto adicional para a LLM
+
+**Uso no Frontend:**
+1. Após upload de petição concluir (status do upload = "concluido")
+2. Chamar POST /api/peticoes/{peticao_id}/analisar-documentos
+3. Mostrar loading ("Analisando petição...")
+4. Fazer polling de status a cada 2-3 segundos
+5. Quando `documentos_sugeridos` aparecer no status:
+   - Exibir lista de documentos sugeridos
+   - Marcar prioridade (cores: vermelho=essencial, amarelo=importante, cinza=desejavel)
+   - Permitir upload de cada documento
 
 ---
 
