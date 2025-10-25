@@ -985,33 +985,33 @@ Esta é uma nova funcionalidade estratégica que diferencia o produto. O fluxo �
 
 ---
 
-#### 🟡 TAREFA-052: Frontend - Componente de Seleção de Agentes para Petição
+#### ✅ TAREFA-052: Frontend - Componente de Seleção de Agentes para Petição
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-049, TAREFA-029 (UI Seleção Múltiplos Agentes)  
 **Estimativa:** 2-3 horas  
-**Status:** 🟡 PENDENTE
+**Status:** ✅ CONCLUÍDA
 
 **Escopo:**
-- [ ] Criar `frontend/src/componentes/peticao/ComponenteSelecaoAgentesPeticao.tsx`:
-  - [ ] Reutilizar lógica da TAREFA-029 (seleção de múltiplos agentes)
-  - [ ] 2 seções separadas:
-    - [ ] **Advogados Especialistas**: Lista de advogados disponíveis (Trabalhista, Previdenciário, Cível, Tributário)
-    - [ ] **Peritos Técnicos**: Lista de peritos disponíveis (Médico, Segurança do Trabalho)
-  - [ ] Permite seleção múltipla em AMBAS as seções (checkboxes)
-  - [ ] Cada agente exibido em card com:
-    - [ ] Nome do agente
-    - [ ] Descrição breve (especialidade)
-    - [ ] Checkbox de seleção
-  - [ ] Validação: pelo menos 1 advogado E pelo menos 1 perito devem ser selecionados
-  - [ ] Botão "Avançar" só habilita quando validação OK
-  - [ ] State atualiza `agentesSelecionados` no componente pai
+- [x] Criar `frontend/src/componentes/peticao/ComponenteSelecaoAgentesPeticao.tsx`:
+  - [x] Reutilizar lógica da TAREFA-029 (seleção de múltiplos agentes)
+  - [x] 2 seções separadas:
+    - [x] **Advogados Especialistas**: Lista de advogados disponíveis (Trabalhista, Previdenciário, Cível, Tributário)
+    - [x] **Peritos Técnicos**: Lista de peritos disponíveis (Médico, Segurança do Trabalho)
+  - [x] Permite seleção múltipla em AMBAS as seções (checkboxes)
+  - [x] Cada agente exibido em card com:
+    - [x] Nome do agente
+    - [x] Descrição breve (especialidade)
+    - [x] Checkbox de seleção
+  - [x] Validação: pelo menos 1 advogado E pelo menos 1 perito devem ser selecionados
+  - [x] Botão "Avançar" só habilita quando validação OK
+  - [x] State atualiza `agentesSelecionados` no componente pai
 
 **Entregáveis:**
-- Componente de seleção de advogados e peritos
-- Suporte a seleção múltipla em ambas categorias
-- Validação de seleção mínima
-- Integração com state do wizard
-- Changelog completo: `changelogs/TAREFA-052_frontend-selecao-agentes-peticao.md`
+- ✅ Componente de seleção de advogados e peritos
+- ✅ Suporte a seleção múltipla em ambas categorias
+- ✅ Validação de seleção mínima
+- ✅ Integração com state do wizard
+- ✅ Changelog completo: `changelogs/TAREFA-052_frontend-selecao-agentes-peticao.md`
 
 ---
 

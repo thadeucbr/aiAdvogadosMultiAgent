@@ -90,6 +90,7 @@
 | **047** | 2025-10-25 | Backend - Serviço de Geração de Documento de Continuação | servico_geracao_documento.py, requirements.txt | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-047_backend-servico-geracao-documento.md) |
 | **048** | 2025-10-25 | Backend - Endpoint de Análise Completa de Petição | rotas_peticoes.py, modelos.py, gerenciador_estado_peticoes.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-048_backend-endpoint-analise-peticao.md) |
 | **049** | 2025-10-25 | Frontend - Criar Página de Análise de Petição Inicial | tiposPeticao.ts, servicoApiPeticoes.ts, AnalisePeticaoInicial.tsx, App.tsx | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-049_frontend-pagina-analise-peticao.md) |
+| **052** | 2025-10-25 | Frontend - Componente de Seleção de Agentes para Petição | ComponenteSelecaoAgentesPeticao.tsx, AnalisePeticaoInicial.tsx | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-052_frontend-selecao-agentes-peticao.md) |
 | **035-039** | 2025-01-26 | Roadmap para Upload Assíncrono (FASE 6) | ROADMAP.md, README.md, CHANGELOG_IA.md | ✅ Concluído | Planejamento |
 
 ---

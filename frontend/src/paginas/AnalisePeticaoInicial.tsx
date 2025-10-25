@@ -30,6 +30,7 @@
 
 import { useState } from 'react';
 import { FileText, CheckCircle2, Users, BarChart3, FileCheck } from 'lucide-react';
+import { ComponenteSelecaoAgentesPeticao } from '../componentes/peticao/ComponenteSelecaoAgentesPeticao';
 import type {
   DocumentoSugerido,
   AgentesSelecionados,
@@ -307,7 +308,7 @@ export function AnalisePeticaoInicial(): JSX.Element {
         )}
         
         {etapaAtual === 3 && (
-          <EtapaSelecaoAgentes
+          <ComponenteSelecaoAgentesPeticao
             agentesSelecionados={agentesSelecionados}
             onAgentesAlterados={setAgentesSelecionados}
             onAvancar={avancarEtapa}
@@ -436,52 +437,6 @@ function EtapaDocumentosComplementares({
   );
 }
 
-/**
- * ETAPA 3: Seleção de Agentes
- * 
- * NOTA: Este é um placeholder. O componente completo será implementado na TAREFA-052.
- */
-function EtapaSelecaoAgentes({
-  agentesSelecionados,
-  onAgentesAlterados,
-  onAvancar,
-  onVoltar,
-}: {
-  agentesSelecionados: AgentesSelecionados;
-  onAgentesAlterados: (agentes: AgentesSelecionados) => void;
-  onAvancar: () => void;
-  onVoltar: () => void;
-}) {
-  return (
-    <div className="text-center py-12">
-      <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-      <h2 className="text-xl font-semibold text-gray-900 mb-2">
-        Seleção de Agentes
-      </h2>
-      <p className="text-gray-600 mb-6">
-        Componente completo será implementado na TAREFA-052
-      </p>
-      <div className="flex gap-4 justify-center">
-        <button onClick={onVoltar} className="btn btn-secondary">
-          Voltar
-        </button>
-        <button
-          onClick={() => {
-            // Simular seleção de agentes (para desenvolvimento)
-            onAgentesAlterados({
-              advogados: ['trabalhista'],
-              peritos: ['medico'],
-            });
-            onAvancar();
-          }}
-          className="btn btn-primary"
-        >
-          Avançar (Dev)
-        </button>
-      </div>
-    </div>
-  );
-}
 
 /**
  * ETAPA 4: Processamento
