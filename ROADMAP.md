@@ -60,8 +60,9 @@ Aqui está o **Roadmap v2.0** atualizado:
 - ✅ TAREFA-034: Backend - Feedback de Progresso Detalhado
 - ✅ TAREFA-035: Backend - Refatorar Serviço de Ingestão para Background
 - ✅ TAREFA-036: Backend - Criar Endpoints de Upload Assíncrono
+- ✅ TAREFA-037: Frontend - Refatorar Serviço de API de Upload
 
-**Próximo passo:** TAREFA-037 (Frontend - Refatorar Serviço de API de Upload)
+**Próximo passo:** TAREFA-038 (Frontend - Implementar Polling de Upload no Componente)
 
 ---
 
@@ -245,29 +246,29 @@ Atualmente, o upload de documentos é **síncrono** (bloqueante). Quando o usuá
 
 ---
 
-#### 🟡 TAREFA-037: Frontend - Refatorar Serviço de API de Upload
+#### ✅ TAREFA-037: Frontend - Refatorar Serviço de API de Upload
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-036  
 **Estimativa:** 2-3 horas  
-**Status:** 🟡 PENDENTE
+**Status:** ✅ CONCLUÍDA
 
 **Escopo:**
-- [ ] Em `frontend/src/servicos/servicoApiDocumentos.ts`:
-  - [ ] **MANTER** `uploadDocumentos()` por compatibilidade, mas marcá-la como `@deprecated`
-  - [ ] **CRIAR** `iniciarUploadAssincrono(arquivo: File) -> Promise<AxiosResponse<RespostaIniciarUpload>>`:
-    - [ ] Faz POST /api/documentos/iniciar-upload (multipart/form-data)
-    - [ ] Retorna upload_id imediatamente
-  - [ ] **CRIAR** `verificarStatusUpload(upload_id: string) -> Promise<AxiosResponse<RespostaStatusUpload>>`:
-    - [ ] Faz GET /api/documentos/status-upload/{upload_id}
-    - [ ] Retorna status, etapa_atual, progresso_percentual
-  - [ ] **CRIAR** `obterResultadoUpload(upload_id: string) -> Promise<AxiosResponse<RespostaResultadoUpload>>`:
-    - [ ] Faz GET /api/documentos/resultado-upload/{upload_id}
-    - [ ] Retorna informações completas do documento processado
-- [ ] Atualizar `frontend/src/tipos/tiposDocumentos.ts`:
-  - [ ] Criar tipo `StatusUpload = 'INICIADO' | 'SALVANDO' | 'PROCESSANDO' | 'CONCLUIDO' | 'ERRO'`
-  - [ ] Criar interface `RespostaIniciarUpload` (upload_id, status, nome_arquivo, timestamp_criacao)
-  - [ ] Criar interface `RespostaStatusUpload` (upload_id, status, etapa_atual, progresso_percentual, timestamp_atualizacao, mensagem_erro?)
-  - [ ] Criar interface `RespostaResultadoUpload` (upload_id, status, documento_id, nome_arquivo, tamanho_bytes, tipo_documento, timestamp_conclusao)
+- [x] Em `frontend/src/servicos/servicoApiDocumentos.ts`:
+  - [x] **MANTER** `uploadDocumentos()` por compatibilidade, mas marcá-la como `@deprecated`
+  - [x] **CRIAR** `iniciarUploadAssincrono(arquivo: File) -> Promise<AxiosResponse<RespostaIniciarUpload>>`:
+    - [x] Faz POST /api/documentos/iniciar-upload (multipart/form-data)
+    - [x] Retorna upload_id imediatamente
+  - [x] **CRIAR** `verificarStatusUpload(upload_id: string) -> Promise<AxiosResponse<RespostaStatusUpload>>`:
+    - [x] Faz GET /api/documentos/status-upload/{upload_id}
+    - [x] Retorna status, etapa_atual, progresso_percentual
+  - [x] **CRIAR** `obterResultadoUpload(upload_id: string) -> Promise<AxiosResponse<RespostaResultadoUpload>>`:
+    - [x] Faz GET /api/documentos/resultado-upload/{upload_id}
+    - [x] Retorna informações completas do documento processado
+- [x] Atualizar `frontend/src/tipos/tiposDocumentos.ts`:
+  - [x] Criar tipo `StatusUpload = 'INICIADO' | 'SALVANDO' | 'PROCESSANDO' | 'CONCLUIDO' | 'ERRO'`
+  - [x] Criar interface `RespostaIniciarUpload` (upload_id, status, nome_arquivo, timestamp_criacao)
+  - [x] Criar interface `RespostaStatusUpload` (upload_id, status, etapa_atual, progresso_percentual, timestamp_atualizacao, mensagem_erro?)
+  - [x] Criar interface `RespostaResultadoUpload` (upload_id, status, documento_id, nome_arquivo, tamanho_bytes, tipo_documento, timestamp_conclusao)
 
 **Entregáveis:**
 - ✅ Serviço de API do frontend atualizado para upload assíncrono

@@ -62,6 +62,36 @@ export const StatusProcessamento = {
 
 export type StatusProcessamento = typeof StatusProcessamento[keyof typeof StatusProcessamento];
 
+/**
+ * Status de upload assíncrono de um documento
+ * 
+ * CONTEXTO (TAREFA-037):
+ * Status de upload assíncrono, usado no padrão de polling para acompanhar
+ * o progresso do upload e processamento de documentos em background.
+ * Corresponde aos status definidos no GerenciadorEstadoUploads do backend (TAREFA-035).
+ * 
+ * FLUXO:
+ * INICIADO → SALVANDO → PROCESSANDO → CONCLUIDO (sucesso)
+ *                          ↓
+ *                       ERRO (falha)
+ * 
+ * ESTADOS:
+ * - INICIADO: Upload foi recebido e está aguardando processamento
+ * - SALVANDO: Arquivo está sendo salvo no servidor
+ * - PROCESSANDO: Arquivo está sendo processado (extração, OCR, vetorização)
+ * - CONCLUIDO: Upload e processamento finalizados com sucesso
+ * - ERRO: Ocorreu um erro durante upload ou processamento
+ */
+export const StatusUpload = {
+  INICIADO: 'INICIADO',
+  SALVANDO: 'SALVANDO',
+  PROCESSANDO: 'PROCESSANDO',
+  CONCLUIDO: 'CONCLUIDO',
+  ERRO: 'ERRO',
+} as const;
+
+export type StatusUpload = typeof StatusUpload[keyof typeof StatusUpload];
+
 
 // ===== CONSTANTES DE VALIDAÇÃO =====
 
@@ -231,6 +261,179 @@ export interface RespostaListarDocumentos {
   mensagem: string;
   totalDocumentos: number;
   documentos: DocumentoListado[];
+}
+
+
+// ===== INTERFACES DE UPLOAD ASSÍNCRONO (TAREFA-037) =====
+
+/**
+ * Resposta de inicialização de upload assíncrono
+ * 
+ * CONTEXTO (TAREFA-037):
+ * Estrutura retornada pelo endpoint POST /api/documentos/iniciar-upload.
+ * Retorna imediatamente (<100ms) com upload_id para rastreamento via polling.
+ * Corresponde ao modelo RespostaIniciarUpload do backend (TAREFA-036).
+ * 
+ * PADRÃO:
+ * Similar ao padrão de análise assíncrona (TAREFA-032).
+ * Upload é processado em background, frontend faz polling para acompanhar progresso.
+ * 
+ * CAMPOS:
+ * - upload_id: UUID único para rastrear este upload específico
+ * - status: Sempre "INICIADO" nesta resposta
+ * - nome_arquivo: Nome original do arquivo enviado
+ * - tamanho_bytes: Tamanho do arquivo em bytes
+ * - timestamp_criacao: Data/hora de quando o upload foi iniciado (ISO 8601)
+ * 
+ * USO:
+ * 1. Frontend chama POST /iniciar-upload
+ * 2. Recebe upload_id imediatamente
+ * 3. Usa upload_id para fazer polling de progresso
+ * 
+ * @example
+ * {
+ *   "upload_id": "550e8400-e29b-41d4-a716-446655440000",
+ *   "status": "INICIADO",
+ *   "nome_arquivo": "peticao_inicial.pdf",
+ *   "tamanho_bytes": 2457600,
+ *   "timestamp_criacao": "2025-10-24T14:32:15.123Z"
+ * }
+ */
+export interface RespostaIniciarUpload {
+  upload_id: string;
+  status: StatusUpload;
+  nome_arquivo: string;
+  tamanho_bytes: number;
+  timestamp_criacao: string;
+}
+
+/**
+ * Resposta de consulta de status de upload assíncrono
+ * 
+ * CONTEXTO (TAREFA-037):
+ * Estrutura retornada pelo endpoint GET /api/documentos/status-upload/{upload_id}.
+ * Usada para polling (a cada 2s) para acompanhar progresso do processamento.
+ * Corresponde ao modelo RespostaStatusUpload do backend (TAREFA-036).
+ * 
+ * PADRÃO DE POLLING:
+ * Frontend chama este endpoint periodicamente até status = CONCLUIDO ou ERRO.
+ * 
+ * CAMPOS:
+ * - upload_id: UUID do upload sendo consultado
+ * - status: Estado atual (INICIADO | SALVANDO | PROCESSANDO | CONCLUIDO | ERRO)
+ * - etapa_atual: Descrição textual da etapa em execução
+ *   Exemplos: "Salvando arquivo", "Extraindo texto", "Executando OCR", "Vetorizando"
+ * - progresso_percentual: Progresso de 0-100%
+ * - timestamp_atualizacao: Data/hora da última atualização de status (ISO 8601)
+ * - mensagem_erro: Mensagem de erro detalhada (apenas se status = ERRO)
+ * 
+ * FAIXAS DE PROGRESSO TÍPICAS:
+ * - Salvando arquivo: 0-10%
+ * - Extraindo texto: 10-30%
+ * - OCR (se necessário): 30-60%
+ * - Chunking: 60-80%
+ * - Vetorização: 80-95%
+ * - Salvando no ChromaDB: 95-100%
+ * 
+ * @example
+ * // Durante processamento
+ * {
+ *   "upload_id": "550e8400-e29b-41d4-a716-446655440000",
+ *   "status": "PROCESSANDO",
+ *   "etapa_atual": "Executando OCR - página 5/12",
+ *   "progresso_percentual": 45,
+ *   "timestamp_atualizacao": "2025-10-24T14:32:45.789Z"
+ * }
+ * 
+ * @example
+ * // Quando concluído
+ * {
+ *   "upload_id": "550e8400-e29b-41d4-a716-446655440000",
+ *   "status": "CONCLUIDO",
+ *   "etapa_atual": "Processamento finalizado",
+ *   "progresso_percentual": 100,
+ *   "timestamp_atualizacao": "2025-10-24T14:33:12.456Z"
+ * }
+ * 
+ * @example
+ * // Em caso de erro
+ * {
+ *   "upload_id": "550e8400-e29b-41d4-a716-446655440000",
+ *   "status": "ERRO",
+ *   "etapa_atual": "Erro durante OCR",
+ *   "progresso_percentual": 42,
+ *   "timestamp_atualizacao": "2025-10-24T14:32:50.123Z",
+ *   "mensagem_erro": "Falha ao executar OCR: imagem corrompida"
+ * }
+ */
+export interface RespostaStatusUpload {
+  upload_id: string;
+  status: StatusUpload;
+  etapa_atual: string;
+  progresso_percentual: number;
+  timestamp_atualizacao: string;
+  mensagem_erro?: string;
+}
+
+/**
+ * Resposta de resultado final de upload assíncrono
+ * 
+ * CONTEXTO (TAREFA-037):
+ * Estrutura retornada pelo endpoint GET /api/documentos/resultado-upload/{upload_id}.
+ * Chamada quando polling detecta status = CONCLUIDO para obter informações completas.
+ * Corresponde ao modelo RespostaResultadoUpload do backend (TAREFA-036).
+ * 
+ * QUANDO CHAMAR:
+ * - Apenas quando status = CONCLUIDO (consultado via /status-upload)
+ * - Se status ainda for PROCESSANDO, backend retorna HTTP 425 Too Early
+ * - Se status for ERRO, backend retorna HTTP 500 com mensagem de erro
+ * 
+ * CAMPOS:
+ * - sucesso: Indica se o upload/processamento foi bem-sucedido
+ * - upload_id: UUID do upload
+ * - status: Sempre "CONCLUIDO" se sucesso = true
+ * - documento_id: UUID do documento no sistema (usar para análises posteriores)
+ * - nome_arquivo: Nome original do arquivo
+ * - tamanho_bytes: Tamanho do arquivo em bytes
+ * - tipo_documento: Tipo do documento (pdf, docx, png, jpg, jpeg)
+ * - numero_chunks: Número de chunks criados durante vetorização
+ * - timestamp_inicio: Data/hora de início do upload (ISO 8601)
+ * - timestamp_fim: Data/hora de conclusão do processamento (ISO 8601)
+ * - tempo_processamento_segundos: Tempo total de processamento em segundos
+ * 
+ * USO:
+ * documento_id pode ser usado para:
+ * - Referenciar em análises multi-agent
+ * - Consultar no histórico de documentos
+ * - Usar em filtros de seleção de documentos
+ * 
+ * @example
+ * {
+ *   "sucesso": true,
+ *   "upload_id": "550e8400-e29b-41d4-a716-446655440000",
+ *   "status": "CONCLUIDO",
+ *   "documento_id": "9f47ac9b-c5e3-4a1f-8d2e-7b6c8a9d4e5f",
+ *   "nome_arquivo": "peticao_inicial.pdf",
+ *   "tamanho_bytes": 2457600,
+ *   "tipo_documento": "pdf",
+ *   "numero_chunks": 38,
+ *   "timestamp_inicio": "2025-10-24T14:32:15.123Z",
+ *   "timestamp_fim": "2025-10-24T14:33:12.456Z",
+ *   "tempo_processamento_segundos": 57.3
+ * }
+ */
+export interface RespostaResultadoUpload {
+  sucesso: boolean;
+  upload_id: string;
+  status: StatusUpload;
+  documento_id: string;
+  nome_arquivo: string;
+  tamanho_bytes: number;
+  tipo_documento: TipoDocumento;
+  numero_chunks: number;
+  timestamp_inicio: string;
+  timestamp_fim: string;
+  tempo_processamento_segundos: number;
 }
 
 
