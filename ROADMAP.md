@@ -76,8 +76,9 @@ Aqui está o **Roadmap v2.0** atualizado:
 - ✅ TAREFA-050: Frontend - Componente de Upload de Petição Inicial
 - ✅ TAREFA-051: Frontend - Componente de Exibição de Documentos Sugeridos
 - ✅ TAREFA-052: Frontend - Componente de Seleção de Agentes para Petição
+- ✅ TAREFA-053: Frontend - Componente de Próximos Passos Estratégicos
 
-**Próximo passo:** TAREFA-054 (Frontend - Componente de Gráfico de Prognóstico)
+**Próximo passo:** TAREFA-055 (Frontend - Componente de Pareceres Individualizados)
 
 ---
 
@@ -395,7 +396,7 @@ Atualmente, o upload de documentos é **síncrono** (bloqueante). Quando o usuá
 
 ### 🔵 FASE 7: ANÁLISE DE PETIÇÃO INICIAL E PROGNÓSTICO DE PROCESSO (TAREFAS 040-056)
 
-**Status:** 🟡 EM ANDAMENTO (TAREFA-054 em execução)  
+**Status:** 🟡 EM ANDAMENTO (TAREFA-055 em execução)  
 **Objetivo:** Implementar sistema completo de análise de petições iniciais com sugestão de documentos, análise contextual multi-agent, prognóstico de cenários e geração de documento de continuação.
 
 **Contexto:**
@@ -439,7 +440,7 @@ Esta é uma nova funcionalidade estratégica que diferencia o produto. O fluxo �
 - TAREFA-051: Componente de documentos sugeridos (com upload)
 - TAREFA-052: Componente de seleção de agentes (advogados + peritos)
 - TAREFA-053: Componente de próximos passos (timeline estratégica)
-- TAREFA-054: Componente de gráfico de prognóstico (pizza + tabela)
+- ✅ TAREFA-054: Componente de gráfico de prognóstico (pizza + tabela)
 - TAREFA-055: Componente de pareceres individualizados (boxes separados)
 - TAREFA-056: Componente de documento de continuação gerado
 
@@ -1008,42 +1009,52 @@ Esta é uma nova funcionalidade estratégica que diferencia o produto. O fluxo �
 - ✅ Placeholders informativos para próximas tarefas (054-056)
 - ✅ Changelog completo: `changelogs/TAREFA-053_frontend-proximos-passos.md`
 
-**Marco:** 🎉 **PRIMEIRA SEÇÃO DA ETAPA 5 COMPLETA** - Próximos Passos Estratégicos implementados com timeline visual profissional, preparação de layout para componentes de Prognóstico, Pareceres e Documento (TAREFAS 054-056).
+**Marco:** 🎉 **SEGUNDA SEÇÃO DA ETAPA 5 COMPLETA** - Gráfico de Prognóstico implementado com visualização de pizza/donut (Recharts), tabela detalhada de cenários com probabilidades/valores/prazos, recomendação estratégica e fatores críticos (TAREFA-054).
 
 ---
 
-#### 🟡 TAREFA-054: Frontend - Componente de Gráfico de Prognóstico
+#### ✅ TAREFA-054: Frontend - Componente de Gráfico de Prognóstico
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-049, TAREFA-048 (Resultado Backend)  
 **Estimativa:** 4-5 horas  
-**Status:** 🟡 PENDENTE
+**Status:** ✅ CONCLUÍDA
 
 **Escopo:**
-- [ ] Criar `frontend/src/componentes/peticao/ComponenteGraficoPrognostico.tsx`:
-  - [ ] Recebe `prognostico: Prognostico` como prop
-  - [ ] Gráfico de pizza (ou donut) mostrando probabilidades de cada cenário:
-    - [ ] Biblioteca: Recharts, Chart.js ou Nivo
-    - [ ] Cores por tipo de cenário:
-      - VITORIA_TOTAL: verde escuro
-      - VITORIA_PARCIAL: verde claro
-      - ACORDO: amarelo
-      - DERROTA: laranja
-      - DERROTA_COM_CONDENACAO: vermelho
-    - [ ] Legenda com percentuais
-  - [ ] Tabela detalhada abaixo do gráfico:
-    - [ ] Colunas: Cenário | Probabilidade | Valores Estimados | Tempo Estimado
-    - [ ] Formatação de valores monetários (R$ X.XXX,XX)
-    - [ ] Destaque visual para cenário mais provável (borda/background)
-  - [ ] Card de "Recomendação Geral" (texto do prognóstico)
-  - [ ] Responsivo (mobile e desktop)
+- [x] Criar `frontend/src/componentes/peticao/ComponenteGraficoPrognostico.tsx`:
+  - [x] Recebe `prognostico: Prognostico` como prop
+  - [x] Gráfico de pizza (ou donut) mostrando probabilidades de cada cenário:
+    - [x] Biblioteca: Recharts
+    - [x] Cores por tipo de cenário:
+      - vitoria_total: verde (#10b981)
+      - vitoria_parcial: azul (#3b82f6)
+      - acordo: roxo (#a855f7)
+      - derrota: vermelho (#ef4444)
+    - [x] Tooltip customizado com percentuais
+    - [x] Label central com probabilidade total de sucesso
+  - [x] Cálculo automático de probabilidade de sucesso (vitória total + parcial + acordo)
+  - [x] Determinação automática de nível de confiança (alta/média/baixa)
+  - [x] Indicadores visuais com ícones de tendência
+  - [x] Tabela detalhada abaixo do gráfico:
+    - [x] Colunas: Cenário | Probabilidade | Valores Estimados | Prazo Estimado | Descrição
+    - [x] Formatação de valores monetários (R$ X.XXX,XX)
+    - [x] Valores em range (mínimo - máximo)
+    - [x] Formatação de tempo (meses/anos)
+    - [x] Código de cor por tipo de cenário
+  - [x] Card de "Recomendação Estratégica" (alert destacado)
+  - [x] Card de "Fatores Críticos" (lista de pontos)
+  - [x] Responsivo (mobile e desktop)
+  - [x] Integração com `AnalisePeticaoInicial.tsx` (Etapa 5)
 
 **Entregáveis:**
-- Componente de gráfico de prognóstico interativo
-- Gráfico de pizza com probabilidades
-- Tabela detalhada de cenários
-- Formatação de valores monetários
-- Destaque de cenário mais provável
-- Changelog completo: `changelogs/TAREFA-054_frontend-grafico-prognostico.md`
+- ✅ Componente de gráfico de prognóstico interativo
+- ✅ Gráfico de pizza/donut com probabilidades (Recharts)
+- ✅ Tabela detalhada de cenários
+- ✅ Formatação de valores monetários (BRL)
+- ✅ Formatação de tempo (meses/anos)
+- ✅ Cálculos automáticos (probabilidade sucesso, nível de confiança)
+- ✅ Destaque de cenário mais provável
+- ✅ Layout responsivo
+- ✅ Changelog completo: `changelogs/TAREFA-054_frontend-grafico-prognostico.md`
 
 ---
 
