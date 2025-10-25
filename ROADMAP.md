@@ -436,7 +436,7 @@ Esta é uma nova funcionalidade estratégica que diferencia o produto. O fluxo �
 - TAREFA-051: Componente de documentos sugeridos (com upload)
 - TAREFA-052: Componente de seleção de agentes (advogados + peritos)
 - TAREFA-053: Componente de próximos passos (timeline estratégica)
-- TAREFA-054: Componente de gráfico de prognóstico (pizza + tabela)
+- ✅ TAREFA-054: Frontend - Componente de Gráfico de Prognóstico (pizza + tabela)
 - TAREFA-055: Componente de pareceres individualizados (boxes separados)
 - TAREFA-056: Componente de documento de continuação gerado
 
