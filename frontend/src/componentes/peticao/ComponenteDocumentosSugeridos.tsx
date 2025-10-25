@@ -1,8 +1,8 @@
 
 import React, { useState, useCallback } from 'react';
-import { DocumentoSugerido, PrioridadeDocumento } from '@/tipos/tiposPeticao';
-import { iniciarUploadAssincrono, verificarStatusUpload, obterResultadoUpload } from '@/servicos/servicoApiDocumentos';
-import { uploadDocumentosComplementares } from '@/servicos/servicoApiPeticoes';
+import { DocumentoSugerido, PrioridadeDocumento } from '../../tipos/tiposPeticao';
+import { iniciarUploadAssincrono, verificarStatusUpload, obterResultadoUpload } from '../../servicos/servicoApiDocumentos';
+import { uploadDocumentosComplementares } from '../../servicos/servicoApiPeticoes';
 
 // Tipos locais para o estado de upload
 type StatusUploadIndividual = 'pendente' | 'enviando' | 'concluido' | 'erro';

@@ -27,6 +27,14 @@
  * Sempre mantenha sincronizado com os modelos do backend.
  */
 
+// ===== REEXPORTAÇÕES DE OUTROS ARQUIVOS =====
+// Reexportamos tipos de agentes para conveniência
+export type {
+  InformacaoPerito,
+  InformacaoAdvogado,
+  EstadoCarregamento,
+} from './tiposAgentes.ts';
+
 // ===== ENUMS (TIPOS ENUMERADOS) =====
 
 /**

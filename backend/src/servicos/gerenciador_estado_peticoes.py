@@ -63,6 +63,7 @@ Segue o mesmo padrão estabelecido em:
 import threading
 from typing import Dict, List, Optional, Any
 from datetime import datetime
+import logging
 
 from src.modelos.processo import (
     Peticao,
@@ -70,6 +71,9 @@ from src.modelos.processo import (
     DocumentoSugerido,
     ResultadoAnaliseProcesso
 )
+
+# Configurar logger
+logger = logging.getLogger(__name__)
 
 
 class GerenciadorEstadoPeticoes:
@@ -383,7 +387,13 @@ class GerenciadorEstadoPeticoes:
             ValueError: Se petição não existir
         """
         with self._lock:
-            self._validar_peticao_existe(peticao_id)
+            # Verificar se petição existe, mas não lançar exceção
+            if peticao_id not in self._peticoes_em_processamento:
+                logger.warning(
+                    f"Tentativa de registrar erro para petição inexistente: {peticao_id}. "
+                    f"Erro: {mensagem_erro}"
+                )
+                return
             
             # Armazenar mensagem de erro
             self._peticoes_em_processamento[peticao_id]["mensagem_erro"] = mensagem_erro

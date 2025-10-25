@@ -715,9 +715,12 @@ class ServicoAnaliseDocumentosRelevantes:
             ErroAnaliseDocumentosRelevantes: Se atualização falhar
         """
         try:
+            # Converter objetos Pydantic em dicionários
+            documentos_dict = [doc.model_dump() for doc in documentos_sugeridos]
+            
             self.gerenciador_peticoes.adicionar_documentos_sugeridos(
                 peticao_id=peticao_id,
-                documentos_sugeridos=documentos_sugeridos
+                documentos=documentos_dict
             )
             
             logger.debug(

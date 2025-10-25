@@ -39,7 +39,6 @@ import type {
   AgentesSelecionados,
   ResultadoAnaliseProcesso,
 } from '../tipos/tiposPeticao';
-import { ComponenteGraficoPrognostico } from '../componentes/peticao/ComponenteGraficoPrognostico';
 
 // ===== TIPOS LOCAIS =====
 
@@ -537,7 +536,6 @@ function EtapaResultados({
   onNovaAnalise: () => void;
 }) {
   return (
-<<<<<<< HEAD
     <div className="space-y-8 py-4">
       <div className="text-center">
         <CheckCircle2 className="w-12 h-12 text-green-600 mx-auto mb-2" />
@@ -579,47 +577,6 @@ function EtapaResultados({
       </div>
 
       <div className="text-center pt-4">
-=======
-    <div className="space-y-8 py-8">
-      <div className="text-center">
-        <CheckCircle2 className="w-16 h-16 text-green-600 mx-auto mb-4" />
-        <h2 className="text-3xl font-bold text-gray-900">
-          Análise Concluída!
-        </h2>
-        <p className="text-gray-600 mt-2">
-          Abaixo estão os resultados detalhados da análise multi-agent.
-        </p>
-      </div>
-
-      {/* Container para os componentes de resultado */}
-      <div className="space-y-12">
-        {/* Placeholder para Próximos Passos (TAREFA-053) */}
-        <div className="p-6 bg-gray-50 rounded-lg border">
-          <h3 className="text-xl font-semibold text-center text-gray-700">
-            [Placeholder: Componente de Próximos Passos - TAREFA-053]
-          </h3>
-        </div>
-
-        {/* Componente de Prognóstico */}
-        <ComponenteGraficoPrognostico prognostico={resultado.prognostico} />
-
-        {/* Placeholder para Pareceres (TAREFA-055) */}
-        <div className="p-6 bg-gray-50 rounded-lg border">
-          <h3 className="text-xl font-semibold text-center text-gray-700">
-            [Placeholder: Componente de Pareceres Individualizados - TAREFA-055]
-          </h3>
-        </div>
-
-        {/* Placeholder para Documento de Continuação (TAREFA-056) */}
-        <div className="p-6 bg-gray-50 rounded-lg border">
-          <h3 className="text-xl font-semibold text-center text-gray-700">
-            [Placeholder: Componente de Documento de Continuação - TAREFA-056]
-          </h3>
-        </div>
-      </div>
-
-      <div className="text-center pt-6">
->>>>>>> origin/feature-TASK-54-prognosis-chart
         <button onClick={onNovaAnalise} className="btn btn-primary">
           Iniciar Nova Análise
         </button>

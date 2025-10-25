@@ -415,6 +415,11 @@ async def endpoint_iniciar_peticao_inicial(
             f"status: {peticao.status}, tipo_acao: {tipo_acao or 'não definido'}"
         )
         
+        # DEBUG: Verificar se petição foi realmente criada
+        todas_peticoes = gerenciador_peticoes.listar_peticoes()
+        logger.info(f"[PETICAO DEBUG CRIACAO] Total de petições após criação: {len(todas_peticoes)}")
+        logger.info(f"[PETICAO DEBUG CRIACAO] IDs: {[p.id for p in todas_peticoes]}")
+        
     except Exception as erro:
         logger.error(f"[PETICAO] Erro ao criar petição: {erro}", exc_info=True)
         raise HTTPException(
@@ -587,6 +592,16 @@ async def endpoint_consultar_status_peticao(
     # ===== BUSCAR PETIÇÃO NO GERENCIADOR =====
     
     gerenciador = obter_gerenciador_estado_peticoes()
+    
+    # DEBUG: Listar todas as petições no gerenciador
+    try:
+        peticoes = gerenciador.listar_peticoes()
+        peticoes_ids = [p.id for p in peticoes]
+        logger.info(f"[PETICAO DEBUG STATUS] Total de petições: {len(peticoes_ids)}")
+        logger.info(f"[PETICAO DEBUG STATUS] IDs: {peticoes_ids}")
+    except Exception as e:
+        logger.error(f"[PETICAO DEBUG STATUS] Erro ao listar petições: {e}")
+    
     peticao = gerenciador.obter_peticao(peticao_id)
     
     if peticao is None:
@@ -768,6 +783,16 @@ async def endpoint_analisar_documentos_peticao(
     # ===== VALIDAR QUE PETIÇÃO EXISTE =====
     
     gerenciador = obter_gerenciador_estado_peticoes()
+    
+    # DEBUG: Listar todas as petições no gerenciador
+    try:
+        peticoes = gerenciador.listar_peticoes()
+        peticoes_ids = [p.id for p in peticoes]
+        logger.info(f"[PETICAO DEBUG] Total de petições em processamento: {len(peticoes_ids)}")
+        logger.info(f"[PETICAO DEBUG] IDs: {peticoes_ids}")
+    except Exception as e:
+        logger.error(f"[PETICAO DEBUG] Erro ao listar petições: {e}")
+    
     peticao = gerenciador.obter_peticao(peticao_id)
     
     if peticao is None:
