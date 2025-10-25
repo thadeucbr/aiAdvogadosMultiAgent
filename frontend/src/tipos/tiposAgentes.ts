@@ -597,6 +597,341 @@ export interface RespostaErroAnalise {
 }
 
 
+// ===== TIPOS PARA ANÁLISE ASSÍNCRONA (TAREFA-032) =====
+
+/**
+ * Status possíveis de uma análise assíncrona
+ * 
+ * CONTEXTO (TAREFA-032):
+ * Estados do ciclo de vida de uma análise multi-agent assíncrona.
+ * Usado no endpoint GET /api/analise/status/{id} para polling.
+ * 
+ * VALORES:
+ * - INICIADA: Tarefa criada, aguardando início do processamento
+ * - PROCESSANDO: Análise em execução (RAG, peritos, advogados, compilação)
+ * - CONCLUIDA: Análise finalizada com sucesso → chamar GET /resultado
+ * - ERRO: Falha durante processamento → ver mensagem_erro
+ * 
+ * FLUXO TÍPICO:
+ * INICIADA (0%) → PROCESSANDO (20% → 45% → 75%) → CONCLUIDA (100%)
+ *                                              ↘ ERRO (se falhar)
+ */
+export type StatusAnalise = 'INICIADA' | 'PROCESSANDO' | 'CONCLUIDA' | 'ERRO';
+
+
+/**
+ * Request body para iniciar análise assíncrona
+ * 
+ * CONTEXTO (TAREFA-032):
+ * Estrutura enviada por POST /api/analise/iniciar (endpoint assíncrono).
+ * Idêntica ao RequestAnaliseMultiAgent, mas para fluxo assíncrono.
+ * 
+ * DIFERENÇA DO FLUXO:
+ * - Síncrono: POST /multi-agent → aguarda 2+ min → recebe resultado (timeout risco)
+ * - Assíncrono: POST /iniciar → recebe UUID imediato → polling /status → GET /resultado
+ * 
+ * USO:
+ * Cliente chama iniciarAnaliseAssincrona(request) → Backend retorna consulta_id
+ * 
+ * TIPO REUSADO:
+ * Como é idêntico ao RequestAnaliseMultiAgent, podemos usar um alias:
+ * export type RequestIniciarAnalise = RequestAnaliseMultiAgent;
+ */
+export type RequestIniciarAnalise = RequestAnaliseMultiAgent;
+
+
+/**
+ * Resposta do endpoint POST /api/analise/iniciar
+ * 
+ * CONTEXTO (TAREFA-032):
+ * Retorna consulta_id imediatamente (sem aguardar processamento).
+ * Cliente deve usar este UUID para fazer polling de status.
+ * 
+ * ENDPOINT:
+ * POST /api/analise/iniciar
+ * 
+ * FLUXO:
+ * 1. Cliente envia RequestIniciarAnalise
+ * 2. Backend cria tarefa em background
+ * 3. Backend retorna RespostaIniciarAnalise imediatamente (202 Accepted)
+ * 4. Cliente armazena consulta_id para polling
+ * 
+ * TEMPO DE RESPOSTA:
+ * < 100ms (não aguarda processamento)
+ */
+export interface RespostaIniciarAnalise {
+  /**
+   * Indica se a tarefa foi criada com sucesso
+   * 
+   * CONTEXTO:
+   * Sempre true se retornou 202 Accepted.
+   * Se false, houve erro na validação do request (ex: prompt vazio).
+   */
+  sucesso: boolean;
+
+  /**
+   * UUID único da consulta
+   * 
+   * CONTEXTO:
+   * Identificador único gerado pelo backend para rastrear esta análise.
+   * Cliente DEVE armazenar este valor para usar no polling.
+   * 
+   * FORMATO: UUID v4 (ex: "a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+   * 
+   * USO:
+   * - Polling: GET /api/analise/status/{consulta_id}
+   * - Resultado: GET /api/analise/resultado/{consulta_id}
+   */
+  consulta_id: string;
+
+  /**
+   * Status inicial da análise
+   * 
+   * CONTEXTO:
+   * Sempre "INICIADA" neste endpoint (tarefa criada mas não começou).
+   * Status muda para PROCESSANDO quando backend iniciar o processamento.
+   */
+  status: StatusAnalise;
+
+  /**
+   * Mensagem orientativa para próximos passos
+   * 
+   * CONTEXTO:
+   * Instrução para o cliente sobre como acompanhar a análise.
+   * 
+   * EXEMPLO:
+   * "Análise iniciada. Use GET /api/analise/status/{id} para acompanhar o progresso."
+   */
+  mensagem: string;
+
+  /**
+   * Timestamp de quando a tarefa foi criada
+   * 
+   * FORMATO: ISO 8601 (ex: "2025-10-24T10:30:00.123Z")
+   */
+  timestamp_criacao: string;
+}
+
+
+/**
+ * Resposta do endpoint GET /api/analise/status/{id}
+ * 
+ * CONTEXTO (TAREFA-032):
+ * Endpoint de polling para acompanhar progresso da análise em tempo real.
+ * Cliente deve chamar este endpoint periodicamente (a cada 2-3 segundos).
+ * 
+ * ENDPOINT:
+ * GET /api/analise/status/{consulta_id}
+ * 
+ * FLUXO DE POLLING:
+ * 1. Cliente chama a cada 3s
+ * 2. Se status = "PROCESSANDO", continua polling (exibe progresso)
+ * 3. Se status = "CONCLUIDA", para polling → chama GET /resultado
+ * 4. Se status = "ERRO", para polling → exibe mensagem_erro
+ * 
+ * CLEANUP:
+ * Cliente DEVE parar polling quando status mudar para CONCLUIDA ou ERRO.
+ */
+export interface RespostaStatusAnalise {
+  /**
+   * UUID da consulta (mesmo que foi retornado no POST /iniciar)
+   */
+  consulta_id: string;
+
+  /**
+   * Status atual da análise
+   * 
+   * VALORES POSSÍVEIS:
+   * - "INICIADA": Aguardando início
+   * - "PROCESSANDO": Análise em execução
+   * - "CONCLUIDA": Finalizada → chamar GET /resultado
+   * - "ERRO": Falhou → ver mensagem_erro
+   */
+  status: StatusAnalise;
+
+  /**
+   * Descrição legível da etapa atual
+   * 
+   * CONTEXTO:
+   * Feedback em linguagem natural sobre o que está sendo processado.
+   * Exibido ao usuário para dar visibilidade do progresso.
+   * 
+   * EXEMPLOS:
+   * - "Aguardando início do processamento"
+   * - "Consultando base de conhecimento (RAG)"
+   * - "Delegando para peritos selecionados"
+   * - "Aguardando pareceres dos peritos"
+   * - "Compilando resposta final"
+   * - "Análise concluída com sucesso"
+   */
+  etapa_atual: string;
+
+  /**
+   * Progresso percentual da análise (0-100)
+   * 
+   * CONTEXTO:
+   * Usado para exibir barra de progresso na UI.
+   * Backend atualiza este valor conforme análise avança.
+   * 
+   * MAPEAMENTO APROXIMADO:
+   * - 0%: Iniciada
+   * - 10-20%: Consultando RAG
+   * - 20-40%: Delegando para peritos
+   * - 40-70%: Aguardando pareceres (incrementa conforme peritos respondem)
+   * - 70-90%: Compilando resposta
+   * - 100%: Concluída
+   * 
+   * VALIDAÇÃO: Sempre entre 0 e 100 (inclusive)
+   */
+  progresso_percentual: number;
+
+  /**
+   * Timestamp da última atualização de status
+   * 
+   * FORMATO: ISO 8601 (ex: "2025-10-24T10:30:15.456Z")
+   * 
+   * CONTEXTO:
+   * Permite ao cliente detectar se análise está travada
+   * (se timestamp não muda por muito tempo).
+   */
+  timestamp_atualizacao: string;
+
+  /**
+   * Mensagem de erro (somente se status = "ERRO")
+   * 
+   * CONTEXTO:
+   * Descrição legível do erro ocorrido durante processamento.
+   * null/undefined se status != "ERRO".
+   * 
+   * EXEMPLOS:
+   * - "Timeout ao consultar API OpenAI"
+   * - "Erro ao acessar banco vetorial ChromaDB"
+   * - "Nenhum documento encontrado para a consulta"
+   */
+  mensagem_erro?: string | null;
+}
+
+
+/**
+ * Resposta do endpoint GET /api/analise/resultado/{id}
+ * 
+ * CONTEXTO (TAREFA-032):
+ * Retorna resultado completo quando status = "CONCLUIDA".
+ * Estrutura idêntica ao RespostaAnaliseMultiAgent (endpoint síncrono),
+ * mas com campo adicional consulta_id.
+ * 
+ * ENDPOINT:
+ * GET /api/analise/resultado/{consulta_id}
+ * 
+ * PRÉ-CONDIÇÃO:
+ * Cliente DEVE chamar este endpoint SOMENTE quando polling de status
+ * retornar status = "CONCLUIDA". Se chamar antes, recebe 425 Too Early.
+ * 
+ * VALIDAÇÃO:
+ * - 200 OK: Resultado disponível (status = CONCLUIDA)
+ * - 425 Too Early: Análise ainda processando (status = PROCESSANDO)
+ * - 404 Not Found: consulta_id inválido ou não existe
+ * - 500 Internal Error: Análise falhou (status = ERRO)
+ * 
+ * ESTRUTURA:
+ * Idêntica ao RespostaAnaliseMultiAgent (resposta_compilada, pareceres_individuais, etc.)
+ * com adição do campo consulta_id para rastreabilidade.
+ */
+export interface RespostaResultadoAnalise {
+  /**
+   * Indica se a análise foi bem-sucedida
+   * 
+   * CONTEXTO:
+   * Sempre true se retornou 200 OK.
+   * Se false, análise falhou (ver mensagem_erro).
+   */
+  sucesso: boolean;
+
+  /**
+   * UUID da consulta (mesmo que foi retornado no POST /iniciar)
+   * 
+   * CONTEXTO:
+   * Permite rastrear qual consulta gerou este resultado.
+   * Útil para logs e auditoria.
+   */
+  consulta_id: string;
+
+  /**
+   * Status da análise
+   * 
+   * CONTEXTO:
+   * Sempre "CONCLUIDA" neste endpoint.
+   * Se cliente chamou antes da conclusão, recebe 425 Too Early.
+   */
+  status: StatusAnalise;
+
+  /**
+   * Resposta final compilada pelo Advogado Coordenador
+   * 
+   * CONTEXTO:
+   * O Advogado Coordenador compila os pareceres de todos os peritos
+   * e advogados selecionados em uma resposta coesa.
+   * 
+   * Esta é a RESPOSTA PRINCIPAL exibida ao usuário.
+   * Formatada em markdown.
+   */
+  resposta_compilada: string;
+
+  /**
+   * Lista de pareceres individuais de cada perito consultado
+   * 
+   * CONTEXTO:
+   * Permite ao usuário ver análise detalhada de cada perito.
+   * Exibido em tabs/accordions na UI.
+   */
+  pareceres_individuais: ParecerIndividualPerito[];
+
+  /**
+   * Lista de pareceres individuais de cada advogado especialista consultado (TAREFA-029)
+   * 
+   * CONTEXTO:
+   * Pareceres jurídicos especializados dos advogados selecionados.
+   * Similar a pareceres_individuais, mas para advogados.
+   * 
+   * NOTA: Campo opcional por compatibilidade (pode estar vazio se nenhum advogado selecionado).
+   */
+  pareceres_advogados?: ParecerIndividualPerito[];
+
+  /**
+   * Lista de IDs de documentos consultados durante a análise
+   * 
+   * CONTEXTO:
+   * Rastreabilidade: quais documentos do RAG foram considerados.
+   */
+  documentos_consultados: string[];
+
+  /**
+   * Timestamp de quando a análise foi FINALIZADA
+   * 
+   * FORMATO: ISO 8601
+   */
+  timestamp: string;
+
+  /**
+   * Tempo total de execução da análise (em segundos)
+   * 
+   * CONTEXTO:
+   * Métrica de performance.
+   * Pode ser exibida ao usuário ("Análise concluída em 3m 24s").
+   */
+  tempo_execucao_segundos?: number;
+
+  /**
+   * Grau de confiança geral da análise (0.0 a 1.0)
+   * 
+   * CONTEXTO:
+   * Média ponderada da confiança de todos os peritos/advogados.
+   * Se baixa, exibir warning ao usuário.
+   */
+  confianca_geral?: number;
+}
+
+
 // ===== CONSTANTES E VALIDAÇÕES =====
 
 /**

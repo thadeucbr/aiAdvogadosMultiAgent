@@ -169,7 +169,7 @@ npm run dev
 
 ## 📋 Status do Projeto
 
-**Versão Atual:** 0.10.0 (Agente Advogado Cível)  
+**Versão Atual:** 0.12.0 (Frontend - Serviço de API de Análise Assíncrona)  
 **Última Atualização:** 2025-10-24
 
 ### ✅ Concluído
@@ -208,30 +208,30 @@ npm run dev
 - [x] Refatoração da Infraestrutura para Advogados Especialistas
 - [x] Agente Advogado Trabalhista (Direito do Trabalho)
 - [x] Agente Advogado Previdenciário (Direito Previdenciário)
-- [x] Seleção de Documentos Específicos para Análise (Backend + Frontend)
-- [x] **Infraestrutura para Advogados Especialistas (TAREFA-024)**
-  - Classe base `AgenteAdvogadoBase` para advogados especialistas
-  - Métodos de delegação para advogados no Coordenador
-  - Suporte a `advogados_selecionados` no Orquestrador
-  - Modelos API para pareceres de advogados
-  - Endpoint `GET /api/analise/advogados`
-  - Sistema pronto para TAREFAS 025-028 (implementar advogados específicos)
-- [x] **Agente Advogado Trabalhista (TAREFA-025)**
-  - Implementação completa do `AgenteAdvogadoTrabalhista`
-  - Prompt especializado em Direito do Trabalho (CLT, TST, Reforma Trabalhista)
-  - Análise de rescisão, justa causa, verbas, horas extras, estabilidades
-  - Registro automático no Coordenador
-  - Testes unitários completos
-- [x] Backend: Seleção de Documentos para Análise (documento_ids na API)
-- [x] Frontend: Componente de Seleção de Documentos para Análise
-- [x] Seleção Granular de Documentos para Análise (Backend API)
+- [x] Agente Advogado Cível (Direito Cível)
+- [x] Agente Advogado Tributário (Direito Tributário)
+- [x] UI de Seleção de Múltiplos Tipos de Agentes (Peritos + Advogados)
+- [x] Backend: Refatorar Orquestrador para Background Tasks (TAREFA-030)
+- [x] **Backend: Endpoints de Análise Assíncrona (TAREFA-031)**
+  - POST /api/analise/iniciar - Inicia análise e retorna UUID imediatamente (202 Accepted)
+  - GET /api/analise/status/{id} - Polling de status com progresso em tempo real
+  - GET /api/analise/resultado/{id} - Obtém resultado completo quando concluída
+  - 4 novos modelos Pydantic (RequestIniciarAnalise, RespostaIniciarAnalise, RespostaStatusAnalise, RespostaResultadoAnalise)
+  - Integração com GerenciadorEstadoTarefas e BackgroundTasks
+  - Documentação completa em ARQUITETURA.md
+  - Elimina problema de timeout em análises longas (>2 min)
+  - Feedback de progresso em tempo real (etapa_atual, progresso_percentual)
+- [x] **Frontend: Serviço de API de Análise Assíncrona (TAREFA-032)**
+  - 3 novas funções: `iniciarAnaliseAssincrona()`, `verificarStatusAnalise()`, `obterResultadoAnalise()`
+  - 5 novos tipos TypeScript (StatusAnalise, RequestIniciarAnalise, RespostaIniciarAnalise, RespostaStatusAnalise, RespostaResultadoAnalise)
+  - Depreciação clara de `realizarAnaliseMultiAgent()` com exemplo de migração
+  - Documentação exaustiva (~480 linhas de JSDoc) com exemplos práticos de polling
+  - Type safety completa (autocomplete, detecção de erros em compile-time)
+  - Compatibilidade retroativa (função antiga mantida para código existente)
 
 ### 🚧 Em Desenvolvimento
 
-- [ ] Componente de Seleção de Documentos na Análise (Frontend)
-- [ ] Infraestrutura de Agentes Advogados Especialistas
-- [ ] Agente Advogado Trabalhista
-- [ ] Agente Advogado Previdenciário
+- [ ] Frontend: Implementar Polling na Página de Análise (TAREFA-033)
 
 ---
 

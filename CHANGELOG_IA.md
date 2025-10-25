@@ -71,33 +71,41 @@
 | **028** | 2025-10-24 | Criar Agente Advogado Especialista - Direito Tributário | agente_advogado_tributario.py, test_agente_advogado_tributario.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-028_agente-advogado-tributario.md) |
 | **029** | 2025-10-24 | UI de Seleção de Múltiplos Tipos de Agentes | ComponenteSelecionadorAgentes.tsx, armazenamentoAgentes.ts, PaginaAnalise.tsx, tiposAgentes.ts, servicoApiAnalise.ts | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-029_ui-selecao-multiplos-agentes.md) |
 | **030** | 2025-10-24 | Backend - Refatorar Orquestrador para Background Tasks | gerenciador_estado_tarefas.py, orquestrador_multi_agent.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-030_backend-refatorar-orquestrador-background.md) |
+| **031** | 2025-10-24 | Backend - Criar Endpoints de Análise Assíncrona | modelos.py, rotas_analise.py, ARQUITETURA.md | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-031_backend-endpoints-analise-assincrona.md) |
+| **032** | 2025-10-24 | Frontend - Refatorar Serviço de API de Análise | tiposAgentes.ts, servicoApiAnalise.ts | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-032_frontend-servico-api-analise-assincrona.md) |
+| **033** | 2025-10-24 | Frontend - Implementar Polling na Página de Análise | PaginaAnalise.tsx | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-033_frontend-polling-analise.md) |
 
 ---
 
 ## 🎯 Última Tarefa Concluída
 
-**TAREFA-030** - Backend - Refatorar Orquestrador para Background Tasks  
+**TAREFA-033** - Frontend - Implementar Polling na Página de Análise  
 **Data:** 2025-10-24  
 **IA:** GitHub Copilot  
 **Status:** ✅ CONCLUÍDA  
-**Resumo:** Refatoração arquitetural do **OrquestradorMultiAgent** para suportar **processamento assíncrono em background**, resolvendo o problema crítico de **TIMEOUT** em análises longas (>2 minutos). **Principais entregas:** (1) **GerenciadorEstadoTarefas** - Novo módulo singleton thread-safe para gerenciar estado de tarefas assíncronas com métodos: criar_tarefa, atualizar_status, obter_tarefa, registrar_resultado, registrar_erro; (2) **Método _processar_consulta_em_background** - Wrapper assíncrono que executa processar_consulta() existente e atualiza gerenciador de estado (sucesso ou erro); (3) **Padrão Singleton** - criar_orquestrador() agora usa @lru_cache(maxsize=1) para garantir instância única compartilhada; (4) **Thread-Safety** - Todas operações usam threading.Lock para garantir atomicidade; (5) **Enum StatusTarefa** - 4 estados simplificados (INICIADA, PROCESSANDO, CONCLUIDA, ERRO) vs StatusConsulta (7 estados internos); (6) **DataClass Tarefa** - Estrutura completa com consulta_id, status, prompt, agentes, progresso_percentual (0-100), etapa_atual, resultado, mensagem_erro, timestamps; (7) **Armazenamento em memória** - Dicionário thread-safe (futuro: migrar para Redis em produção). **Arquitetura:** Fluxo assíncrono: Frontend POST /iniciar → Backend cria tarefa e retorna UUID imediatamente → Backend processa em background via BackgroundTasks → Frontend faz polling GET /status/{id} a cada 3s → GET /resultado/{id} quando CONCLUIDA. **Problema resolvido:** Análises com múltiplos agentes (RAG 5-10s + Peritos 15-30s + Advogados 15-30s + Compilação 10-20s = 2-5 minutos) causavam timeout HTTP. Agora sem limite de tempo, com feedback de progresso em tempo real. **Métodos do gerenciador:** criar_tarefa (registra nova análise), atualizar_status (atualiza etapa/progresso), registrar_resultado (marca CONCLUIDA), registrar_erro (marca ERRO), obter_tarefa (consulta por ID), listar_tarefas (debug/admin), obter_estatisticas (monitoring). **Integração futura:** Base completa para TAREFA-031 (endpoints POST /iniciar, GET /status, GET /resultado), TAREFA-032 (serviço API frontend), TAREFA-033 (polling com setInterval). **Arquivos modificados:** 2 principais (gerenciador_estado_tarefas.py CRIADO ~850 linhas, orquestrador_multi_agent.py MODIFICADO +~150 linhas). **Decisões arquiteturais:** (1) Dicionário em memória (não Redis) para simplicidade em MVP; (2) Singleton via lru_cache para compartilhar estado; (3) Wrapper sem duplicação de código; (4) StatusTarefa separado (API) vs StatusConsulta (interno); (5) Thread-safety com locks e double-checked locking. **PRÓXIMA TAREFA:** TAREFA-031 (criar endpoints assíncronos de API REST). **MARCO:** 🎉 Arquitetura assíncrona implementada! Sistema agora suporta análises de QUALQUER duração sem risco de timeout HTTP, preparado para fornecer feedback de progresso em tempo real.
+**Resumo:** Refatoração completa da `PaginaAnalise.tsx` para substituir o **fluxo síncrono** (bloqueante, com risco de timeout) por **fluxo assíncrono com polling**, eliminando timeouts e proporcionando feedback de progresso em tempo real. **Principais entregas:** (1) **Refatoração do handler** - Substituída chamada `realizarAnaliseMultiAgent()` (depreciada, bloqueava 30s-2min) por `iniciarAnaliseAssincrona()` (retorna UUID em <100ms) + `iniciarPollingStatus()` (polling a cada 3s); (2) **5 novos estados** - consultaId (UUID da consulta), statusAnalise (INICIADA|PROCESSANDO|CONCLUIDA|ERRO), etapaAtual (descrição textual: "Consultando RAG", "Aguardando peritos"), progressoPercentual (0-100%), intervalId (controle do polling); (3) **Função de polling** - `iniciarPollingStatus()` faz setInterval a cada 3s chamando `verificarStatusAnalise()`, atualiza UI com progresso/etapa, quando status=CONCLUIDA chama `obterResultadoAnalise()` e para polling, quando status=ERRO exibe mensagem e para polling, tratamento robusto de erros de rede/servidor; (4) **UI de progresso** - Barra visual animada (transition CSS), etapa atual dinâmica, percentual numérico (0-100%), mensagens contextuais baseadas em progresso (0-20%: "Consultando base", 20-70%: "Aguardando agentes", 70-100%: "Compilando"), ícone de relógio; (5) **Cleanup robusto** - useEffect com cleanup function para limpar intervalo quando componente desmontar (previne memory leaks, requisições desnecessárias, React warnings), handleLimparResultados() limpa todos os estados de polling; (6) **Logs detalhados** - Console.log em cada etapa do polling (🔄 iniciando, 📊 status atualizado, ✅ concluída, ❌ erro, 🧹 cleanup) para facilitar debugging; (7) **Compatibilidade retroativa** - Mantém estrutura de payload idêntica (peritos, advogados, documentos), ComponenteExibicaoPareceres funciona sem alterações, integração perfeita com TAREFA-032 (serviço API assíncrona) e TAREFA-031 (endpoints backend). **Fluxo assíncrono:** Usuário clica "Analisar" → POST /iniciar retorna consulta_id <100ms → Polling GET /status a cada 3s atualiza progresso 0-100% + etapa atual → Status muda INICIADA → PROCESSANDO → CONCLUIDA → GET /resultado retorna análise completa → Exibe resultado. **Benefícios:** ✅ Eliminação total de timeouts (análises de QUALQUER duração), ✅ Feedback visual em tempo real (barra progresso + etapa), ✅ UI sempre responsiva (<100ms resposta inicial), ✅ Robustez (suporta múltiplos agentes sem falhas), ✅ UX drasticamente melhorada (usuário vê progresso detalhado). **Arquivos modificados:** PaginaAnalise.tsx (~231 linhas adicionadas - imports, estados, handlers, UI). **PRÓXIMA TAREFA:** TAREFA-034 (Frontend - Feedback de Progresso detalhado - backend enviar etapas reais). **MARCO:** 🎉 REARQUITETURA ASSÍNCRONA (FRONTEND) COMPLETA! Análises podem durar quanto tempo necessário, zero timeouts, progresso em tempo real.
 
 ---
 
 ## 🚀 Próxima Tarefa Sugerida
 
-**TAREFA-031:** Backend - Criar Endpoints de Análise Assíncrona
+**TAREFA-034:** Frontend - Feedback de Progresso Detalhado (Opcional)
 
 **Escopo:**
-- Criar `POST /api/analise/iniciar` (retorna consulta_id imediatamente)
-- Criar `GET /api/analise/status/{consulta_id}` (polling de status)
-- Criar `GET /api/analise/resultado/{consulta_id}` (obtém resultado quando concluída)
-- Deprecar (mas manter) `POST /api/analise/multi-agent` síncrono para compatibilidade
-- Atualizar modelos Pydantic (`RequestIniciarAnalise`, `RespostaStatus`, etc.)
-- Atualizar `ARQUITETURA.md` com novos endpoints
-- Usar `BackgroundTasks` do FastAPI para processamento assíncrono
+- Melhorar feedback de progresso no backend (TAREFA-030/031) para enviar etapas reais
+- Modificar `gerenciador_estado_tarefas.py` para atualizar progresso em cada etapa
+- Modificar `orquestrador_multi_agent.py` para reportar etapas específicas:
+  - "Consultando base de conhecimento (RAG)" (0-20%)
+  - "Delegando para Perito Médico" (20-35%)
+  - "Delegando para Perito Segurança do Trabalho" (35-50%)
+  - "Aguardando pareceres dos peritos" (50-70%)
+  - "Delegando para advogados especialistas" (70-85%)
+  - "Compilando resposta final" (85-100%)
+- Frontend (PaginaAnalise.tsx) já está pronto - apenas exibirá as etapas reais em vez de estimativas
+- Cleanup: parar polling (clearInterval) quando análise concluir, falhar ou componente desmontar
+- Garantir UI responsiva (não trava durante processamento)
 
-**Objetivo:** Implementar API REST completa para fluxo de análise assíncrono, eliminando timeouts e permitindo feedback de progresso em tempo real.
+**Objetivo:** Migrar interface de análise para usar fluxo assíncrono com feedback de progresso em tempo real, eliminando definitivamente o problema de timeout HTTP.
 
 ---
 

@@ -26,7 +26,10 @@
 │  ┌──────────────────────────────────────────────────────────────┐  │
 │  │                    API LAYER (Endpoints)                     │  │
 │  │  • POST /api/documentos/upload                               │  │
-│  │  • POST /api/analise/multi-agent                             │  │
+│  │  • POST /api/analise/multi-agent (síncrono - legacy)         │  │
+│  │  • POST /api/analise/iniciar (assíncrono - TAREFA-031)       │  │
+│  │  • GET  /api/analise/status/{id} (polling - TAREFA-031)      │  │
+│  │  • GET  /api/analise/resultado/{id} (assíncrono - TAREFA-031)│  │
 │  │  • GET  /api/documentos/listar                               │  │
 │  └─────────────┬────────────────────────────────────────────────┘  │
 │                │                                                    │

@@ -68,12 +68,13 @@ TAREFAS RELACIONADAS:
 - TAREFA-024: Refatoração para Advogados Especialistas (ESTE UPDATE)
 """
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, BackgroundTasks
 from fastapi.responses import JSONResponse
 import logging
 from typing import Dict, Any
 from datetime import datetime
 import asyncio
+import uuid
 
 # Importar modelos Pydantic
 from src.api.modelos import (
@@ -85,7 +86,11 @@ from src.api.modelos import (
     InformacaoAdvogado,
     RespostaListarPeritos,
     RespostaListarAdvogados,
-    RespostaErro
+    RespostaErro,
+    RequestIniciarAnalise,
+    RespostaIniciarAnalise,
+    RespostaStatusAnalise,
+    RespostaResultadoAnalise
 )
 
 # Importar orquestrador multi-agent
@@ -100,6 +105,12 @@ from src.utilitarios.gerenciador_llm import (
     ErroLimiteTaxaExcedido,
     ErroTimeoutAPI,
     ErroGeralAPI
+)
+
+# Importar gerenciador de estado de tarefas (TAREFA-030)
+from src.servicos.gerenciador_estado_tarefas import (
+    obter_gerenciador_estado_tarefas,
+    StatusTarefa
 )
 
 
@@ -774,23 +785,6 @@ async def endpoint_health_check_analise() -> Dict[str, Any]:
 #
 # DEPENDÊNCIAS:
 # - TAREFA-030: GerenciadorEstadoTarefas e _processar_consulta_em_background()
-
-from fastapi import BackgroundTasks
-import uuid
-
-# Importar gerenciador de estado de tarefas (TAREFA-030)
-from src.servicos.gerenciador_estado_tarefas import (
-    obter_gerenciador_estado_tarefas,
-    StatusTarefa
-)
-
-# Importar novos modelos Pydantic (TAREFA-031)
-from src.api.modelos import (
-    RequestIniciarAnalise,
-    RespostaIniciarAnalise,
-    RespostaStatusAnalise,
-    RespostaResultadoAnalise
-)
 
 
 @router.post(

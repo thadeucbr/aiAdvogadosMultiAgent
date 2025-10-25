@@ -30,6 +30,10 @@ import type {
   RequestAnaliseMultiAgent,
   RespostaAnaliseMultiAgent,
   RespostaErroAnalise,
+  RequestIniciarAnalise,
+  RespostaIniciarAnalise,
+  RespostaStatusAnalise,
+  RespostaResultadoAnalise,
 } from '../tipos/tiposAgentes';
 
 
@@ -174,7 +178,44 @@ export async function listarAdvogadosDisponiveis() {
 
 
 /**
- * Realizar análise jurídica multi-agent
+ * Realizar análise jurídica multi-agent (FLUXO SÍNCRONO - DEPRECATED)
+ * 
+ * ⚠️ **DEPRECATED (TAREFA-032):** Use `iniciarAnaliseAssincrona()` ao invés desta função.
+ * 
+ * MOTIVO DA DEPRECIAÇÃO:
+ * Este endpoint síncrono pode causar TIMEOUT HTTP em análises longas (>2min).
+ * O novo fluxo assíncrono (POST /iniciar + polling /status + GET /resultado)
+ * resolve este problema permitindo análises de qualquer duração.
+ * 
+ * MIGRAÇÃO:
+ * ```tsx
+ * // ANTES (DEPRECATED):
+ * const { data } = await realizarAnaliseMultiAgent(request);
+ * 
+ * // DEPOIS (NOVO FLUXO ASSÍNCRONO):
+ * const { data: inicioResp } = await iniciarAnaliseAssincrona(request);
+ * const consultaId = inicioResp.consulta_id;
+ * 
+ * // Polling de status
+ * const intervalo = setInterval(async () => {
+ *   const { data: status } = await verificarStatusAnalise(consultaId);
+ *   
+ *   if (status.status === 'CONCLUIDA') {
+ *     clearInterval(intervalo);
+ *     const { data: resultado } = await obterResultadoAnalise(consultaId);
+ *     // usar resultado.resposta_compilada
+ *   } else if (status.status === 'ERRO') {
+ *     clearInterval(intervalo);
+ *     // exibir status.mensagem_erro
+ *   } else {
+ *     // exibir status.etapa_atual + barra de progresso (status.progresso_percentual)
+ *   }
+ * }, 3000); // polling a cada 3 segundos
+ * ```
+ * 
+ * SERÁ REMOVIDO EM: Versão futura (após migração do frontend - TAREFA-033)
+ * 
+ * ---
  * 
  * CONTEXTO:
  * Envia prompt do usuário e lista de peritos selecionados para o backend.
@@ -186,6 +227,10 @@ export async function listarAdvogadosDisponiveis() {
  * 
  * ENDPOINT:
  * POST /api/analise/multi-agent
+ * 
+ * ⚠️ PROBLEMA DE TIMEOUT:
+ * Análises com múltiplos peritos podem exceder 2 minutos, causando timeout HTTP.
+ * USE O FLUXO ASSÍNCRONO para evitar este problema.
  * 
  * TIMEOUT:
  * Configurado para 120 segundos (2 minutos) devido à complexidade da análise.
@@ -254,11 +299,12 @@ export async function listarAdvogadosDisponiveis() {
  * Possíveis erros:
  * - 400 Bad Request: Prompt inválido ou nenhum perito selecionado
  * - 500 Internal Server Error: Erro no backend (LLM, RAG, etc.)
- * - 504 Gateway Timeout: Análise demorou mais de 2 minutos
+ * - 504 Gateway Timeout: Análise demorou mais de 2 minutos ⚠️ PROBLEMA PRINCIPAL
  * - Network Error: Backend indisponível
  * 
  * Componente deve capturar AxiosError e exibir mensagem apropriada.
  * 
+ * @deprecated Use iniciarAnaliseAssincrona() ao invés desta função (TAREFA-032)
  * @param request - Request body com prompt e agentes selecionados
  * @returns Promise<AxiosResponse<RespostaAnaliseMultiAgent>>
  * @throws {AxiosError} Se houver erro na requisição
@@ -273,6 +319,395 @@ export async function realizarAnaliseMultiAgent(
       // Timeout customizado: análises podem demorar (múltiplos peritos + LLM + RAG)
       timeout: 120000, // 120 segundos = 2 minutos
     }
+  );
+}
+
+
+// ===== ENDPOINTS DE ANÁLISE ASSÍNCRONA (TAREFA-032) =====
+
+/**
+ * Iniciar análise jurídica multi-agent assíncrona
+ * 
+ * CONTEXTO (TAREFA-032):
+ * Novo fluxo assíncrono que resolve o problema de TIMEOUT HTTP.
+ * Backend cria tarefa em background e retorna UUID imediatamente.
+ * Cliente faz polling de status até análise concluir.
+ * 
+ * ENDPOINT:
+ * POST /api/analise/iniciar
+ * 
+ * VANTAGENS VS ENDPOINT SÍNCRONO:
+ * ✅ SEM LIMITE DE TEMPO: Análises podem demorar quanto necessário (5+ min OK)
+ * ✅ RESPOSTA IMEDIATA: Retorna consulta_id em <100ms (não aguarda processamento)
+ * ✅ FEEDBACK TEMPO REAL: Polling mostra progresso (etapa_atual, progresso_percentual)
+ * ✅ UI RESPONSIVA: Não trava interface do usuário
+ * ✅ ESCALABILIDADE: Múltiplas análises em paralelo, cada uma com seu UUID
+ * ✅ RESILIÊNCIA: Se frontend crashar, pode recuperar resultado via UUID
+ * 
+ * FLUXO COMPLETO:
+ * 1. **INICIAR:** Cliente chama `iniciarAnaliseAssincrona(request)`
+ *    - Backend retorna {consulta_id, status: "INICIADA"} imediatamente (202 Accepted)
+ *    - Backend inicia processamento em background (FastAPI BackgroundTasks)
+ * 
+ * 2. **POLLING:** Cliente chama `verificarStatusAnalise(consulta_id)` a cada 2-3s
+ *    - Backend retorna {status, etapa_atual, progresso_percentual}
+ *    - Se status = "PROCESSANDO": continua polling (exibe progresso na UI)
+ *    - Se status = "CONCLUIDA": para polling → vai para passo 3
+ *    - Se status = "ERRO": para polling → exibe mensagem_erro
+ * 
+ * 3. **RESULTADO:** Cliente chama `obterResultadoAnalise(consulta_id)`
+ *    - Backend retorna resultado completo (resposta_compilada, pareceres, etc.)
+ *    - Estrutura idêntica ao endpoint síncrono
+ * 
+ * USO:
+ * ```tsx
+ * // 1. INICIAR ANÁLISE
+ * const request: RequestIniciarAnalise = {
+ *   prompt: "Analisar nexo causal entre LER/DORT e trabalho",
+ *   agentes_selecionados: ["medico", "seguranca_trabalho"],
+ *   advogados_selecionados: ["trabalhista"],
+ *   documento_ids: ["doc-uuid-123"]
+ * };
+ * 
+ * const { data: inicioResp } = await iniciarAnaliseAssincrona(request);
+ * console.log(inicioResp.consulta_id); // "a1b2c3d4-e5f6-..."
+ * console.log(inicioResp.status); // "INICIADA"
+ * 
+ * // 2. POLLING (implementado em TAREFA-033)
+ * // Ver verificarStatusAnalise() e obterResultadoAnalise()
+ * ```
+ * 
+ * REQUEST BODY:
+ * Idêntico ao RequestAnaliseMultiAgent (prompt, agentes_selecionados, etc.)
+ * Ver tipo RequestIniciarAnalise para detalhes.
+ * 
+ * VALIDAÇÃO:
+ * Backend valida:
+ * - Prompt não vazio (min 10 caracteres, max 5000)
+ * - Pelo menos 1 agente selecionado (perito ou advogado)
+ * - Agentes/advogados selecionados existem no sistema
+ * - documento_ids (se fornecido) correspondem a documentos existentes
+ * 
+ * RETORNO:
+ * Promise com AxiosResponse<RespostaIniciarAnalise>
+ * 
+ * ESTRUTURA DA RESPOSTA (SUCESSO - 202 Accepted):
+ * {
+ *   sucesso: true,
+ *   consulta_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+ *   status: "INICIADA",
+ *   mensagem: "Análise iniciada. Use GET /api/analise/status/{id} para acompanhar.",
+ *   timestamp_criacao: "2025-10-24T10:30:00.123Z"
+ * }
+ * 
+ * ESTRUTURA DA RESPOSTA (ERRO - 400 Bad Request):
+ * {
+ *   sucesso: false,
+ *   mensagem_erro: "Nenhum agente selecionado",
+ *   codigo_erro: "NENHUM_AGENTE_SELECIONADO"
+ * }
+ * 
+ * STATUS HTTP:
+ * - 202 Accepted: Tarefa criada com sucesso (análise iniciada em background)
+ * - 400 Bad Request: Validação falhou (prompt vazio, nenhum agente, etc.)
+ * - 500 Internal Server Error: Erro ao criar tarefa (raro)
+ * 
+ * TRATAMENTO DE ERRO:
+ * - 400: Exibir mensagem de validação ao usuário
+ * - 500: Exibir "Erro ao iniciar análise. Tente novamente."
+ * - Network Error: Exibir "Não foi possível conectar ao servidor."
+ * 
+ * PRÓXIMOS PASSOS:
+ * Após chamar esta função e obter consulta_id:
+ * 1. Armazenar consulta_id no estado do componente
+ * 2. Iniciar polling com `verificarStatusAnalise(consulta_id)`
+ * 3. Quando status = "CONCLUIDA", chamar `obterResultadoAnalise(consulta_id)`
+ * 
+ * @param request - Request body com prompt, agentes, advogados e documentos
+ * @returns Promise<AxiosResponse<RespostaIniciarAnalise>>
+ * @throws {AxiosError} Se houver erro na requisição
+ */
+export async function iniciarAnaliseAssincrona(
+  request: RequestIniciarAnalise
+) {
+  return await clienteApi.post<RespostaIniciarAnalise>(
+    '/api/analise/iniciar',
+    request
+    // Sem timeout customizado: resposta é imediata (<100ms)
+  );
+}
+
+
+/**
+ * Verificar status de análise assíncrona (POLLING)
+ * 
+ * CONTEXTO (TAREFA-032):
+ * Endpoint de polling para acompanhar progresso da análise em tempo real.
+ * Cliente deve chamar este endpoint periodicamente (a cada 2-3 segundos)
+ * após iniciar análise com `iniciarAnaliseAssincrona()`.
+ * 
+ * ENDPOINT:
+ * GET /api/analise/status/{consulta_id}
+ * 
+ * INTERVALO DE POLLING RECOMENDADO:
+ * - 2-3 segundos: Balanceamento entre feedback responsivo e carga no servidor
+ * - Não fazer polling mais rápido que 1s (carga desnecessária)
+ * - Não fazer polling mais lento que 5s (feedback lento demais)
+ * 
+ * LÓGICA DE POLLING:
+ * ```tsx
+ * const consultaId = "..."; // retornado por iniciarAnaliseAssincrona()
+ * 
+ * const intervalo = setInterval(async () => {
+ *   try {
+ *     const { data } = await verificarStatusAnalise(consultaId);
+ *     
+ *     console.log(`Status: ${data.status}`);
+ *     console.log(`Etapa: ${data.etapa_atual}`);
+ *     console.log(`Progresso: ${data.progresso_percentual}%`);
+ *     
+ *     if (data.status === 'PROCESSANDO') {
+ *       // Atualizar UI: barra de progresso + etapa atual
+ *       atualizarBarraProgresso(data.progresso_percentual);
+ *       atualizarEtapaAtual(data.etapa_atual);
+ *     } else if (data.status === 'CONCLUIDA') {
+ *       // Análise concluída: parar polling e obter resultado
+ *       clearInterval(intervalo);
+ *       const resultado = await obterResultadoAnalise(consultaId);
+ *       exibirResultado(resultado.data);
+ *     } else if (data.status === 'ERRO') {
+ *       // Erro: parar polling e exibir mensagem
+ *       clearInterval(intervalo);
+ *       exibirErro(data.mensagem_erro);
+ *     }
+ *   } catch (error) {
+ *     // Erro de rede: parar polling e exibir erro
+ *     clearInterval(intervalo);
+ *     exibirErro('Erro ao verificar status da análise');
+ *   }
+ * }, 3000); // polling a cada 3 segundos
+ * 
+ * // IMPORTANTE: Limpar intervalo quando componente desmontar
+ * useEffect(() => {
+ *   return () => clearInterval(intervalo);
+ * }, []);
+ * ```
+ * 
+ * ESTADOS POSSÍVEIS:
+ * - **INICIADA** (0%): Tarefa criada, aguardando início
+ * - **PROCESSANDO** (1-99%): Análise em execução
+ *   - Etapas típicas:
+ *     - "Consultando base de conhecimento (RAG)" (10-20%)
+ *     - "Delegando para peritos selecionados" (20-40%)
+ *     - "Aguardando pareceres dos peritos" (40-70%)
+ *     - "Compilando resposta final" (70-90%)
+ * - **CONCLUIDA** (100%): Análise finalizada → chamar obterResultadoAnalise()
+ * - **ERRO**: Falha durante processamento → exibir mensagem_erro
+ * 
+ * RETORNO:
+ * Promise com AxiosResponse<RespostaStatusAnalise>
+ * 
+ * ESTRUTURA DA RESPOSTA (PROCESSANDO):
+ * {
+ *   consulta_id: "a1b2c3d4-e5f6-...",
+ *   status: "PROCESSANDO",
+ *   etapa_atual: "Aguardando pareceres dos peritos",
+ *   progresso_percentual: 45,
+ *   timestamp_atualizacao: "2025-10-24T10:30:15.456Z",
+ *   mensagem_erro: null
+ * }
+ * 
+ * ESTRUTURA DA RESPOSTA (CONCLUIDA):
+ * {
+ *   consulta_id: "a1b2c3d4-e5f6-...",
+ *   status: "CONCLUIDA",
+ *   etapa_atual: "Análise concluída com sucesso",
+ *   progresso_percentual: 100,
+ *   timestamp_atualizacao: "2025-10-24T10:33:24.789Z",
+ *   mensagem_erro: null
+ * }
+ * 
+ * ESTRUTURA DA RESPOSTA (ERRO):
+ * {
+ *   consulta_id: "a1b2c3d4-e5f6-...",
+ *   status: "ERRO",
+ *   etapa_atual: "Análise falhou",
+ *   progresso_percentual: 0,
+ *   timestamp_atualizacao: "2025-10-24T10:31:00.123Z",
+ *   mensagem_erro: "Timeout ao consultar API OpenAI"
+ * }
+ * 
+ * STATUS HTTP:
+ * - 200 OK: Status retornado com sucesso (qualquer status: INICIADA, PROCESSANDO, CONCLUIDA, ERRO)
+ * - 404 Not Found: consulta_id inválido ou não existe
+ * - 500 Internal Server Error: Erro ao buscar status (raro)
+ * 
+ * TRATAMENTO DE ERRO:
+ * - 404: Exibir "Análise não encontrada. Verifique o ID."
+ * - 500: Continuar polling (pode ser erro temporário) ou parar após N tentativas
+ * - Network Error: Parar polling e exibir "Erro de conexão"
+ * 
+ * CLEANUP:
+ * ⚠️ IMPORTANTE: Cliente DEVE parar polling (clearInterval) quando:
+ * - Status mudar para "CONCLUIDA" ou "ERRO"
+ * - Usuário navegar para fora da página
+ * - Componente for desmontado (useEffect cleanup)
+ * 
+ * Caso contrário, polling continuará indefinidamente, causando:
+ * - Requisições desnecessárias ao servidor
+ * - Memory leaks no frontend
+ * - Consumo de recursos
+ * 
+ * @param consultaId - UUID da consulta retornado por iniciarAnaliseAssincrona()
+ * @returns Promise<AxiosResponse<RespostaStatusAnalise>>
+ * @throws {AxiosError} Se houver erro na requisição
+ */
+export async function verificarStatusAnalise(consultaId: string) {
+  return await clienteApi.get<RespostaStatusAnalise>(
+    `/api/analise/status/${consultaId}`
+  );
+}
+
+
+/**
+ * Obter resultado completo de análise assíncrona
+ * 
+ * CONTEXTO (TAREFA-032):
+ * Retorna resultado completo quando análise estiver concluída (status = "CONCLUIDA").
+ * Cliente deve chamar este endpoint SOMENTE após polling de status retornar CONCLUIDA.
+ * 
+ * ENDPOINT:
+ * GET /api/analise/resultado/{consulta_id}
+ * 
+ * PRÉ-CONDIÇÃO:
+ * Cliente DEVE verificar status antes de chamar este endpoint.
+ * Se chamar antes da análise concluir, backend retorna 425 Too Early.
+ * 
+ * FLUXO CORRETO:
+ * ```tsx
+ * // 1. Polling retornou status CONCLUIDA
+ * const { data: status } = await verificarStatusAnalise(consultaId);
+ * 
+ * if (status.status === 'CONCLUIDA') {
+ *   // 2. Análise concluída: pode obter resultado
+ *   const { data: resultado } = await obterResultadoAnalise(consultaId);
+ *   
+ *   // 3. Exibir resultado na UI
+ *   console.log(resultado.resposta_compilada); // Resposta final
+ *   console.log(resultado.pareceres_individuais); // Pareceres dos peritos
+ *   console.log(resultado.pareceres_advogados); // Pareceres dos advogados
+ *   console.log(resultado.tempo_execucao_segundos); // Ex: 187s = 3min 7s
+ * }
+ * ```
+ * 
+ * ESTRUTURA DO RESULTADO:
+ * Idêntica ao endpoint síncrono (RespostaAnaliseMultiAgent), mas com campo adicional consulta_id.
+ * Ver interface RespostaResultadoAnalise para detalhes completos.
+ * 
+ * CAMPOS PRINCIPAIS:
+ * - **resposta_compilada**: Resposta final do Advogado Coordenador (markdown)
+ * - **pareceres_individuais**: Array de pareceres dos peritos (médico, segurança)
+ * - **pareceres_advogados**: Array de pareceres dos advogados especialistas (trabalhista, etc.)
+ * - **documentos_consultados**: IDs dos documentos usados na análise
+ * - **tempo_execucao_segundos**: Tempo total da análise (útil para UX: "Concluída em 3m 7s")
+ * - **confianca_geral**: Confiança média da análise (0.0-1.0)
+ * 
+ * RETORNO:
+ * Promise com AxiosResponse<RespostaResultadoAnalise>
+ * 
+ * ESTRUTURA DA RESPOSTA (SUCESSO - 200 OK):
+ * {
+ *   sucesso: true,
+ *   consulta_id: "a1b2c3d4-e5f6-...",
+ *   status: "CONCLUIDA",
+ *   resposta_compilada: "Com base na análise dos peritos...",
+ *   pareceres_individuais: [
+ *     {
+ *       id_perito: "medico",
+ *       nome_perito: "Perito Médico",
+ *       parecer: "Análise médica detalhada...",
+ *       confianca: 0.92,
+ *       timestamp: "...",
+ *       documentos_consultados: ["doc-uuid-1"]
+ *     },
+ *     {
+ *       id_perito: "seguranca_trabalho",
+ *       nome_perito: "Perito de Segurança do Trabalho",
+ *       parecer: "Análise de segurança...",
+ *       confianca: 0.88,
+ *       timestamp: "...",
+ *       documentos_consultados: ["doc-uuid-2"]
+ *     }
+ *   ],
+ *   pareceres_advogados: [
+ *     {
+ *       id_perito: "trabalhista", // backend usa mesmo campo para compatibilidade
+ *       nome_perito: "Advogado Trabalhista",
+ *       parecer: "Análise jurídica trabalhista...",
+ *       confianca: 0.90,
+ *       timestamp: "...",
+ *       documentos_consultados: ["doc-uuid-1", "doc-uuid-2"]
+ *     }
+ *   ],
+ *   documentos_consultados: ["doc-uuid-1", "doc-uuid-2"],
+ *   timestamp: "2025-10-24T10:33:24.789Z",
+ *   tempo_execucao_segundos: 187.5,
+ *   confianca_geral: 0.90
+ * }
+ * 
+ * ESTRUTURA DA RESPOSTA (ERRO - Status não é CONCLUIDA):
+ * Ver status HTTP 425 Too Early abaixo.
+ * 
+ * STATUS HTTP:
+ * - **200 OK**: Resultado disponível (status = CONCLUIDA)
+ * - **425 Too Early**: Análise ainda processando (status = PROCESSANDO)
+ *   - Mensagem: "Análise ainda está sendo processada. Use GET /status para acompanhar."
+ *   - Cliente deve continuar polling de status
+ * - **404 Not Found**: consulta_id inválido ou não existe
+ * - **500 Internal Server Error**: Análise falhou (status = ERRO)
+ *   - Resposta contém mensagem_erro detalhada
+ * 
+ * TRATAMENTO DE ERRO:
+ * - 200: Exibir resultado ao usuário (caso de sucesso)
+ * - 425: Continuar polling (chamou cedo demais)
+ * - 404: Exibir "Análise não encontrada"
+ * - 500: Exibir mensagem de erro retornada
+ * - Network Error: Exibir "Erro ao obter resultado"
+ * 
+ * EXIBIÇÃO NA UI:
+ * ```tsx
+ * const { data } = await obterResultadoAnalise(consultaId);
+ * 
+ * // Exibir resposta principal (destaque)
+ * <ComponenteExibicaoMarkdown conteudo={data.resposta_compilada} />
+ * 
+ * // Exibir pareceres individuais (tabs/accordions)
+ * <Tabs>
+ *   {data.pareceres_individuais.map(parecer => (
+ *     <Tab titulo={parecer.nome_perito}>
+ *       <ComponenteExibicaoMarkdown conteudo={parecer.parecer} />
+ *       <Badge>Confiança: {(parecer.confianca * 100).toFixed(0)}%</Badge>
+ *     </Tab>
+ *   ))}
+ *   {data.pareceres_advogados?.map(parecer => (
+ *     <Tab titulo={parecer.nome_perito}>
+ *       <ComponenteExibicaoMarkdown conteudo={parecer.parecer} />
+ *     </Tab>
+ *   ))}
+ * </Tabs>
+ * 
+ * // Exibir metadados
+ * <p>Tempo de análise: {formatarTempo(data.tempo_execucao_segundos)}</p>
+ * <p>Confiança geral: {(data.confianca_geral * 100).toFixed(0)}%</p>
+ * ```
+ * 
+ * @param consultaId - UUID da consulta retornado por iniciarAnaliseAssincrona()
+ * @returns Promise<AxiosResponse<RespostaResultadoAnalise>>
+ * @throws {AxiosError} Se houver erro na requisição
+ */
+export async function obterResultadoAnalise(consultaId: string) {
+  return await clienteApi.get<RespostaResultadoAnalise>(
+    `/api/analise/resultado/${consultaId}`
   );
 }
 

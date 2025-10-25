@@ -44,20 +44,23 @@
  * - backend/src/api/rotas_analise.py (endpoint de análise)
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Send, Loader2, AlertCircle, Clock } from 'lucide-react';
 import { ComponenteSelecionadorAgentes } from '../componentes/analise/ComponenteSelecionadorAgentes';
 import { ComponenteSelecionadorDocumentos } from '../componentes/analise/ComponenteSelecionadorDocumentos';
 import { ComponenteExibicaoPareceres } from '../componentes/ComponenteExibicaoPareceres';
 import { useArmazenamentoAgentes } from '../contextos/armazenamentoAgentes';
 import {
-  realizarAnaliseMultiAgent,
+  iniciarAnaliseAssincrona,
+  verificarStatusAnalise,
+  obterResultadoAnalise,
   validarPrompt,
   obterMensagemErroAmigavel,
 } from '../servicos/servicoApiAnalise';
 import type {
   RespostaAnaliseMultiAgent,
   EstadoCarregamento,
+  StatusAnalise,
 } from '../tipos/tiposAgentes';
 
 
@@ -129,8 +132,47 @@ export function PaginaAnalise() {
 
   /**
    * ID do intervalo de atualização de tempo (para limpar depois)
+   * NOTA: Também usado para intervalo de polling (TAREFA-033)
    */
   const [intervalId, setIntervalId] = useState<number | null>(null);
+
+  /**
+   * ID da consulta assíncrona (TAREFA-033)
+   * 
+   * CONTEXTO:
+   * UUID retornado por iniciarAnaliseAssincrona().
+   * Usado para fazer polling do status e obter resultado quando concluída.
+   */
+  const [consultaId, setConsultaId] = useState<string | null>(null);
+
+  /**
+   * Status atual da análise assíncrona (TAREFA-033)
+   * 
+   * VALORES:
+   * - INICIADA: Tarefa criada, aguardando início
+   * - PROCESSANDO: Análise em execução
+   * - CONCLUIDA: Análise finalizada (resultado disponível)
+   * - ERRO: Falha durante processamento
+   */
+  const [statusAnalise, setStatusAnalise] = useState<StatusAnalise | null>(null);
+
+  /**
+   * Etapa atual da análise (TAREFA-033)
+   * 
+   * CONTEXTO:
+   * Descrição textual da etapa em execução.
+   * Exemplos: "Consultando base de conhecimento", "Aguardando pareceres dos peritos"
+   */
+  const [etapaAtual, setEtapaAtual] = useState<string>('');
+
+  /**
+   * Progresso percentual da análise (0-100) (TAREFA-033)
+   * 
+   * CONTEXTO:
+   * Usado para exibir barra de progresso na UI.
+   * 0% = iniciada, 100% = concluída
+   */
+  const [progressoPercentual, setProgressoPercentual] = useState<number>(0);
 
   /**
    * Zustand store: agentes selecionados (peritos e advogados)
@@ -167,19 +209,128 @@ export function PaginaAnalise() {
   // ===== HANDLERS =====
 
   /**
-   * Handler: Enviar análise ao backend
+   * Função auxiliar: Iniciar polling de status da análise (TAREFA-033)
    * 
-   * FLUXO:
+   * CONTEXTO:
+   * Após iniciar análise assíncrona, precisamos fazer polling para acompanhar
+   * o progresso e detectar quando a análise for concluída.
+   * 
+   * IMPLEMENTAÇÃO:
+   * - setInterval a cada 3 segundos
+   * - Chama verificarStatusAnalise(consultaId)
+   * - Atualiza UI com progresso e etapa atual
+   * - Quando status = CONCLUIDA, para polling e obtém resultado
+   * - Quando status = ERRO, para polling e exibe erro
+   * 
+   * CLEANUP:
+   * - Intervalo é armazenado em intervalId
+   * - DEVE ser limpo quando análise finalizar ou componente desmontar
+   * 
+   * @param idConsulta - UUID da consulta retornado por iniciarAnaliseAssincrona()
+   */
+  const iniciarPollingStatus = (idConsulta: string) => {
+    console.log('🔄 Iniciando polling de status para consulta:', idConsulta);
+
+    // Definir intervalo de polling (3 segundos)
+    const INTERVALO_POLLING_MS = 3000;
+
+    const interval = window.setInterval(async () => {
+      try {
+        // Buscar status atualizado
+        const { data } = await verificarStatusAnalise(idConsulta);
+
+        console.log('📊 Status da análise:', {
+          status: data.status,
+          etapa: data.etapa_atual,
+          progresso: data.progresso_percentual,
+        });
+
+        // Atualizar estado com informações de progresso
+        setStatusAnalise(data.status);
+        setEtapaAtual(data.etapa_atual || '');
+        setProgressoPercentual(data.progresso_percentual || 0);
+
+        // Verificar se análise foi concluída
+        if (data.status === 'CONCLUIDA') {
+          console.log('✅ Análise concluída! Obtendo resultado...');
+
+          // Parar polling
+          clearInterval(interval);
+          setIntervalId(null);
+
+          // Obter resultado completo
+          try {
+            const { data: resultado } = await obterResultadoAnalise(idConsulta);
+
+            // Verificar se resultado foi bem-sucedido
+            if (resultado.sucesso) {
+              setEstadoCarregamento('success');
+              setResultadoAnalise(resultado);
+              console.log('🎉 Resultado obtido com sucesso!');
+            } else {
+              // Backend retornou sucesso: false
+              setEstadoCarregamento('error');
+              setMensagemErro(
+                resultado.resposta_compilada || 'Erro desconhecido ao processar análise.'
+              );
+            }
+          } catch (errorResultado) {
+            // Erro ao obter resultado
+            setEstadoCarregamento('error');
+            const mensagemAmigavel = obterMensagemErroAmigavel(errorResultado);
+            setMensagemErro(`Erro ao obter resultado: ${mensagemAmigavel}`);
+          }
+        } else if (data.status === 'ERRO') {
+          console.error('❌ Análise falhou:', data.mensagem_erro);
+
+          // Parar polling
+          clearInterval(interval);
+          setIntervalId(null);
+
+          // Exibir erro
+          setEstadoCarregamento('error');
+          setMensagemErro(data.mensagem_erro || 'Erro desconhecido durante análise.');
+        }
+        // Se status = INICIADA ou PROCESSANDO, continuar polling
+      } catch (errorPolling) {
+        console.error('❌ Erro durante polling:', errorPolling);
+
+        // Parar polling em caso de erro
+        clearInterval(interval);
+        setIntervalId(null);
+
+        // Exibir erro
+        setEstadoCarregamento('error');
+        const mensagemAmigavel = obterMensagemErroAmigavel(errorPolling);
+        setMensagemErro(`Erro ao verificar status: ${mensagemAmigavel}`);
+      }
+    }, INTERVALO_POLLING_MS);
+
+    // Armazenar ID do intervalo para cleanup posterior
+    setIntervalId(interval);
+  };
+
+  /**
+   * Handler: Enviar análise ao backend (REFATORADO - TAREFA-033)
+   * 
+   * FLUXO ASSÍNCRONO (NOVO):
    * 1. Validar campos
    * 2. Se inválido, exibir mensagens de erro
-   * 3. Se válido, enviar requisição ao backend
-   * 4. Exibir loading com tempo decorrido
-   * 5. Ao receber resposta, exibir resultados
-   * 6. Em caso de erro, exibir mensagem de erro
+   * 3. Se válido, chamar iniciarAnaliseAssincrona()
+   * 4. Receber consulta_id imediatamente (<100ms)
+   * 5. Iniciar polling de status com verificarStatusAnalise()
+   * 6. Exibir loading com progresso em tempo real
+   * 7. Quando status = CONCLUIDA, obter resultado com obterResultadoAnalise()
+   * 8. Exibir resultados
+   * 9. Em caso de erro, exibir mensagem de erro
+   * 
+   * DIFERENÇAS DO FLUXO ANTERIOR (SÍNCRONO):
+   * - ANTES: realizarAnaliseMultiAgent() bloqueava por 30s-2min (risco de timeout)
+   * - AGORA: iniciarAnaliseAssincrona() retorna em <100ms + polling atualiza UI
    * 
    * VALIDAÇÕES:
-   * - Prompt válido
-   * - Pelo menos 1 agente selecionado
+   * - Prompt válido (10-2000 caracteres)
+   * - Pelo menos 1 agente selecionado (perito ou advogado)
    */
   const handleEnviarAnalise = async () => {
     // Ativar exibição de validações
@@ -193,7 +344,7 @@ export function PaginaAnalise() {
           `Prompt inválido. Digite entre 10 e 2000 caracteres (atual: ${textoPrompt.trim().length}).`
         );
       } else if (!isAgentesSelecionadosValido) {
-        setMensagemErro('Selecione pelo menos um agente perito para realizar a análise.');
+        setMensagemErro('Selecione pelo menos um agente (perito ou advogado) para realizar a análise.');
       }
       return;
     }
@@ -202,6 +353,10 @@ export function PaginaAnalise() {
     setMensagemErro('');
     setResultadoAnalise(null);
     setTempoDecorrido(0);
+    setConsultaId(null);
+    setStatusAnalise(null);
+    setEtapaAtual('');
+    setProgressoPercentual(0);
 
     // Iniciar loading
     setEstadoCarregamento('loading');
@@ -215,7 +370,7 @@ export function PaginaAnalise() {
     setIntervalId(interval);
 
     try {
-      // Fazer requisição ao backend
+      // Preparar payload
       // TAREFA-023: Incluir documento_ids se houver documentos selecionados
       // TAREFA-029: Enviar peritos e advogados em listas separadas
       // NOTA: Backend usa agentes_selecionados para peritos (manter compatibilidade)
@@ -225,30 +380,41 @@ export function PaginaAnalise() {
         advogados_selecionados: advogadosSelecionados,
         documento_ids: documentosSelecionados.length > 0 ? documentosSelecionados : undefined,
       };
-      
-      console.log('📤 Enviando requisição:', {
+
+      console.log('📤 Iniciando análise assíncrona:', {
         peritos: peritosSelecionados,
         advogados: advogadosSelecionados,
         documentos: documentosSelecionados.length,
-        payload
       });
-      
-      const resposta = await realizarAnaliseMultiAgent(payload);
 
-      // Parar contador
-      if (intervalId !== null) {
-        clearInterval(intervalId);
-      }
+      // TAREFA-033: Usar método assíncrono em vez de síncrono
+      const resposta = await iniciarAnaliseAssincrona(payload);
 
-      // Verificar se resposta foi bem-sucedida
-      if (resposta.data.sucesso) {
-        setEstadoCarregamento('success');
-        setResultadoAnalise(resposta.data);
+      // Análise iniciada com sucesso
+      if (resposta.data.sucesso && resposta.data.consulta_id) {
+        const idConsulta = resposta.data.consulta_id;
+        setConsultaId(idConsulta);
+        setStatusAnalise(resposta.data.status);
+        setEtapaAtual('Análise iniciada');
+        setProgressoPercentual(0);
+
+        console.log('✅ Análise iniciada com sucesso! ID:', idConsulta);
+
+        // Parar contador de tempo simples (será substituído por progresso do backend)
+        if (interval !== null) {
+          clearInterval(interval);
+        }
+
+        // Iniciar polling de status
+        iniciarPollingStatus(idConsulta);
       } else {
         // Backend retornou sucesso: false
+        if (intervalId !== null) {
+          clearInterval(intervalId);
+        }
         setEstadoCarregamento('error');
         setMensagemErro(
-          resposta.data.resposta_compilada || 'Erro desconhecido ao processar análise.'
+          resposta.data.mensagem || 'Erro ao iniciar análise.'
         );
       }
     } catch (error) {
@@ -265,7 +431,10 @@ export function PaginaAnalise() {
   };
 
   /**
-   * Handler: Limpar resultados e resetar formulário
+   * Handler: Limpar resultados e resetar formulário (ATUALIZADO - TAREFA-033)
+   * 
+   * NOVO:
+   * - Limpar estados de polling (consultaId, statusAnalise, etapaAtual, progressoPercentual)
    */
   const handleLimparResultados = () => {
     setResultadoAnalise(null);
@@ -273,10 +442,38 @@ export function PaginaAnalise() {
     setEstadoCarregamento('idle');
     setExibirValidacao(false);
     setTempoDecorrido(0);
+    setConsultaId(null);
+    setStatusAnalise(null);
+    setEtapaAtual('');
+    setProgressoPercentual(0);
     if (intervalId !== null) {
       clearInterval(intervalId);
+      setIntervalId(null);
     }
   };
+
+  /**
+   * Effect: Cleanup de polling quando componente desmontar (TAREFA-033)
+   * 
+   * CONTEXTO:
+   * Se usuário navegar para fora da página enquanto análise está em andamento,
+   * precisamos parar o polling para evitar:
+   * - Memory leaks
+   * - Requisições desnecessárias ao servidor
+   * - Atualizações de estado em componente desmontado (React warning)
+   * 
+   * IMPLEMENTAÇÃO:
+   * useEffect com cleanup function que limpa o intervalo
+   */
+  useEffect(() => {
+    // Cleanup: executado quando componente desmontar
+    return () => {
+      if (intervalId !== null) {
+        console.log('🧹 Limpando intervalo de polling (componente desmontado)');
+        clearInterval(intervalId);
+      }
+    };
+  }, [intervalId]);
 
 
   // ===== RENDERIZAÇÃO =====
@@ -412,12 +609,42 @@ export function PaginaAnalise() {
             )}
           </button>
 
-          {/* Mensagem adicional durante loading prolongado */}
-          {estadoCarregamento === 'loading' && tempoDecorrido > 10 && (
-            <p className="text-sm text-gray-600 mt-3 flex items-center gap-2">
-              <Clock size={16} />
-              A análise pode levar até 2 minutos. Aguarde...
-            </p>
+          {/* Feedback de Progresso (TAREFA-033) */}
+          {estadoCarregamento === 'loading' && (
+            <div className="mt-6 space-y-3">
+              {/* Barra de Progresso */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-700 font-medium">
+                    {etapaAtual || 'Iniciando análise...'}
+                  </span>
+                  <span className="text-blue-600 font-semibold">
+                    {progressoPercentual}%
+                  </span>
+                </div>
+                
+                {/* Barra de progresso visual */}
+                <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                  <div
+                    className="bg-blue-600 h-2.5 rounded-full transition-all duration-500 ease-out"
+                    style={{ width: `${progressoPercentual}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Informação adicional */}
+              <div className="flex items-start gap-2 text-sm text-gray-600">
+                <Clock size={16} className="flex-shrink-0 mt-0.5" />
+                <p>
+                  {progressoPercentual < 20 && 'Consultando base de conhecimento...'}
+                  {progressoPercentual >= 20 && progressoPercentual < 70 && 'Aguardando análise dos agentes selecionados...'}
+                  {progressoPercentual >= 70 && progressoPercentual < 100 && 'Compilando resposta final...'}
+                  {progressoPercentual === 100 && 'Finalizando...'}
+                  {' '}
+                  A análise pode levar alguns minutos.
+                </p>
+              </div>
+            </div>
           )}
         </div>
       </div>

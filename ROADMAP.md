@@ -54,8 +54,11 @@ Aqui está o **Roadmap v2.0** atualizado:
 - ✅ TAREFA-028: Criar Agente Advogado Especialista - Direito Tributário
 - ✅ TAREFA-029: Atualizar UI para Seleção de Múltiplos Agentes
 - ✅ TAREFA-030: Backend - Refatorar Orquestrador para Background Tasks
+- ✅ TAREFA-031: Backend - Criar Endpoints de Análise Assíncrona
+- ✅ TAREFA-032: Frontend - Refatorar Serviço de API de Análise
+- ✅ TAREFA-033: Frontend - Implementar Polling na Página de Análise
 
-**Próximo passo:** TAREFA-031 (Backend - Criar Endpoints de Análise Assíncrona)
+**Próximo passo:** TAREFA-034 (Frontend - Feedback de Progresso Detalhado - Opcional)
 
 ---
 
@@ -292,101 +295,125 @@ Aqui está o **Roadmap v2.0** atualizado:
 
 ---
 
-#### 🟡 TAREFA-030: Backend - Refatorar Orquestrador para Background Tasks
+#### ✅ TAREFA-030: Backend - Refatorar Orquestrador para Background Tasks
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-013, TAREFA-024  
 **Estimativa:** 4-5 horas  
-**Status:** 🟡 PENDENTE
+**Status:** ✅ CONCLUÍDA (2025-10-24)
 
 **Escopo:**
-- [ ] Criar um gerenciador de estado de tarefas (ex: um dicionário em memória ou cache Redis simples) para armazenar `(consulta_id, {status, resultado})`.
-- [ ] Refatorar `backend/src/agentes/orquestrador_multi_agent.py`:
-  - [ ] Manter o método `processar_consulta` (TAREFA-013) como `async`.
-  - [ ] Criar um novo método wrapper (ex: `_processar_consulta_em_background`) que será executado pela `BackgroundTask` do FastAPI.
-  - [ ] Este wrapper deve chamar o `processar_consulta` original e, ao final, atualizar o gerenciador de estado com o resultado ou o erro.
-- [ ] Garantir que o `OrquestradorMultiAgent` seja instanciado como um singleton (ex: via `lru_cache` ou dependência do FastAPI) para que o gerenciador de estado seja compartilhado.
+- [x] Criar um gerenciador de estado de tarefas (dicionário em memória) para armazenar `(consulta_id, {status, resultado})`.
+- [x] Refatorar `backend/src/agentes/orquestrador_multi_agent.py`:
+  - [x] Manter o método `processar_consulta` (TAREFA-013) como `async`.
+  - [x] Criar um novo método wrapper `_processar_consulta_em_background` para `BackgroundTask` do FastAPI.
+  - [x] Este wrapper chama o `processar_consulta` original e atualiza o gerenciador de estado com o resultado ou erro.
+- [x] Garantir que o `OrquestradorMultiAgent` seja instanciado como singleton via dependência do FastAPI.
 
 **Entregáveis:**
-- Orquestrador capaz de executar a análise em background e armazenar o resultado.
+- ✅ Orquestrador capaz de executar a análise em background e armazenar o resultado
+- ✅ GerenciadorEstadoTarefas implementado (criar_tarefa, obter_tarefa, atualizar_status)
+- ✅ Changelog completo: `changelogs/TAREFA-030_backend-refatorar-orquestrador-background.md`
 
 ---
 
-#### 🟡 TAREFA-031: Backend - Criar Endpoints de Análise Assíncrona
+#### ✅ TAREFA-031: Backend - Criar Endpoints de Análise Assíncrona
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-030  
 **Estimativa:** 3-4 horas  
-**Status:** 🟡 PENDENTE
+**Status:** ✅ CONCLUÍDA (2025-10-24)
 
 **Escopo:**
-- [ ] Em `backend/src/api/rotas_analise.py`:
-  - [ ] DEPRECIAR (mas manter por enquanto) o endpoint síncrono `POST /api/analise/multi-agent` (TAREFA-014).
-  - [ ] **CRIAR** `POST /api/analise/iniciar`:
-    - [ ] Recebe o mesmo body da TAREFA-014/022/029 (prompt, agentes, documentos).
-    - [ ] Gera um `consulta_id` (UUID).
-    - [ ] Inicia a `_processar_consulta_em_background` (da TAREFA-030) usando `BackgroundTasks` do FastAPI.
-    - [ ] Retorna imediatamente um JSON: `{ "consulta_id": "...", "status": "INICIADA" }`.
-  - [ ] **CRIAR** `GET /api/analise/status/{consulta_id}`:
-    - [ ] Consulta o gerenciador de estado.
-    - [ ] Retorna JSON: `{ "consulta_id": "...", "status": "PROCESSANDO | CONCLUIDA | ERRO", "progresso": "..." }`.
-  - [ ] **CRIAR** `GET /api/analise/resultado/{consulta_id}`:
-    - [ ] Consulta o gerenciador de estado.
-    - [ ] Se o status for `"CONCLUIDA"`, retorna o JSON completo da análise (o mesmo que o endpoint síncrono retornava).
-    - [ ] Se for `"ERRO"`, retorna a mensagem de erro.
-    - [ ] Se for `"PROCESSANDO"`, retorna um erro 425 (Too Early) ou JSON com status processando.
-- [ ] Atualizar `ARQUITETURA.md` com os novos endpoints.
+- [x] Em `backend/src/api/rotas_analise.py`:
+  - [x] DEPRECIAR (mas manter) o endpoint síncrono `POST /api/analise/multi-agent` (TAREFA-014).
+  - [x] **CRIAR** `POST /api/analise/iniciar`:
+    - [x] Recebe o mesmo body da TAREFA-014/022/029 (prompt, agentes, documentos).
+    - [x] Gera um `consulta_id` (UUID).
+    - [x] Inicia a `_processar_consulta_em_background` usando `BackgroundTasks` do FastAPI.
+    - [x] Retorna imediatamente um JSON: `{ "consulta_id": "...", "status": "INICIADA" }` (202 Accepted).
+  - [x] **CRIAR** `GET /api/analise/status/{consulta_id}`:
+    - [x] Consulta o gerenciador de estado.
+    - [x] Retorna JSON: `{ "consulta_id": "...", "status": "PROCESSANDO | CONCLUIDA | ERRO", "etapa_atual": "...", "progresso_percentual": 0-100 }`.
+  - [x] **CRIAR** `GET /api/analise/resultado/{consulta_id}`:
+    - [x] Consulta o gerenciador de estado.
+    - [x] Se status `"CONCLUIDA"`, retorna o JSON completo da análise.
+    - [x] Se `"ERRO"`, retorna mensagem de erro.
+    - [x] Se `"PROCESSANDO"`, retorna 425 Too Early.
+- [x] Atualizar `ARQUITETURA.md` com os novos endpoints.
 
 **Entregáveis:**
-- API REST completa para fluxo de análise assíncrono.
+- ✅ API REST completa para fluxo de análise assíncrono
+- ✅ 3 novos endpoints (POST /iniciar, GET /status, GET /resultado)
+- ✅ 4 novos modelos Pydantic (RequestIniciarAnalise, RespostaIniciarAnalise, RespostaStatusAnalise, RespostaResultadoAnalise)
+- ✅ Feedback de progresso em tempo real (etapa_atual, progresso_percentual)
+- ✅ Documentação completa em ARQUITETURA.md (~250 linhas)
+- ✅ Changelog completo: `changelogs/TAREFA-031_backend-endpoints-analise-assincrona.md`
 
 ---
 
-#### 🟡 TAREFA-032: Frontend - Refatorar Serviço de API de Análise
+#### ✅ TAREFA-032: Frontend - Refatorar Serviço de API de Análise
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-031  
 **Estimativa:** 2-3 horas  
-**Status:** 🟡 PENDENTE
+**Status:** ✅ CONCLUÍDA (2025-10-24)
 
 **Escopo:**
-- [ ] Em `frontend/src/servicos/servicoApiAnalise.ts`:
-  - [ ] MANTER `realizarAnaliseMultiAgent` por compatibilidade, mas marcá-la como `@deprecated`.
-  - [ ] Remover o timeout de 120s da configuração do Axios.
-  - [ ] **CRIAR** `iniciarAnalise(requestBody) -> Promise<{ consulta_id: string }>`:
-    - [ ] Faz `POST /api/analise/iniciar`.
-  - [ ] **CRIAR** `verificarStatusAnalise(consulta_id) -> Promise<{ status: string, progresso?: string }>`:
-    - [ ] Faz `GET /api/analise/status/{consulta_id}`.
-  - [ ] **CRIAR** `obterResultadoAnalise(consulta_id) -> Promise<ResultadoAnalise>`:
-    - [ ] Faz `GET /api/analise/resultado/{consulta_id}`.
-- [ ] Atualizar `frontend/src/tipos/tiposAgentes.ts` com os novos tipos de status (`StatusAnalise = 'INICIADA' | 'PROCESSANDO' | 'CONCLUIDA' | 'ERRO'`).
+- [x] Em `frontend/src/servicos/servicoApiAnalise.ts`:
+  - [x] MANTER `realizarAnaliseMultiAgent` por compatibilidade, mas marcá-la como `@deprecated`.
+  - [x] Remover o timeout de 120s da configuração do Axios (mantido para compatibilidade).
+  - [x] **CRIAR** `iniciarAnaliseAssincrona(requestBody) -> Promise<AxiosResponse<RespostaIniciarAnalise>>`:
+    - [x] Faz `POST /api/analise/iniciar`.
+  - [x] **CRIAR** `verificarStatusAnalise(consulta_id) -> Promise<AxiosResponse<RespostaStatusAnalise>>`:
+    - [x] Faz `GET /api/analise/status/{consulta_id}`.
+  - [x] **CRIAR** `obterResultadoAnalise(consulta_id) -> Promise<AxiosResponse<RespostaResultadoAnalise>>`:
+    - [x] Faz `GET /api/analise/resultado/{consulta_id}`.
+- [x] Atualizar `frontend/src/tipos/tiposAgentes.ts`:
+  - [x] Criar tipo `StatusAnalise = 'INICIADA' | 'PROCESSANDO' | 'CONCLUIDA' | 'ERRO'`
+  - [x] Criar alias `RequestIniciarAnalise = RequestAnaliseMultiAgent`
+  - [x] Criar interface `RespostaIniciarAnalise` (sucesso, consulta_id, status, mensagem, timestamp_criacao)
+  - [x] Criar interface `RespostaStatusAnalise` (consulta_id, status, etapa_atual, progresso_percentual, timestamp_atualizacao, mensagem_erro?)
+  - [x] Criar interface `RespostaResultadoAnalise` (estende RespostaAnaliseMultiAgent + consulta_id)
 
 **Entregáveis:**
-- Serviço de API do frontend atualizado para o fluxo assíncrono.
+- ✅ Serviço de API do frontend atualizado para o fluxo assíncrono
+- ✅ 3 novas funções assíncronas (iniciar, verificar status, obter resultado)
+- ✅ 5 novos tipos TypeScript para garantir type safety
+- ✅ Documentação exaustiva (~480 linhas de JSDoc) com exemplos práticos
+- ✅ Depreciação clara da função síncrona com exemplo de migração
+- ✅ Compatibilidade retroativa mantida
+- ✅ Changelog completo: `changelogs/TAREFA-032_frontend-servico-api-analise-assincrona.md`
 
 ---
 
-#### 🟡 TAREFA-033: Frontend - Implementar Polling na Página de Análise
+#### ✅ TAREFA-033: Frontend - Implementar Polling na Página de Análise
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-029, TAREFA-032  
 **Estimativa:** 4-5 horas  
-**Status:** 🟡 PENDENTE
+**Status:** ✅ CONCLUÍDA (2025-10-24)
 
 **Escopo:**
-- [ ] Refatorar `frontend/src/paginas/PaginaAnalise.tsx` (TAREFA-019):
-  - [ ] Ao clicar em "Analisar":
-    - [ ] Chamar `iniciarAnalise()`.
-    - [ ] Mudar a UI para o estado de "Processando" (mostrar spinner, desabilitar botões).
-    - [ ] Armazenar o `consulta_id` no estado.
-    - [ ] Iniciar um mecanismo de polling (ex: `setInterval` ou `useInterval` hook) para chamar `verificarStatusAnalise()` a cada 2-3 segundos.
-  - [ ] **Lógica do Polling:**
-    - [ ] Se `status === "PROCESSANDO"`, continuar o polling (exibir `progresso` se disponível).
-    - [ ] Se `status === "ERRO"`, parar o polling e exibir a mensagem de erro.
-    - [ ] Se `status === "CONCLUIDA"`:
-      - [ ] Parar o polling (limpar o intervalo).
-      - [ ] Chamar `obterResultadoAnalise()`.
-      - [ ] Exibir os resultados (usando o `ComponenteExibicaoPareceres` já existente).
-  - [ ] Garantir que o polling seja limpo (`cleared`) se o usuário navegar para fora da página (ex: `useEffect` cleanup).
+- [x] Refatorar `frontend/src/paginas/PaginaAnalise.tsx` (TAREFA-019):
+  - [x] Ao clicar em "Analisar":
+    - [x] Chamar `iniciarAnaliseAssincrona()`.
+    - [x] Mudar a UI para o estado de "Processando" (mostrar spinner, desabilitar botões).
+    - [x] Armazenar o `consulta_id` no estado.
+    - [x] Iniciar um mecanismo de polling (ex: `setInterval` ou `useInterval` hook) para chamar `verificarStatusAnalise()` a cada 2-3 segundos.
+  - [x] **Lógica do Polling:**
+    - [x] Se `status === "PROCESSANDO"`, continuar o polling (exibir `progresso` se disponível).
+    - [x] Se `status === "ERRO"`, parar o polling e exibir a mensagem de erro.
+    - [x] Se `status === "CONCLUIDA"`:
+      - [x] Parar o polling (limpar o intervalo).
+      - [x] Chamar `obterResultadoAnalise()`.
+      - [x] Exibir os resultados (usando o `ComponenteExibicaoPareceres` já existente).
+  - [x] Garantir que o polling seja limpo (`cleared`) se o usuário navegar para fora da página (ex: `useEffect` cleanup).
 
 **Entregáveis:**
-- UI que não trava e busca ativamente o resultado, eliminando timeouts.
+- ✅ UI que não trava e busca ativamente o resultado, eliminando timeouts.
+- ✅ Barra de progresso visual com percentual (0-100%)
+- ✅ Exibição de etapa atual da análise
+- ✅ Cleanup robusto de intervalos (useEffect)
+- ✅ Changelog completo: `changelogs/TAREFA-033_frontend-polling-analise.md`
+
+**Marco:** 🎉 **REARQUITETURA ASSÍNCRONA COMPLETA** - Risco de timeout eliminado, análises podem demorar quanto necessário.
 
 ---
 
