@@ -72,8 +72,9 @@ Aqui está o **Roadmap v2.0** atualizado:
 - ✅ TAREFA-046: Backend - Refatorar Orquestrador para Análise de Petições
 - ✅ TAREFA-047: Backend - Serviço de Geração de Documento de Continuação
 - ✅ TAREFA-048: Backend - Endpoint de Análise Completa de Petição
+- ✅ TAREFA-049: Frontend - Criar Página de Análise de Petição Inicial
 
-**Próximo passo:** TAREFA-049 (Frontend - Criar Página de Análise de Petição Inicial)
+**Próximo passo:** TAREFA-050 (Frontend - Componente de Upload de Petição Inicial)
 
 ---
 
@@ -867,54 +868,30 @@ Esta é uma nova funcionalidade estratégica que diferencia o produto. O fluxo �
 
 ---
 
-#### 🟡 TAREFA-049: Frontend - Criar Página de Análise de Petição Inicial
+#### ✅ TAREFA-049: Frontend - Criar Página de Análise de Petição Inicial
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-015 (Setup Frontend)  
 **Estimativa:** 3-4 horas  
-**Status:** 🟡 PENDENTE
-    - [ ] Consulta `GerenciadorEstadoPeticoes`
-    - [ ] Retorna progresso da análise (etapa_atual, progresso_percentual)
-    - [ ] Estados: PROCESSANDO | CONCLUIDA | ERRO
-  - [ ] **GET /api/peticoes/{peticao_id}/resultado**:
-    - [ ] Se status = CONCLUIDA → Retorna `ResultadoAnaliseProcesso` completo
-    - [ ] Se status = PROCESSANDO → Retorna 425 Too Early
-    - [ ] Se status = ERRO → Retorna 500 com mensagem de erro
-- [ ] Criar modelos Pydantic em `backend/src/api/modelos.py`:
-  - [ ] `RequisicaoAnalisarPeticao` (agentes_selecionados)
-  - [ ] `RespostaIniciarAnalisePeticao` (peticao_id, status, timestamp_inicio)
-  - [ ] `RespostaStatusAnalisePeticao` (peticao_id, status, etapa_atual, progresso_percentual)
-  - [ ] `RespostaResultadoAnalisePeticao` (peticao_id, proximos_passos, prognostico, pareceres_advogados, pareceres_peritos, documento_continuacao, tempo_processamento_segundos)
-- [ ] Atualizar `ARQUITETURA.md` com novos endpoints
-
-**Entregáveis:**
-- API REST completa para análise de petição (assíncrona com polling)
-- 3 novos endpoints (POST /analisar, GET /status-analise, GET /resultado)
-- Validações robustas de estado e documentos
-- Feedback de progresso em tempo real
-- Changelog completo: `changelogs/TAREFA-048_backend-endpoint-analise-peticao.md`
-
----
-
-### FRONTEND - INTERFACE DE ANÁLISE DE PETIÇÃO
-
----
-
-#### 🟡 TAREFA-049: Frontend - Criar Página de Análise de Petição Inicial
-**Prioridade:** 🔴 CRÍTICA  
-**Dependências:** TAREFA-015 (Setup Frontend)  
-**Estimativa:** 3-4 horas  
-**Status:** 🟡 PENDENTE
+**Status:** ✅ CONCLUÍDA
 
 **Escopo:**
-- [ ] Criar `frontend/src/paginas/AnalisePeticaoInicial.tsx`:
-  - [ ] Página dedicada (nova rota: `/analise-peticao`)
-  - [ ] Layout em wizard/steps (5 etapas):
+- [x] Criar `frontend/src/tipos/tiposPeticao.ts`:
+  - [x] 20+ interfaces TypeScript (StatusPeticao, DocumentoSugerido, AgentesSelecionados, etc.)
+  - [x] Interfaces de request/response da API
+  - [x] Documentação JSDoc completa
+- [x] Criar `frontend/src/servicos/servicoApiPeticoes.ts`:
+  - [x] 10 funções de API (iniciarPeticao, analisarDocumentos, iniciarAnalise, etc.)
+  - [x] Helper pollingAnalise() para abstração de polling
+  - [x] Type safety completo com AxiosResponse
+- [x] Criar `frontend/src/paginas/AnalisePeticaoInicial.tsx`:
+  - [x] Página dedicada (nova rota: `/analise-peticao`)
+  - [x] Layout em wizard/steps (5 etapas):
     1. Upload da Petição Inicial
     2. Documentos Sugeridos (exibição + upload)
     3. Seleção de Agentes (advogados + peritos)
     4. Processamento (loading com progresso)
     5. Resultados (pareceres, prognóstico, documento)
-  - [ ] State management com `useState` ou Context API:
+  - [x] State management com `useState`:
     - `peticaoId` (UUID da petição)
     - `etapaAtual` (1-5)
     - `documentosSugeridos` (lista retornada pela LLM)
@@ -922,18 +899,23 @@ Esta é uma nova funcionalidade estratégica que diferencia o produto. O fluxo �
     - `agentesSelecionados` (advogados e peritos escolhidos)
     - `statusAnalise` (PROCESSANDO | CONCLUIDA | ERRO)
     - `resultado` (objeto completo de resultado)
-  - [ ] Navegação entre etapas (botões Voltar/Avançar)
-  - [ ] Validação de cada etapa antes de avançar
-  - [ ] Breadcrumb/Stepper visual (indicador de progresso)
-- [ ] Criar rota no `frontend/src/App.tsx` ou router
-- [ ] Layout responsivo e profissional
+  - [x] Navegação entre etapas (botões Voltar/Avançar)
+  - [x] Validação de cada etapa antes de avançar
+  - [x] Stepper visual (indicador de progresso)
+  - [x] Componentes placeholder para cada etapa (implementados nas tarefas 050-056)
+- [x] Criar rota no `frontend/src/App.tsx`
+- [x] Layout responsivo e profissional
 
 **Entregáveis:**
-- Nova página dedicada para análise de petições
-- Fluxo em wizard com 5 etapas claras
-- State management robusto
-- Navegação validada entre etapas
-- Changelog completo: `changelogs/TAREFA-049_frontend-pagina-analise-peticao.md`
+- ✅ 3 arquivos novos (tiposPeticao.ts, servicoApiPeticoes.ts, AnalisePeticaoInicial.tsx)
+- ✅ ~1.500 linhas de código TypeScript/React
+- ✅ 20+ interfaces TypeScript
+- ✅ 10 funções de API
+- ✅ Wizard funcional com 5 etapas
+- ✅ Stepper visual com indicadores
+- ✅ Changelog completo: `changelogs/TAREFA-049_frontend-pagina-analise-peticao.md`
+
+**Marco:** 🎉 **FUNDAÇÃO DO FRONTEND DA FASE 7 COMPLETA** - Estrutura wizard pronta para receber componentes especializados nas próximas tarefas.
 
 ---
 

@@ -22,6 +22,7 @@ import { PaginaInicial } from './paginas/PaginaInicial';
 import { PaginaUpload } from './paginas/PaginaUpload';
 import { PaginaAnalise } from './paginas/PaginaAnalise';
 import { PaginaHistorico } from './paginas/PaginaHistorico';
+import { AnalisePeticaoInicial } from './paginas/AnalisePeticaoInicial';
 
 /**
  * Componente principal da aplicação
@@ -36,6 +37,7 @@ import { PaginaHistorico } from './paginas/PaginaHistorico';
  * - /upload : Upload de documentos
  * - /analise : Análise multi-agent
  * - /historico : Histórico de documentos
+ * - /analise-peticao : Análise de petição inicial (NOVO - FASE 7)
  */
 function App() {
   return (
@@ -53,6 +55,9 @@ function App() {
           
           {/* Rota: Histórico de Documentos */}
           <Route path="/historico" element={<PaginaHistorico />} />
+          
+          {/* Rota: Análise de Petição Inicial (FASE 7 - TAREFA-049) */}
+          <Route path="/analise-peticao" element={<AnalisePeticaoInicial />} />
         </Routes>
       </ComponenteLayout>
     </Router>
