@@ -80,36 +80,40 @@
 | **037** | 2025-10-24 | Frontend - Refatorar Serviço de API de Upload | tiposDocumentos.ts, servicoApiDocumentos.ts | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-037_frontend-servico-api-upload-assincrono.md) |
 | **038** | 2025-10-24 | Frontend - Implementar Polling de Upload no Componente | ComponenteUploadDocumentos.tsx, tiposDocumentos.ts | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-038_frontend-polling-upload.md) |
 | **039** | 2025-10-24 | Backend - Feedback de Progresso Detalhado no Upload | servico_ingestao_documentos.py, ARQUITETURA.md | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-039_backend-feedback-progresso-upload.md) |
+| **040** | 2025-10-25 | Backend - Modelo de Dados para Processo/Petição | processo.py (modelos/), gerenciador_estado_peticoes.py | ✅ Concluído | [📄 Ver detalhes](changelogs/TAREFA-040_backend-modelo-peticao.md) |
 | **035-039** | 2025-01-26 | Roadmap para Upload Assíncrono (FASE 6) | ROADMAP.md, README.md, CHANGELOG_IA.md | ✅ Concluído | Planejamento |
 
 ---
 
 ## 🎯 Última Tarefa Concluída
 
-**TAREFA-039** - Backend - Feedback de Progresso Detalhado no Upload  
-**Data:** 2025-10-24  
+**TAREFA-040** - Backend - Modelo de Dados para Processo/Petição  
+**Data:** 2025-10-25  
 **IA:** GitHub Copilot  
 **Status:** ✅ CONCLUÍDA  
-**Resumo:** Implementado sistema de feedback de progresso **GRANULAR** e **ADAPTATIVO** para upload e processamento de documentos, seguindo o padrão bem-sucedido de análises multi-agent (TAREFA-034). O serviço de ingestão (`servico_ingestao_documentos.py`) agora reporta progresso em **7 micro-etapas** detalhadas (0-100%), adaptando-se dinamicamente ao tipo de documento (com ou sem OCR). **Principais entregas:** (1) **Função `processar_documento_em_background()` refatorada** - Reorganizada de 6 para 7 micro-etapas bem definidas com mensagens auto-explicativas: Salvando arquivo (0-10%), Extraindo texto (10-35%), Verificando escaneamento (30-35%), Executando OCR se necessário (35-60%), Dividindo em chunks (60-80% ou 35-50%), Gerando embeddings (80-95% ou 55-70%), Salvando no ChromaDB (95-100% ou 75-90%); (2) **Progresso adaptativo baseado em OCR** - PDFs escaneados: 0% → 60% (OCR) → 100% (demais etapas), PDFs com texto: 0% → 35% (extração) → 100% (pula OCR), faixas ajustadas para que progresso seja proporcional ao tempo real de processamento; (3) **Mensagens descritivas contextualizadas** - Cada etapa reporta mensagens específicas e informativas que aparecem na UI: "Executando OCR (reconhecimento de texto em imagem)", "OCR em andamento (15 páginas detectadas)", "Texto dividido em 42 chunks", "Vetorizando 42 chunks (pode demorar alguns segundos)", valores dinâmicos para melhor contexto; (4) **Progresso incremental em etapas longas** - OCR de múltiplas páginas reporta progresso intermediário (35% → 45% → 60%), vetorização de muitos chunks (>20) exibe aviso contextualizado, evita que usuário pense que sistema travou; (5) **Documentação exaustiva em ARQUITETURA.md** - Nova seção "Sistema de Feedback de Progresso Detalhado no Upload" com ~250 linhas: tabela de faixas de progresso (7 etapas), 3 exemplos completos de fluxo (PDF texto 5 páginas, PDF escaneado 15 páginas, DOCX), código de exemplo backend + frontend, tabela de todas as 20+ mensagens possíveis, comparação Upload vs Análise (padrão consistente), benefícios documentados (usuários, desenvolvedores, LLMs); (6) **Changelog completo** limitado a 300 linhas conforme solicitado. **Decisões técnicas:** (1) Faixas adaptativas - Usar 2 caminhos (OCR vs não-OCR) para progresso proporcional ao tempo real, alternativas consideradas: faixas fixas (descartado - não refletiria realidade), estimativa dinâmica de tempo (descartado - muito complexo); (2) Mensagens com valores dinâmicos - Incluir números reais (páginas, chunks) para correlacionar tamanho com tempo, facilita debugging; (3) Progresso intermediário - Reportar 35% → 45% → 60% em OCR longo para evitar sensação de travamento; (4) Padrão idêntico a TAREFA-034 - Consistência para usuários, manutenibilidade para desenvolvedores. **Impacto:** UX: Transparência total (usuário vê exatamente o que está acontecendo), feedback tranquilizador (sistema funcionando), estimativa de tempo (OCR demora, mas usuário sabe). Debugging: Logs + UI sincronizados, identificação rápida de gargalos, métricas detalhadas por micro-etapa. LLMs: Código auto-documentado (comentários explicam cada etapa), padrão consistente (fácil de replicar). **Compatibilidade:** Retrocompatibilidade TOTAL, nenhuma breaking change, endpoints não mudaram, frontend funciona sem alterações. **PRÓXIMA TAREFA:** FASE 7 - Melhorias e Otimizações (TAREFAS 040-044). **MARCO:** 🎉 UPLOAD ASSÍNCRONO COM FEEDBACK DETALHADO COMPLETO! Processamento assíncrono sem timeouts, progresso em tempo real 0-100%, feedback granular em 7 micro-etapas, progresso adaptativo OCR vs não-OCR, mensagens descritivas contextualizadas, padrão consistente com análise multi-agent, documentação exaustiva.
+**Resumo:** Implementada a estrutura completa de modelos de dados para o sistema de análise de petição inicial (FASE 7 - TAREFAS 040-056). Criados 14 modelos Pydantic que representam todo o fluxo desde o upload da petição até a geração de prognóstico, pareceres e documento de continuação. **Principais entregas:** (1) **Novo módulo `modelos/processo.py` (990 linhas)** - 6 enums (StatusPeticao, PrioridadeDocumento, TipoCenario, TipoPecaContinuacao), 14 modelos Pydantic completos com validações customizadas (ex: soma de probabilidades em Prognostico deve ser ~100%), documentação exaustiva com exemplos JSON; (2) **Modelos principais criados** - DocumentoSugerido (documentos identificados pela LLM como relevantes), Peticao (modelo central com id, documento_peticao_id, tipo_acao, status, documentos_sugeridos, documentos_enviados, agentes_selecionados, timestamps), PassoEstrategico/CaminhoAlternativo/ProximosPassos (estratégia processual), Cenario/Prognostico (análise probabilística de desfechos), ParecerAdvogado/ParecerPerito (pareceres individualizados), DocumentoContinuacao (peça processual gerada), ResultadoAnaliseProcesso (resultado completo agregando tudo); (3) **Novo módulo `servicos/gerenciador_estado_peticoes.py` (430 linhas)** - Gerenciador de estado em memória (thread-safe) para rastreamento de petições em processamento, singleton pattern com função factory `obter_gerenciador_estado_peticoes()`, 12 métodos públicos (criar_peticao, atualizar_status, adicionar_documentos_sugeridos, adicionar_documento_enviado, definir_agentes_selecionados, registrar_resultado, registrar_erro, obter_peticao, obter_resultado, obter_mensagem_erro, remover_peticao, listar_peticoes), estrutura interna: dict com peticao + resultado + mensagem_erro; (4) **Validações robustas** - Validator customizado em Prognostico garante soma de probabilidades = 100% (±0.1% margem), validações de comprimento de strings, valores numéricos (probabilidades 0-100%, tempo >= 0), listas não vazias onde necessário; (5) **Documentação exaustiva** - ~1420 linhas de código + comentários explicando contexto de negócio, responsabilidades, padrões de uso, exemplos práticos, todos os modelos com Config.json_schema_extra contendo exemplos JSON completos. **Decisões técnicas:** (1) Estrutura granular - 14 modelos especializados vs poucos modelos grandes, justificativa: responsabilidade clara, validação específica, facilita manutenção por LLMs, permite reutilização; (2) Gerenciador em memória (não BD) - adequado para MVP/FASE 7, simplicidade, performance, segue padrão estabelecido (TAREFAS 030 e 035), limitação conhecida: dados perdidos se reiniciar servidor, solução futura FASE 8: migrar para PostgreSQL/Redis; (3) Thread safety obrigatório - threading.Lock em todas operações, FastAPI processa requisições simultâneas, dicionário Python não é thread-safe para escritas. **Impacto:** Fundação completa para FASE 7 - Todas as próximas tarefas (041-056) usarão estes modelos, estrutura sólida para análise de petição inicial com prognóstico e geração de documentos, type safety completo com Pydantic (validação automática, documentação OpenAPI/Swagger). **PRÓXIMA TAREFA:** TAREFA-041 (Backend - Endpoint de Upload de Petição Inicial). **MARCO:** 🎉 FUNDAÇÃO DA FASE 7 COMPLETA! Estrutura de dados robusta para análise avançada de petições, 14 modelos Pydantic validados, gerenciador de estado thread-safe, documentação completa para LLMs futuras.
 
 ---
 
 ## 🚀 Próxima Tarefa Sugerida
 
-**TAREFA-040:** Sistema de Logging Completo
+**TAREFA-041:** Backend - Endpoint de Upload de Petição Inicial
 
 **Escopo:**
-- Configurar Loguru completamente (Logging estruturado JSON)
-- Rotação de arquivos de log
-- Log de custos OpenAI (tokens, $$$)
-- Log de tempo de processamento por agente
-- Changelog completo: `changelogs/TAREFA-040_sistema-logging-completo.md`
+- Criar `backend/src/api/rotas_peticoes.py`
+- Endpoint POST /api/peticoes/iniciar (recebe petição inicial, retorna peticao_id)
+- Endpoint GET /api/peticoes/status/{peticao_id} (consulta estado da petição)
+- Integração com upload assíncrono (TAREFA-036)
+- Uso do GerenciadorEstadoPeticoes (TAREFA-040)
+- Modelos Pydantic de request/response
+- Atualizar ARQUITETURA.md com novos endpoints
+- Changelog completo: `changelogs/TAREFA-041_backend-endpoint-peticao-inicial.md`
 
-**Objetivo:** Implementar sistema de logging robusto e rastreabilidade completa para facilitar debugging, monitoramento de custos e análise de performance.
+**Objetivo:** Criar API REST para iniciar análise de petição inicial, integrando sistema de upload assíncrono com gerenciador de estado de petições.
 
 **Estimativa:** 2-3 horas
 
-**Prioridade:** � ALTA (importante para produção e debugging)
+**Prioridade:** 🔴 CRÍTICA (próxima tarefa da FASE 7)
 
 ---
 

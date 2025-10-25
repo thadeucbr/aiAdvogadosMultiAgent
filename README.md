@@ -169,8 +169,8 @@ npm run dev
 
 ## 📋 Status do Projeto
 
-**Versão Atual:** 0.16.0 (Sistema de Feedback de Progresso Detalhado - Upload)  
-**Última Atualização:** 2025-10-24
+**Versão Atual:** 0.17.0 (FASE 7 - Modelo de Dados para Análise de Petição Inicial)  
+**Última Atualização:** 2025-10-25
 
 ### ✅ Concluído
 
@@ -282,12 +282,27 @@ npm run dev
   - Integração com GerenciadorEstadoUploads (TAREFA-035)
   - Documentação completa em ARQUITETURA.md (seção "Endpoints Assíncronos de Upload")
   - Zero timeouts HTTP, múltiplos uploads simultâneos, feedback em tempo real
+- [x] **Frontend: Refatorar Serviço de API de Upload (TAREFA-037)**
+- [x] **Frontend: Implementar Polling de Upload no Componente (TAREFA-038)**
+- [x] **Backend: Feedback de Progresso Detalhado no Upload (TAREFA-039)**
+- [x] **Backend: Modelo de Dados para Processo/Petição (TAREFA-040)** 🆕
+  - Novo arquivo `modelos/processo.py` (990 linhas) com estrutura completa de dados para análise de petição inicial
+  - 6 enums criados: StatusPeticao (5 estados), PrioridadeDocumento (3 níveis), TipoCenario (5 cenários), TipoPecaContinuacao (6 tipos)
+  - 14 modelos Pydantic: DocumentoSugerido, Peticao, PassoEstrategico, CaminhoAlternativo, ProximosPassos, Cenario, Prognostico, ParecerAdvogado, ParecerPerito, DocumentoContinuacao, ResultadoAnaliseProcesso
+  - Modelo Peticao: id, documento_peticao_id, tipo_acao, status, documentos_sugeridos, documentos_enviados, agentes_selecionados, timestamps
+  - Modelo ResultadoAnaliseProcesso: peticao_id, proximos_passos, prognostico, pareceres_advogados, pareceres_peritos, documento_continuacao
+  - Validação customizada em Prognostico: soma de probabilidades deve ser ~100% (±0.1%)
+  - Novo arquivo `servicos/gerenciador_estado_peticoes.py` (430 linhas) - Gerenciador de estado em memória para petições
+  - Singleton pattern + thread-safe (threading.Lock) + 5 métodos principais: criar_peticao, atualizar_status, adicionar_documentos_sugeridos, registrar_resultado, obter_peticao
+  - 12 métodos públicos para gerenciar ciclo de vida completo de petições
+  - Documentação exaustiva (~1420 linhas de código + comentários) com exemplos JSON em todos os modelos
+  - **FUNDAÇÃO DA FASE 7:** Todas as próximas tarefas (041-056) usarão estes modelos
 
-### 🚧 Próximos Passos (FASE 6: Upload Assíncrono)
+### 🚧 Próximos Passos (FASE 7: Análise de Petição Inicial)
 
-- [ ] **TAREFA-037:** Frontend - Refatorar Serviço de API de Upload
-- [ ] **TAREFA-038:** Frontend - Implementar Polling de Upload no Componente
-- [ ] **TAREFA-039:** Backend - Feedback de Progresso Detalhado no Upload
+- [ ] **TAREFA-041:** Backend - Endpoint de Upload de Petição Inicial
+- [ ] **TAREFA-042:** Backend - Serviço de Análise de Documentos Relevantes
+- [ ] **TAREFA-043:** Backend - Endpoint de Upload de Documentos Complementares
 
 ---
 
