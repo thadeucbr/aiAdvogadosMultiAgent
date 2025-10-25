@@ -58,8 +58,9 @@ Aqui está o **Roadmap v2.0** atualizado:
 - ✅ TAREFA-032: Frontend - Refatorar Serviço de API de Análise
 - ✅ TAREFA-033: Frontend - Implementar Polling na Página de Análise
 - ✅ TAREFA-034: Backend - Feedback de Progresso Detalhado
+- ✅ TAREFA-035: Backend - Refatorar Serviço de Ingestão para Background
 
-**Próximo passo:** TAREFA-035 (Sistema de Logging Completo)
+**Próximo passo:** TAREFA-036 (Backend - Criar Endpoints de Upload Assíncrono)
 
 ---
 
@@ -163,32 +164,32 @@ Atualmente, o upload de documentos é **síncrono** (bloqueante). Quando o usuá
 
 ---
 
-#### 🟡 TAREFA-035: Backend - Refatorar Serviço de Ingestão para Background
+#### ✅ TAREFA-035: Backend - Refatorar Serviço de Ingestão para Background
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-008 (Orquestração do Fluxo de Ingestão)  
 **Estimativa:** 3-4 horas  
-**Status:** 🟡 PENDENTE
+**Status:** ✅ CONCLUÍDA
 
 **Escopo:**
-- [ ] Criar `backend/src/servicos/gerenciador_estado_uploads.py` (similar ao `gerenciador_estado_tarefas.py` da TAREFA-030)
-  - [ ] Classe `GerenciadorEstadoUploads` com dicionário em memória
-  - [ ] Método `criar_upload(upload_id, nome_arquivo, tamanho_bytes)` → Status: INICIADO
-  - [ ] Método `atualizar_status(upload_id, status, etapa, progresso)` → SALVANDO | PROCESSANDO | CONCLUIDO | ERRO
-  - [ ] Método `atualizar_progresso(upload_id, etapa, progresso)` → Progresso 0-100%
-  - [ ] Método `registrar_resultado(upload_id, documento_info)` → Status: CONCLUIDO
-  - [ ] Método `registrar_erro(upload_id, mensagem_erro)` → Status: ERRO
-  - [ ] Thread-safety com locks (threading.Lock)
-- [ ] Refatorar `backend/src/servicos/servico_ingestao_documentos.py`:
-  - [ ] Manter método `processar_documento_completo()` (TAREFA-008) como está
-  - [ ] Criar wrapper `_processar_documento_em_background()` para BackgroundTasks
-  - [ ] Wrapper atualiza `GerenciadorEstadoUploads` em cada etapa:
+- [x] Criar `backend/src/servicos/gerenciador_estado_uploads.py` (similar ao `gerenciador_estado_tarefas.py` da TAREFA-030)
+  - [x] Classe `GerenciadorEstadoUploads` com dicionário em memória
+  - [x] Método `criar_upload(upload_id, nome_arquivo, tamanho_bytes)` → Status: INICIADO
+  - [x] Método `atualizar_status(upload_id, status, etapa, progresso)` → SALVANDO | PROCESSANDO | CONCLUIDO | ERRO
+  - [x] Método `atualizar_progresso(upload_id, etapa, progresso)` → Progresso 0-100%
+  - [x] Método `registrar_resultado(upload_id, documento_info)` → Status: CONCLUIDO
+  - [x] Método `registrar_erro(upload_id, mensagem_erro)` → Status: ERRO
+  - [x] Thread-safety com locks (threading.Lock)
+- [x] Refatorar `backend/src/servicos/servico_ingestao_documentos.py`:
+  - [x] Manter método `processar_documento_completo()` (TAREFA-008) como está
+  - [x] Criar wrapper `processar_documento_em_background()` para BackgroundTasks
+  - [x] Wrapper atualiza `GerenciadorEstadoUploads` em cada etapa:
     - Salvando arquivo (0-10%)
     - Extraindo texto (10-30%)
     - OCR se necessário (30-60%)
     - Chunking (60-80%)
     - Vetorização (80-95%)
     - Salvando no ChromaDB (95-100%)
-- [ ] Singleton pattern para `GerenciadorEstadoUploads` (função factory `obter_gerenciador_estado_uploads()`)
+- [x] Singleton pattern para `GerenciadorEstadoUploads` (função factory `obter_gerenciador_estado_uploads()`)
 
 **Entregáveis:**
 - ✅ Gerenciador de estado de uploads funcional (thread-safe)

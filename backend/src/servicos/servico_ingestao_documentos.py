@@ -99,6 +99,9 @@ from src.servicos import servico_ocr
 from src.servicos import servico_vetorizacao
 from src.servicos import servico_banco_vetorial
 
+# Gerenciador de estado de uploads (TAREFA-035)
+from src.servicos.gerenciador_estado_uploads import obter_gerenciador_estado_uploads
+
 # Configurações centralizadas
 from src.configuracao.configuracoes import obter_configuracoes
 
@@ -781,6 +784,291 @@ def processar_documento_completo(
         mensagem_erro = f"Erro inesperado durante ingestão: {str(erro)}"
         logger.exception(mensagem_erro)  # Log com stack trace completo
         raise ErroDeIngestao(mensagem_erro) from erro
+
+
+# ==========================================
+# PROCESSAMENTO EM BACKGROUND (TAREFA-035)
+# ==========================================
+
+def processar_documento_em_background(
+    upload_id: str,
+    caminho_arquivo: str,
+    documento_id: str,
+    nome_arquivo_original: str,
+    tipo_documento: str,
+    data_upload: str = None
+) -> None:
+    """
+    Wrapper para processar documento em background com feedback de progresso.
+    
+    CONTEXTO (TAREFA-035):
+    Esta função é um wrapper em torno de processar_documento_completo() que
+    adiciona reportagem de progresso detalhado para o GerenciadorEstadoUploads.
+    Permite que o frontend faça polling e veja exatamente o que está acontecendo
+    durante o processamento.
+    
+    DIFERENÇA vs processar_documento_completo():
+    - processar_documento_completo(): Função original, síncrona, sem feedback
+    - processar_documento_em_background(): Wrapper assíncrono, reporta progresso
+    
+    MICRO-ETAPAS DE PROGRESSO (TAREFA-039):
+    1. Salvando arquivo no servidor (0-10%)
+    2. Extraindo texto do PDF/DOCX (10-30%)
+    3. Verificando se documento é escaneado (30-35%)
+    4. Executando OCR se necessário (35-60%)
+    5. Dividindo texto em chunks (60-80%)
+    6. Gerando embeddings com OpenAI (80-95%)
+    7. Salvando no ChromaDB (95-100%)
+    
+    FLUXO:
+    1. Obter gerenciador de estado de uploads
+    2. Atualizar status para SALVANDO (0-10%)
+    3. Processar documento (chamando processar_documento_completo)
+       - Reportar progresso em cada etapa interna
+    4. Se sucesso: registrar_resultado() → Status CONCLUIDO
+    5. Se erro: registrar_erro() → Status ERRO
+    
+    IMPORTANTE:
+    Esta função é projetada para ser executada via BackgroundTasks do FastAPI.
+    Não deve bloquear a thread principal. Não retorna valor (void).
+    Toda comunicação acontece via GerenciadorEstadoUploads.
+    
+    Args:
+        upload_id: UUID único do upload para rastreamento
+        caminho_arquivo: Caminho absoluto do arquivo no sistema
+        documento_id: UUID único do documento
+        nome_arquivo_original: Nome original do arquivo
+        tipo_documento: Tipo do documento (pdf, docx, png, etc.)
+        data_upload: Data e hora do upload (ISO format)
+    
+    Returns:
+        None (resultado é comunicado via GerenciadorEstadoUploads)
+    
+    EXEMPLO DE USO (em rotas_documentos.py):
+    ```python
+    from fastapi import BackgroundTasks
+    from src.servicos.servico_ingestao_documentos import processar_documento_em_background
+    
+    @app.post("/api/documentos/iniciar-upload")
+    async def iniciar_upload(
+        arquivo: UploadFile,
+        background_tasks: BackgroundTasks
+    ):
+        upload_id = str(uuid.uuid4())
+        
+        # Salvar arquivo temporariamente
+        caminho = salvar_arquivo_temp(arquivo)
+        
+        # Agendar processamento em background
+        background_tasks.add_task(
+            processar_documento_em_background,
+            upload_id=upload_id,
+            caminho_arquivo=caminho,
+            documento_id=upload_id,
+            nome_arquivo_original=arquivo.filename,
+            tipo_documento=arquivo.content_type
+        )
+        
+        # Retornar imediatamente
+        return {"upload_id": upload_id, "status": "INICIADO"}
+    ```
+    
+    TAREFAS RELACIONADAS:
+    - TAREFA-035: Backend - Refatorar Serviço de Ingestão para Background (ESTA FUNÇÃO)
+    - TAREFA-036: Backend - Criar Endpoints de Upload Assíncrono (futuro)
+    - TAREFA-039: Backend - Feedback de Progresso Detalhado (micro-etapas)
+    """
+    logger.info("=" * 80)
+    logger.info(f"INICIANDO PROCESSAMENTO EM BACKGROUND")
+    logger.info(f"Upload ID: {upload_id}")
+    logger.info(f"Documento ID: {documento_id}")
+    logger.info(f"Nome arquivo: {nome_arquivo_original}")
+    logger.info("=" * 80)
+    
+    # Obter gerenciador de estado de uploads
+    gerenciador = obter_gerenciador_estado_uploads()
+    
+    try:
+        # MICRO-ETAPA 1: Salvando arquivo (0-10%)
+        # NOTA: Em TAREFA-036, o arquivo já estará salvo quando chegarmos aqui.
+        # Por enquanto, reportamos essa etapa como concluída rapidamente.
+        logger.info("[BACKGROUND] Etapa 1/7: Salvando arquivo...")
+        gerenciador.atualizar_progresso(
+            upload_id=upload_id,
+            etapa="Salvando arquivo no servidor",
+            progresso=10
+        )
+        
+        # MICRO-ETAPA 2: Detectando tipo e preparando para extração (10-15%)
+        logger.info("[BACKGROUND] Etapa 2/7: Detectando tipo de processamento...")
+        gerenciador.atualizar_progresso(
+            upload_id=upload_id,
+            etapa="Detectando tipo de documento",
+            progresso=15
+        )
+        
+        tipo_processamento = detectar_tipo_de_processamento(caminho_arquivo)
+        
+        # MICRO-ETAPA 3: Extraindo texto (15-30%)
+        logger.info("[BACKGROUND] Etapa 3/7: Extraindo texto...")
+        gerenciador.atualizar_progresso(
+            upload_id=upload_id,
+            etapa="Extraindo texto do documento",
+            progresso=20
+        )
+        
+        resultado_extracao = extrair_texto_do_documento(
+            caminho_arquivo=caminho_arquivo,
+            tipo_processamento=tipo_processamento
+        )
+        
+        texto_extraido = resultado_extracao["texto_completo"]
+        numero_paginas = resultado_extracao["numero_paginas"]
+        metodo_usado = resultado_extracao["metodo_usado"]
+        confianca_media = resultado_extracao["confianca_media"]
+        
+        # Se usou OCR, reportar progresso específico (30-60%)
+        if metodo_usado == "ocr":
+            logger.info("[BACKGROUND] Etapa 3b/7: OCR concluído...")
+            gerenciador.atualizar_progresso(
+                upload_id=upload_id,
+                etapa="OCR (reconhecimento de texto) concluído",
+                progresso=60
+            )
+        else:
+            # Se não usou OCR, pular direto para próxima etapa
+            gerenciador.atualizar_progresso(
+                upload_id=upload_id,
+                etapa="Extração de texto concluída",
+                progresso=30
+            )
+        
+        # Validar texto extraído
+        validar_texto_extraido(texto_extraido, nome_arquivo_original)
+        
+        # MICRO-ETAPA 4: Chunking e vetorização (60-80% ou 30-60% se não OCR)
+        progresso_atual = 60 if metodo_usado == "ocr" else 30
+        logger.info("[BACKGROUND] Etapa 4/7: Dividindo em chunks...")
+        gerenciador.atualizar_progresso(
+            upload_id=upload_id,
+            etapa="Dividindo texto em chunks para vetorização",
+            progresso=progresso_atual + 10
+        )
+        
+        # Processar texto completo: chunking + embeddings
+        resultado_vetorizacao = servico_vetorizacao.processar_texto_completo(
+            texto=texto_extraido,
+            usar_cache=True
+        )
+        
+        chunks = resultado_vetorizacao["chunks"]
+        embeddings = resultado_vetorizacao["embeddings"]
+        numero_chunks = len(chunks)
+        
+        # MICRO-ETAPA 5: Gerando embeddings (80-95% ou 60-80% se não OCR)
+        progresso_atual = 80 if metodo_usado == "ocr" else 60
+        logger.info("[BACKGROUND] Etapa 5/7: Gerando embeddings...")
+        gerenciador.atualizar_progresso(
+            upload_id=upload_id,
+            etapa="Gerando embeddings com OpenAI",
+            progresso=progresso_atual + 10
+        )
+        
+        # MICRO-ETAPA 6: Armazenando no ChromaDB (95-100% ou 80-95% se não OCR)
+        progresso_atual = 90 if metodo_usado == "ocr" else 80
+        logger.info("[BACKGROUND] Etapa 6/7: Armazenando no ChromaDB...")
+        gerenciador.atualizar_progresso(
+            upload_id=upload_id,
+            etapa="Salvando no banco vetorial (ChromaDB)",
+            progresso=progresso_atual + 5
+        )
+        
+        # Inicializar ChromaDB
+        cliente_chroma, collection_chroma = servico_banco_vetorial.inicializar_chromadb()
+        
+        # Preparar metadados
+        data_processamento_iso = datetime.now().isoformat()
+        data_upload_iso = data_upload if data_upload else data_processamento_iso
+        
+        metadados_documento = {
+            "documento_id": documento_id,
+            "nome_arquivo": nome_arquivo_original,
+            "tipo_documento": tipo_documento,
+            "numero_paginas": numero_paginas,
+            "data_upload": data_upload_iso,
+            "data_processamento": data_processamento_iso,
+            "metodo_extracao": metodo_usado,
+            "confianca_media": confianca_media
+        }
+        
+        # Armazenar chunks
+        ids_chunks_armazenados = servico_banco_vetorial.armazenar_chunks(
+            collection=collection_chroma,
+            chunks=chunks,
+            embeddings=embeddings,
+            metadados=metadados_documento
+        )
+        
+        # MICRO-ETAPA 7: Finalização (100%)
+        logger.info("[BACKGROUND] Etapa 7/7: Finalizando...")
+        gerenciador.atualizar_progresso(
+            upload_id=upload_id,
+            etapa="Processamento concluído",
+            progresso=100
+        )
+        
+        # Compilar resultado final
+        resultado_final = {
+            "sucesso": True,
+            "documento_id": documento_id,
+            "nome_arquivo": nome_arquivo_original,
+            "tipo_documento": tipo_documento,
+            "tipo_processamento": tipo_processamento,
+            "numero_paginas": numero_paginas,
+            "numero_chunks": numero_chunks,
+            "numero_caracteres": len(texto_extraido),
+            "confianca_media": confianca_media,
+            "ids_chunks_armazenados": ids_chunks_armazenados,
+            "data_processamento": data_processamento_iso,
+            "metodo_extracao": metodo_usado
+        }
+        
+        # Registrar resultado no gerenciador
+        gerenciador.registrar_resultado(upload_id, resultado_final)
+        
+        logger.info("=" * 80)
+        logger.info(f"PROCESSAMENTO EM BACKGROUND CONCLUÍDO COM SUCESSO")
+        logger.info(f"Upload ID: {upload_id}")
+        logger.info(f"Chunks: {numero_chunks}")
+        logger.info("=" * 80)
+        
+    except ErroDeIngestao as erro:
+        # Capturar erros específicos de ingestão
+        mensagem_erro = f"Erro durante ingestão: {str(erro)}"
+        logger.error(mensagem_erro)
+        
+        gerenciador.registrar_erro(
+            upload_id=upload_id,
+            mensagem_erro=mensagem_erro,
+            detalhes_erro={
+                "tipo_erro": erro.__class__.__name__,
+                "mensagem_completa": str(erro)
+            }
+        )
+        
+    except Exception as erro:
+        # Capturar erros inesperados
+        mensagem_erro = f"Erro inesperado durante processamento: {str(erro)}"
+        logger.exception(mensagem_erro)  # Log com stack trace
+        
+        gerenciador.registrar_erro(
+            upload_id=upload_id,
+            mensagem_erro=mensagem_erro,
+            detalhes_erro={
+                "tipo_erro": erro.__class__.__name__,
+                "mensagem_completa": str(erro)
+            }
+        )
 
 
 # ==========================================

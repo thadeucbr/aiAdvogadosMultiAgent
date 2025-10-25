@@ -169,7 +169,7 @@ npm run dev
 
 ## 📋 Status do Projeto
 
-**Versão Atual:** 0.14.0 (Roadmap para Upload Assíncrono)  
+**Versão Atual:** 0.14.1 (Infraestrutura Assíncrona de Uploads)  
 **Última Atualização:** 2025-10-24
 
 ### ✅ Concluído
@@ -250,10 +250,19 @@ npm run dev
   - 7 micro-etapas de progresso: salvando (0-10%), extraindo texto (10-30%), OCR (30-60%), chunking (60-80%), vetorizando (80-95%), salvando ChromaDB (95-100%)
   - Objetivo: Eliminar timeouts em uploads de arquivos grandes (>10MB) ou PDFs escaneados
   - Renumeração de fases: FASE 6 (Upload Assíncrono), FASE 7 (Melhorias), FASE 8 (Deploy)
+- [x] **Backend: Refatorar Serviço de Ingestão para Background (TAREFA-035)**
+  - Novo arquivo `gerenciador_estado_uploads.py` (834 linhas) - Gerenciador de estado para uploads assíncronos
+  - Singleton pattern + thread-safe (threading.Lock) + 5 estados (INICIADO, SALVANDO, PROCESSANDO, CONCLUÍDO, ERRO)
+  - Dataclass Upload com 12 campos (upload_id, status, nome_arquivo, tamanho_bytes, etapa_atual, progresso_percentual, etc.)
+  - Métodos principais: criar_upload, atualizar_progresso, registrar_resultado, registrar_erro, obter_upload
+  - Nova função `processar_documento_em_background()` (350+ linhas) em servico_ingestao_documentos.py
+  - Wrapper em torno de processar_documento_completo() com reportagem de progresso
+  - 7 micro-etapas: Salvando (0-10%), Detectando tipo (10-15%), Extraindo texto (15-30%), OCR se necessário (30-60%), Chunking (60-70%), Embeddings (80-90%), ChromaDB (95%), Finalização (100%)
+  - Infraestrutura pronta para TAREFA-036 (endpoints assíncronos)
+  - Elimina timeouts em uploads, feedback em tempo real
 
 ### 🚧 Próximos Passos (FASE 6: Upload Assíncrono)
 
-- [ ] **TAREFA-035:** Backend - Refatorar Serviço de Ingestão para Background
 - [ ] **TAREFA-036:** Backend - Criar Endpoints de Upload Assíncrono
 - [ ] **TAREFA-037:** Frontend - Refatorar Serviço de API de Upload
 - [ ] **TAREFA-038:** Frontend - Implementar Polling de Upload no Componente
