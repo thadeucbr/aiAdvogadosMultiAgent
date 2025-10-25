@@ -169,7 +169,7 @@ npm run dev
 
 ## 📋 Status do Projeto
 
-**Versão Atual:** 0.21.0 (FASE 7 - Agente Estrategista Processual)  
+**Versão Atual:** 0.22.0 (FASE 7 - Agente de Prognóstico)  
 **Última Atualização:** 2025-10-25
 
 ### ✅ Concluído
