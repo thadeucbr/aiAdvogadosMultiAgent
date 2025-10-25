@@ -1048,6 +1048,279 @@ advogados.forEach(advogado => {
 
 ---
 
+### Endpoints Assíncronos de Análise (TAREFA-031)
+
+**CONTEXTO:** Os endpoints abaixo implementam o fluxo de análise **assíncrona** para resolver o problema de **TIMEOUT** em análises longas (>2 minutos). Diferente do endpoint síncrono `POST /api/analise/multi-agent`, o fluxo assíncrono permite que análises demorem quanto tempo for necessário.
+
+**MOTIVAÇÃO:**
+Análises com múltiplos agentes podem demorar 2-5+ minutos:
+- Consulta RAG: ~5-10s
+- Cada Perito: ~15-30s
+- Cada Advogado Especialista: ~15-30s
+- Compilação: ~10-20s
+
+Requisições HTTP síncronas sofrem TIMEOUT após ~2 minutos. O fluxo assíncrono resolve isso.
+
+**FLUXO COMPLETO:**
+1. Cliente → POST `/api/analise/iniciar` {"prompt": "...", "agentes_selecionados": [...]}
+2. Servidor cria tarefa e retorna {"consulta_id": "uuid", "status": "INICIADA"}
+3. Servidor processa análise em background (BackgroundTasks)
+4. Cliente faz polling: GET `/api/analise/status/{consulta_id}` a cada 2-3s
+5. Status muda: INICIADA → PROCESSANDO → CONCLUIDA
+6. Cliente obtém resultado: GET `/api/analise/resultado/{consulta_id}`
+
+**VANTAGENS:**
+- ✅ Sem limite de tempo (análises podem demorar quanto necessário)
+- ✅ Resposta imediata (não bloqueia o cliente)
+- ✅ Feedback de progresso em tempo real (etapa_atual, progresso_percentual)
+- ✅ Melhor experiência de usuário (barra de progresso, não trava UI)
+
+---
+
+#### `POST /api/analise/iniciar`
+**Status:** ✅ IMPLEMENTADO (TAREFA-031)
+
+**Descrição:** Inicia análise jurídica multi-agent de forma **assíncrona**. Retorna um `consulta_id` imediatamente e processa a análise em background.
+
+**Request Body:** Idêntico ao `POST /api/analise/multi-agent`
+```json
+{
+  "prompt": "Analisar se houve nexo causal entre o acidente de trabalho e as condições inseguras do ambiente laboral",
+  "agentes_selecionados": ["medico", "seguranca_trabalho"],
+  "advogados_selecionados": ["trabalhista", "previdenciario"],
+  "documento_ids": ["550e8400-e29b-41d4-a716-446655440000"]
+}
+```
+
+**Campos do Request:**
+- `prompt` (obrigatório): Pergunta/solicitação de análise (10-5000 caracteres)
+- `agentes_selecionados` (opcional): Lista de IDs dos peritos. Valores válidos: `["medico", "seguranca_trabalho"]`
+- `advogados_selecionados` (opcional): Lista de IDs dos advogados especialistas. Valores válidos: `["trabalhista", "previdenciario", "civel", "tributario"]`
+- `documento_ids` (opcional): Lista de IDs de documentos específicos para RAG. Se `null` ou vazio, busca em todos os documentos
+
+**Response (Sucesso):**
+```json
+{
+  "sucesso": true,
+  "consulta_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "INICIADA",
+  "mensagem": "Análise iniciada com sucesso! Use GET /api/analise/status/{consulta_id} para acompanhar o progresso.",
+  "timestamp_criacao": "2025-10-24T16:00:00.000Z"
+}
+```
+
+**Status HTTP:**
+- `202 Accepted`: Tarefa criada e agendada com sucesso (análise em background)
+- `400 Bad Request`: Prompt inválido, agentes inexistentes
+- `422 Unprocessable Entity`: Validação Pydantic falhou
+- `500 Internal Server Error`: Erro ao criar tarefa
+
+**Próximos Passos:**
+1. Armazenar `consulta_id`
+2. Fazer polling em GET `/api/analise/status/{consulta_id}` a cada 2-3s
+3. Quando `status` = "CONCLUIDA", chamar GET `/api/analise/resultado/{consulta_id}`
+
+**Implementação:**
+- Gera UUID único para consulta
+- Cria tarefa no `GerenciadorEstadoTarefas` (status: INICIADA)
+- Agenda processamento em background via `BackgroundTasks` do FastAPI
+- Retorna `consulta_id` IMEDIATAMENTE (não aguarda processamento)
+- Background task executa: `orquestrador._processar_consulta_em_background()`
+
+---
+
+#### `GET /api/analise/status/{consulta_id}`
+**Status:** ✅ IMPLEMENTADO (TAREFA-031)
+
+**Descrição:** Verifica o status atual de uma análise assíncrona em andamento. Endpoint de **polling** para acompanhar progresso.
+
+**Path Parameter:**
+- `consulta_id` (string, obrigatório): UUID da consulta retornado por POST `/api/analise/iniciar`
+
+**Request:** Nenhum body necessário
+
+**Response (Processando):**
+```json
+{
+  "consulta_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "PROCESSANDO",
+  "etapa_atual": "Delegando análise para peritos especializados",
+  "progresso_percentual": 45,
+  "timestamp_atualizacao": "2025-10-24T16:01:30.000Z",
+  "mensagem_erro": null
+}
+```
+
+**Response (Concluída):**
+```json
+{
+  "consulta_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "CONCLUIDA",
+  "etapa_atual": "Análise concluída com sucesso",
+  "progresso_percentual": 100,
+  "timestamp_atualizacao": "2025-10-24T16:03:07.500Z",
+  "mensagem_erro": null
+}
+```
+
+**Response (Erro):**
+```json
+{
+  "consulta_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "ERRO",
+  "etapa_atual": "Erro durante processamento",
+  "progresso_percentual": 0,
+  "timestamp_atualizacao": "2025-10-24T16:01:45.000Z",
+  "mensagem_erro": "Erro ao consultar RAG: timeout de conexão"
+}
+```
+
+**Estados Possíveis:**
+- **INICIADA**: Tarefa criada, aguardando início do processamento
+- **PROCESSANDO**: Análise em execução (RAG, peritos, advogados, compilação)
+- **CONCLUIDA**: Análise finalizada → chamar GET `/api/analise/resultado/{id}`
+- **ERRO**: Falha durante processamento → ver `mensagem_erro`
+
+**Campos da Response:**
+- `consulta_id`: UUID da consulta
+- `status`: Estado atual (INICIADA | PROCESSANDO | CONCLUIDA | ERRO)
+- `etapa_atual`: Descrição legível da etapa em execução (ex: "Consultando RAG", "Compilando resposta")
+- `progresso_percentual`: 0-100% (para barra de progresso visual)
+- `timestamp_atualizacao`: Timestamp ISO da última atualização de status
+- `mensagem_erro`: Mensagem de erro se `status` = ERRO (null caso contrário)
+
+**Status HTTP:**
+- `200 OK`: Status retornado com sucesso
+- `404 Not Found`: Consulta não encontrada (consulta_id inválido)
+- `500 Internal Server Error`: Erro ao consultar status
+
+**Fluxo de Polling (Frontend):**
+```javascript
+const intervalo = setInterval(async () => {
+  const resposta = await fetch(`/api/analise/status/${consulta_id}`);
+  const dados = await resposta.json();
+  
+  if (dados.status === 'CONCLUIDA') {
+    clearInterval(intervalo);
+    obterResultado(consulta_id);
+  } else if (dados.status === 'ERRO') {
+    clearInterval(intervalo);
+    exibirErro(dados.mensagem_erro);
+  } else {
+    atualizarProgressoUI(dados.progresso_percentual, dados.etapa_atual);
+  }
+}, 3000); // Polling a cada 3 segundos
+```
+
+**Quando Parar o Polling:**
+- `status` = "CONCLUIDA" → Obter resultado via GET `/api/analise/resultado/{id}`
+- `status` = "ERRO" → Exibir `mensagem_erro` ao usuário
+
+---
+
+#### `GET /api/analise/resultado/{consulta_id}`
+**Status:** ✅ IMPLEMENTADO (TAREFA-031)
+
+**Descrição:** Obtém o resultado completo de uma análise assíncrona **CONCLUÍDA**.
+
+**Path Parameter:**
+- `consulta_id` (string, obrigatório): UUID da consulta retornado por POST `/api/analise/iniciar`
+
+**Request:** Nenhum body necessário
+
+**IMPORTANTE:**
+- ✅ Se `status` = "CONCLUIDA" → Retorna resultado completo (200 OK)
+- ❌ Se `status` = "PROCESSANDO" → Retorna erro 425 (Too Early - "ainda processando")
+- ❌ Se `status` = "INICIADA" → Retorna erro 425 (Too Early - "aguardando início")
+- ❌ Se `status` = "ERRO" → Retorna erro 500 com mensagem de erro
+- ❌ Se consulta não encontrada → Retorna erro 404 (Not Found)
+
+**Response (Sucesso):**
+```json
+{
+  "sucesso": true,
+  "consulta_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "CONCLUIDA",
+  "resposta_compilada": "Com base nos pareceres técnicos dos peritos e jurídicos dos advogados especialistas, concluo que há evidências de nexo causal entre o acidente de trabalho e as condições inseguras do ambiente laboral...",
+  "pareceres_individuais": [
+    {
+      "nome_agente": "Perito Médico",
+      "tipo_agente": "medico",
+      "parecer": "Identifico nexo causal entre a lesão e o acidente de trabalho...",
+      "grau_confianca": 0.85,
+      "documentos_referenciados": ["laudo_medico.pdf"],
+      "timestamp": "2025-10-24T16:01:45.000Z"
+    }
+  ],
+  "pareceres_advogados": [
+    {
+      "nome_agente": "Advogado Trabalhista",
+      "tipo_agente": "trabalhista",
+      "area_especializacao": "Direito do Trabalho",
+      "parecer": "Sob a ótica trabalhista, há direito à estabilidade acidentária...",
+      "legislacao_citada": ["CLT art. 118", "Lei 8.213/91 art. 118"],
+      "grau_confianca": 0.90,
+      "documentos_referenciados": ["processo.pdf"],
+      "timestamp": "2025-10-24T16:02:15.000Z"
+    }
+  ],
+  "documentos_consultados": ["laudo_medico.pdf", "processo.pdf"],
+  "agentes_utilizados": ["medico"],
+  "advogados_utilizados": ["trabalhista"],
+  "tempo_total_segundos": 187.5,
+  "timestamp_inicio": "2025-10-24T16:00:00.000Z",
+  "timestamp_fim": "2025-10-24T16:03:07.500Z"
+}
+```
+
+**Campos da Response:**
+Idênticos ao endpoint síncrono `POST /api/analise/multi-agent`:
+- `sucesso`: Sempre `true` se análise foi concluída
+- `consulta_id`: UUID da consulta
+- `status`: Sempre "CONCLUIDA" (se chegou aqui)
+- `resposta_compilada`: Resposta final do Advogado Coordenador
+- `pareceres_individuais`: Lista de pareceres técnicos dos peritos
+- `pareceres_advogados`: Lista de pareceres jurídicos dos advogados especialistas
+- `documentos_consultados`: Lista de documentos do RAG usados
+- `agentes_utilizados`: IDs dos peritos que participaram
+- `advogados_utilizados`: IDs dos advogados especialistas que participaram
+- `tempo_total_segundos`: Tempo REAL de processamento (pode ser >2 minutos!)
+- `timestamp_inicio`: Timestamp ISO de início da análise
+- `timestamp_fim`: Timestamp ISO de conclusão da análise
+
+**Status HTTP:**
+- `200 OK`: Resultado retornado com sucesso
+- `404 Not Found`: Consulta não encontrada
+- `425 Too Early`: Análise ainda em processamento (fazer polling em `/status`)
+- `500 Internal Server Error`: Erro durante análise ou ao obter resultado
+
+**Uso no Frontend:**
+Exibir exatamente da mesma forma que o endpoint síncrono:
+- Resposta compilada em destaque
+- Pareceres de peritos em seção expandível
+- Pareceres de advogados em seção expandível
+- Metadados (documentos consultados, tempos, etc.)
+
+**Comparação com Endpoint Síncrono:**
+
+| Aspecto | Síncrono (`/multi-agent`) | Assíncrono (`/iniciar` + `/status` + `/resultado`) |
+|---------|---------------------------|-----------------------------------------------------|
+| **Timeout** | ❌ Sim (~2 minutos) | ✅ Não (sem limite) |
+| **Resposta** | Imediata (ou timeout) | UUID imediato, resultado via polling |
+| **Progresso** | ❌ Não | ✅ Sim (etapa_atual, progresso%) |
+| **Status Code** | 200 OK | 202 Accepted → 200 OK |
+| **UX** | UI trava durante análise | UI responsiva (barra de progresso) |
+| **Uso Recomendado** | Análises rápidas (<1 min) | Análises longas ou múltiplos agentes |
+
+---
+
+**Uso:**
+- Monitoramento de saúde do sistema
+- Validação antes de submeter análises
+- Dashboard de status
+
+---
+
 ## 📦 MÓDULOS DE SERVIÇOS (Backend)
 
 **NOTA:** Esta seção documenta os serviços implementados no backend que encapsulam lógica de negócios.

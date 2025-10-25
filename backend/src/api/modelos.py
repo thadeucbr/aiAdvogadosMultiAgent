@@ -1179,14 +1179,388 @@ class RespostaListarAdvogados(BaseModel):
                         "area_especializacao": "Direito do Trabalho",
                         "descricao": "Especialista em CLT e relações trabalhistas",
                         "legislacao_principal": ["CLT", "Súmulas TST"]
-                    },
-                    {
-                        "id_advogado": "previdenciario",
-                        "nome_exibicao": "Advogado Previdenciário",
-                        "area_especializacao": "Direito Previdenciário",
-                        "descricao": "Especialista em benefícios INSS e aposentadorias",
-                        "legislacao_principal": ["Lei 8.213/91", "Lei 8.212/91"]
                     }
+                    
                 ]
+            }
+        }
+
+# ===== MODELOS PARA ANÁLISE ASSÍNCRONA (TAREFA-031) =====
+
+class RequestIniciarAnalise(BaseModel):
+    """
+    Requisição para iniciar análise multi-agent assíncrona.
+    
+    CONTEXTO DE NEGÓCIO (TAREFA-031):
+    Este é o modelo de entrada para o novo endpoint POST /api/analise/iniciar.
+    Diferente do endpoint síncrono (POST /api/analise/multi-agent), este endpoint
+    retorna IMEDIATAMENTE com um consulta_id, e o processamento ocorre em background.
+    
+    MOTIVAÇÃO:
+    Análises com múltiplos agentes podem demorar 2-5 minutos:
+    - Consulta RAG: ~5-10s
+    - Cada Perito: ~15-30s
+    - Cada Advogado Especialista: ~15-30s
+    - Compilação: ~10-20s
+    
+    Com o fluxo síncrono, requisições HTTP sofrem TIMEOUT após ~2 minutos.
+    Com o fluxo assíncrono, o frontend recebe um ID imediatamente e pode
+    fazer polling do status usando GET /api/analise/status/{consulta_id}.
+    
+    FLUXO ASSÍNCRONO:
+    1. Frontend → POST /api/analise/iniciar {"prompt": "...", "agentes_selecionados": [...]}
+    2. Backend cria tarefa e retorna {"consulta_id": "uuid", "status": "INICIADA"}
+    3. Backend processa análise em background (BackgroundTasks do FastAPI)
+    4. Frontend faz polling: GET /api/analise/status/{consulta_id} a cada 3s
+    5. Status muda: INICIADA → PROCESSANDO → CONCLUIDA
+    6. Frontend obtém resultado: GET /api/analise/resultado/{consulta_id}
+    
+    CAMPOS:
+    Idênticos ao RequestAnaliseMultiAgent (mantém compatibilidade):
+    - prompt: Pergunta/solicitação de análise
+    - agentes_selecionados: Lista de peritos (opcional)
+    - advogados_selecionados: Lista de advogados especialistas (opcional)
+    - documento_ids: Lista de documentos para contexto RAG (opcional)
+    """
+    prompt: str = Field(
+        ...,
+        min_length=10,
+        max_length=5000,
+        description="Pergunta ou solicitação de análise jurídica (mínimo 10 caracteres)"
+    )
+    
+    agentes_selecionados: Optional[List[str]] = Field(
+        default=None,
+        description="Lista de IDs dos agentes peritos (técnicos) a serem consultados. "
+                    "Valores válidos: 'medico', 'seguranca_trabalho'. "
+                    "Se None ou vazio, nenhum perito é consultado."
+    )
+    
+    advogados_selecionados: Optional[List[str]] = Field(
+        default=None,
+        description="Lista de IDs dos advogados especialistas a serem consultados. "
+                    "Valores válidos: 'trabalhista', 'previdenciario', 'civel', 'tributario'. "
+                    "Se None ou vazio, nenhum advogado especialista é consultado."
+    )
+    
+    documento_ids: Optional[List[str]] = Field(
+        default=None,
+        description="Lista opcional de IDs de documentos específicos para usar como contexto RAG. "
+                    "Se None ou vazio, a busca no RAG considerará todos os documentos disponíveis."
+    )
+    
+    @validator("prompt")
+    def validar_prompt_nao_vazio(cls, valor: str) -> str:
+        """Valida que o prompt não seja apenas espaços em branco."""
+        if not valor or valor.strip() == "":
+            raise ValueError("Prompt não pode ser vazio ou conter apenas espaços em branco")
+        return valor.strip()
+    
+    @validator("agentes_selecionados")
+    def validar_agentes(cls, valor: Optional[List[str]]) -> Optional[List[str]]:
+        """Valida que os agentes peritos selecionados existem no sistema."""
+        agentes_validos = {"medico", "seguranca_trabalho"}
+        
+        if valor is None or len(valor) == 0:
+            return None
+        
+        agentes_invalidos = [a for a in valor if a not in agentes_validos]
+        if agentes_invalidos:
+            raise ValueError(
+                f"Peritos inválidos: {agentes_invalidos}. "
+                f"Peritos válidos: {list(agentes_validos)}"
+            )
+        
+        return list(set(valor))
+    
+    @validator("advogados_selecionados")
+    def validar_advogados_especialistas(cls, valor: Optional[List[str]]) -> Optional[List[str]]:
+        """Valida que os advogados especialistas selecionados existem no sistema."""
+        advogados_validos = {"trabalhista", "previdenciario", "civel", "tributario"}
+        
+        if valor is None or len(valor) == 0:
+            return None
+        
+        advogados_invalidos = [a for a in valor if a not in advogados_validos]
+        if advogados_invalidos:
+            raise ValueError(
+                f"Advogados especialistas inválidos: {advogados_invalidos}. "
+                f"Advogados válidos: {list(advogados_validos)}"
+            )
+        
+        return list(set(valor))
+    
+    class Config:
+        """Exemplo para documentação Swagger"""
+        json_schema_extra = {
+            "example": {
+                "prompt": "Analisar se houve nexo causal entre o acidente de trabalho "
+                         "e as condições inseguras do ambiente laboral. Verificar "
+                         "também se o trabalhador possui direito ao benefício auxílio-doença acidentário.",
+                "agentes_selecionados": ["medico", "seguranca_trabalho"],
+                "advogados_selecionados": ["trabalhista", "previdenciario"],
+                "documento_ids": [
+                    "550e8400-e29b-41d4-a716-446655440000",
+                    "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+                ]
+            }
+        }
+
+
+class RespostaIniciarAnalise(BaseModel):
+    """
+    Resposta do endpoint POST /api/analise/iniciar.
+    
+    CONTEXTO (TAREFA-031):
+    Quando o usuário inicia uma análise assíncrona, retornamos imediatamente
+    um consulta_id e o status inicial (INICIADA). O processamento ocorre em background.
+    
+    CAMPOS:
+    - sucesso: Sempre True se a tarefa foi criada com sucesso
+    - consulta_id: UUID único da consulta (usar para polling)
+    - status: Estado inicial da tarefa (sempre "INICIADA")
+    - mensagem: Mensagem orientando o usuário a fazer polling
+    - timestamp_criacao: Quando a tarefa foi criada
+    
+    PRÓXIMO PASSO DO FRONTEND:
+    Fazer polling em GET /api/analise/status/{consulta_id} a cada 2-3 segundos
+    até que status seja "CONCLUIDA" ou "ERRO".
+    """
+    sucesso: bool = Field(
+        ...,
+        description="Indica se a tarefa foi criada e agendada com sucesso"
+    )
+    
+    consulta_id: str = Field(
+        ...,
+        description="UUID único da consulta (usar para polling de status)"
+    )
+    
+    status: str = Field(
+        ...,
+        description="Status inicial da tarefa (sempre 'INICIADA')"
+    )
+    
+    mensagem: str = Field(
+        ...,
+        description="Mensagem orientando o usuário sobre próximos passos"
+    )
+    
+    timestamp_criacao: str = Field(
+        ...,
+        description="Timestamp ISO de quando a tarefa foi criada"
+    )
+    
+    class Config:
+        """Exemplo para documentação Swagger"""
+        json_schema_extra = {
+            "example": {
+                "sucesso": True,
+                "consulta_id": "550e8400-e29b-41d4-a716-446655440000",
+                "status": "INICIADA",
+                "mensagem": "Análise iniciada com sucesso! Use GET /api/analise/status/{consulta_id} para acompanhar o progresso.",
+                "timestamp_criacao": "2025-10-24T16:00:00.000Z"
+            }
+        }
+
+
+class RespostaStatusAnalise(BaseModel):
+    """
+    Resposta do endpoint GET /api/analise/status/{consulta_id}.
+    
+    CONTEXTO (TAREFA-031):
+    Endpoint de polling para verificar o status de uma análise em andamento.
+    Frontend chama este endpoint repetidamente (a cada 2-3s) até que
+    status seja "CONCLUIDA" ou "ERRO".
+    
+    ESTADOS POSSÍVEIS:
+    - INICIADA: Tarefa criada, aguardando processamento
+    - PROCESSANDO: Análise em execução (RAG, peritos, advogados, compilação)
+    - CONCLUIDA: Análise finalizada com sucesso (chamar GET /api/analise/resultado)
+    - ERRO: Falha durante processamento (ver mensagem_erro)
+    
+    CAMPOS:
+    - consulta_id: UUID da consulta
+    - status: Estado atual (INICIADA, PROCESSANDO, CONCLUIDA, ERRO)
+    - etapa_atual: Descrição da etapa em execução (ex: "Consultando RAG", "Delegando peritos")
+    - progresso_percentual: 0-100% (para barra de progresso no frontend)
+    - timestamp_atualizacao: Última atualização do status
+    - mensagem_erro: Mensagem de erro se status for ERRO (None caso contrário)
+    
+    QUANDO USAR CADA CAMPO:
+    - status = "PROCESSANDO" → Exibir etapa_atual e progresso_percentual
+    - status = "CONCLUIDA" → Chamar GET /api/analise/resultado/{consulta_id}
+    - status = "ERRO" → Exibir mensagem_erro
+    """
+    consulta_id: str = Field(
+        ...,
+        description="UUID da consulta"
+    )
+    
+    status: str = Field(
+        ...,
+        description="Estado atual: INICIADA, PROCESSANDO, CONCLUIDA, ERRO"
+    )
+    
+    etapa_atual: str = Field(
+        ...,
+        description="Descrição da etapa em execução (ex: 'Consultando RAG', 'Delegando peritos')"
+    )
+    
+    progresso_percentual: int = Field(
+        ...,
+        ge=0,
+        le=100,
+        description="Progresso de 0 a 100% (para barra de progresso)"
+    )
+    
+    timestamp_atualizacao: str = Field(
+        ...,
+        description="Timestamp ISO da última atualização de status"
+    )
+    
+    mensagem_erro: Optional[str] = Field(
+        default=None,
+        description="Mensagem de erro se status for ERRO (None caso contrário)"
+    )
+    
+    class Config:
+        """Exemplo para documentação Swagger"""
+        json_schema_extra = {
+            "example": {
+                "consulta_id": "550e8400-e29b-41d4-a716-446655440000",
+                "status": "PROCESSANDO",
+                "etapa_atual": "Delegando análise para peritos especializados",
+                "progresso_percentual": 45,
+                "timestamp_atualizacao": "2025-10-24T16:01:30.000Z",
+                "mensagem_erro": None
+            }
+        }
+
+
+class RespostaResultadoAnalise(BaseModel):
+    """
+    Resposta do endpoint GET /api/analise/resultado/{consulta_id}.
+    
+    CONTEXTO (TAREFA-031):
+    Quando o status da análise é "CONCLUIDA", o frontend chama este endpoint
+    para obter o resultado completo da análise multi-agent.
+    
+    IMPORTANTE:
+    - Se status ainda for PROCESSANDO → Retorna erro 425 (Too Early)
+    - Se status for ERRO → Retorna erro com mensagem
+    - Se status for CONCLUIDA → Retorna este modelo com resultado completo
+    
+    ESTRUTURA:
+    Idêntica ao RespostaAnaliseMultiAgent (endpoint síncrono), mas com campos adicionais:
+    - consulta_id: UUID da consulta (já conhecido pelo frontend)
+    - status: Sempre "CONCLUIDA" (se chegou aqui)
+    - tempo_total_segundos: Tempo REAL de processamento (pode ser >2 minutos)
+    - Todos os campos de RespostaAnaliseMultiAgent (resposta_compilada, pareceres, etc.)
+    
+    USO:
+    Frontend exibe exatamente da mesma forma que o endpoint síncrono:
+    - Resposta compilada em destaque
+    - Pareceres de peritos em seção expandível
+    - Pareceres de advogados em seção expandível
+    - Documentos consultados, tempos, etc.
+    """
+    sucesso: bool = Field(
+        ...,
+        description="Indica se a análise foi concluída com sucesso"
+    )
+    
+    consulta_id: str = Field(
+        ...,
+        description="UUID da consulta"
+    )
+    
+    status: str = Field(
+        ...,
+        description="Status da análise (sempre 'CONCLUIDA' se chegou aqui)"
+    )
+    
+    resposta_compilada: str = Field(
+        ...,
+        description="Resposta final compilada pelo Advogado Coordenador"
+    )
+    
+    pareceres_individuais: List[ParecerIndividualPerito] = Field(
+        default_factory=list,
+        description="Lista de pareceres técnicos de cada perito"
+    )
+    
+    pareceres_advogados: List[ParecerIndividualAdvogado] = Field(
+        default_factory=list,
+        description="Lista de pareceres jurídicos de cada advogado especialista"
+    )
+    
+    documentos_consultados: List[str] = Field(
+        default_factory=list,
+        description="Lista de documentos consultados no RAG"
+    )
+    
+    agentes_utilizados: List[str] = Field(
+        default_factory=list,
+        description="IDs dos peritos que participaram"
+    )
+    
+    advogados_utilizados: List[str] = Field(
+        default_factory=list,
+        description="IDs dos advogados especialistas que participaram"
+    )
+    
+    tempo_total_segundos: float = Field(
+        ...,
+        ge=0.0,
+        description="Tempo total REAL de processamento (pode ser >2 minutos)"
+    )
+    
+    timestamp_inicio: str = Field(
+        ...,
+        description="Timestamp ISO de início da análise"
+    )
+    
+    timestamp_fim: str = Field(
+        ...,
+        description="Timestamp ISO de conclusão da análise"
+    )
+    
+    class Config:
+        """Exemplo para documentação Swagger"""
+        json_schema_extra = {
+            "example": {
+                "sucesso": True,
+                "consulta_id": "550e8400-e29b-41d4-a716-446655440000",
+                "status": "CONCLUIDA",
+                "resposta_compilada": "Com base nos pareceres técnicos e jurídicos, concluo que...",
+                "pareceres_individuais": [
+                    {
+                        "nome_agente": "Perito Médico",
+                        "tipo_agente": "medico",
+                        "parecer": "Identifico nexo causal...",
+                        "grau_confianca": 0.85,
+                        "documentos_referenciados": ["laudo.pdf"],
+                        "timestamp": "2025-10-24T16:01:45.000Z"
+                    }
+                ],
+                "pareceres_advogados": [
+                    {
+                        "nome_agente": "Advogado Trabalhista",
+                        "tipo_agente": "trabalhista",
+                        "area_especializacao": "Direito do Trabalho",
+                        "parecer": "Sob a ótica trabalhista...",
+                        "legislacao_citada": ["CLT art. 118"],
+                        "grau_confianca": 0.90,
+                        "documentos_referenciados": ["processo.pdf"],
+                        "timestamp": "2025-10-24T16:02:15.000Z"
+                    }
+                ],
+                "documentos_consultados": ["laudo.pdf", "processo.pdf"],
+                "agentes_utilizados": ["medico"],
+                "advogados_utilizados": ["trabalhista"],
+                "tempo_total_segundos": 187.5,
+                "timestamp_inicio": "2025-10-24T16:00:00.000Z",
+                "timestamp_fim": "2025-10-24T16:03:07.500Z"
             }
         }
