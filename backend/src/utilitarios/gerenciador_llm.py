@@ -26,7 +26,8 @@ from datetime import datetime
 from dataclasses import dataclass, field
 
 # Biblioteca OpenAI para comunicação com a API
-from openai import OpenAI, APIError, RateLimitError, APITimeoutError
+from openai import OpenAI, APIError, RateLimitError, APITimeoutError, BadRequestError
+from pydantic import BaseModel
 
 # Configuração do logger para este módulo
 logger = logging.getLogger(__name__)
@@ -162,7 +163,8 @@ TEMPO_INICIAL_DE_ESPERA_SEGUNDOS = 1
 FATOR_MULTIPLICADOR_BACKOFF_EXPONENCIAL = 2  # Cada retry espera 2x mais que o anterior
 
 # Timeout para chamadas à API (em segundos)
-TIMEOUT_PADRAO_CHAMADA_API_SEGUNDOS = 60
+# Aumentado de 60s → 180s para análises complexas com contexto grande
+TIMEOUT_PADRAO_CHAMADA_API_SEGUNDOS = 180
 
 
 # ==============================================================================
@@ -221,11 +223,13 @@ class GerenciadorLLM:
     def chamar_llm(
         self,
         prompt: str,
-        modelo: str = "gpt-5-nano-2025-08-07",
+        modelo: str = "gpt-4o-mini",
         temperatura: float = 0.7,
         max_tokens: Optional[int] = None,
         mensagens_de_sistema: Optional[str] = None,
         timeout_segundos: int = TIMEOUT_PADRAO_CHAMADA_API_SEGUNDOS,
+        response_format: Optional[str] = None,  # "json_object" para forçar JSON
+        response_schema: Optional[type[BaseModel]] = None,  # Schema Pydantic para Structured Outputs
     ) -> str:
         """
         Realiza uma chamada à API da OpenAI com retry logic e logging automático.
@@ -239,17 +243,21 @@ class GerenciadorLLM:
         - temperatura: Controla aleatoriedade (0.0 = determinístico, 1.0 = criativo)
         - max_tokens: Limita o tamanho da resposta (None = sem limite)
         - mensagens_de_sistema: Instruções de sistema (ex: "Você é um advogado especialista...")
+        - response_format: "json_object" para forçar resposta em JSON válido (método antigo)
+        - response_schema: Schema Pydantic para Structured Outputs (RECOMENDADO - garante formato exato)
         
         Args:
             prompt: O prompt/pergunta a ser enviada ao modelo
-            modelo: Nome do modelo OpenAI (ex: "gpt-5-nano-2025-08-07", "gpt-4", "gpt-3.5-turbo")
+            modelo: Nome do modelo OpenAI (ex: "gpt-4o-mini", "gpt-4o")
             temperatura: Controla aleatoriedade da resposta (0.0 a 2.0)
             max_tokens: Limite máximo de tokens na resposta (None = sem limite)
             mensagens_de_sistema: Mensagem de sistema para contextualizar o modelo
             timeout_segundos: Tempo máximo de espera pela resposta
+            response_format: "json_object" para JSON mode (garante JSON válido mas estrutura livre)
+            response_schema: Classe Pydantic para Structured Outputs (garante estrutura EXATA)
         
         Returns:
-            str: Resposta gerada pelo modelo
+            str: Resposta gerada pelo modelo (JSON string se usando schema)
         
         Raises:
             ErroLimiteTaxaExcedido: Se todos os retries falharem por rate limit
@@ -307,19 +315,222 @@ class GerenciadorLLM:
                 else:
                     parametros_api["temperature"] = temperatura
                 
-                # Adicionar max_tokens apenas se não for None
-                # OpenAI API não aceita max_tokens=null
+                # ===== STRUCTURED OUTPUTS (PRIORITÁRIO) =====
+                # Se schema Pydantic fornecido, usar Structured Outputs (garantia de formato exato)
+                if response_schema is not None:
+                    logger.info(f"🎯 Usando Structured Outputs com schema: {response_schema.__name__}")
+                    
+                    # Structured Outputs: define formato exato da resposta
+                    # https://platform.openai.com/docs/guides/structured-outputs
+                    
+                    # Gerar JSON schema do modelo Pydantic
+                    schema_dict = response_schema.model_json_schema()
+                    
+                    # CRÍTICO: OpenAI Structured Outputs exige:
+                    # 1. 'additionalProperties': false em TODOS os objetos
+                    # 2. 'required' deve incluir TODAS as propriedades (exceto opcionais)
+                    
+                    def fix_schema_for_openai(schema_obj):
+                        """Corrige schema recursivamente para Structured Outputs"""
+                        if isinstance(schema_obj, dict):
+                            # $ref não pode ter keywords extras (description, title, etc.)
+                            if "$ref" in schema_obj:
+                                chaves_para_remover = [
+                                    chave for chave in schema_obj.keys()
+                                    if chave not in {"$ref"}
+                                ]
+                                for chave in chaves_para_remover:
+                                    schema_obj.pop(chave, None)
+                                # Nada mais a fazer neste nível além de seguir recursão
+                            
+                            # Se é um objeto, adicionar additionalProperties: false
+                            if schema_obj.get('type') == 'object':
+                                schema_obj['additionalProperties'] = False
+                                
+                                # Se tem properties, garantir que TODAS estejam em required
+                                # (exceto as que Pydantic já marcou como opcionais)
+                                if 'properties' in schema_obj:
+                                    all_props = list(schema_obj['properties'].keys())
+                                    
+                                    # Manter required existente se presente, senão criar
+                                    if 'required' not in schema_obj:
+                                        schema_obj['required'] = all_props
+                                    else:
+                                        # Se required já existe, adicionar props faltantes
+                                        existing_required = set(schema_obj['required'])
+                                        missing_props = set(all_props) - existing_required
+                                        if missing_props:
+                                            schema_obj['required'].extend(missing_props)
+                            
+                            # Processar recursivamente
+                            for value in schema_obj.values():
+                                fix_schema_for_openai(value)
+                                
+                        elif isinstance(schema_obj, list):
+                            for item in schema_obj:
+                                fix_schema_for_openai(item)
+                    
+                    fix_schema_for_openai(schema_dict)
+                    
+                    parametros_api["response_format"] = {
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": response_schema.__name__,
+                            "schema": schema_dict,
+                            "strict": True  # Modo strict: garante 100% de conformidade
+                        }
+                    }
+                    
+                    logger.debug(f"Schema JSON corrigido para OpenAI: {schema_dict}")
+                    
+                # ===== JSON MODE (FALLBACK) =====
+                # Adicionar response_format se fornecido (JSON mode - estrutura livre)
+                # NOTA: Alguns modelos beta podem não suportar JSON mode
+                elif response_format == "json_object":
+                    # Lista de modelos que SABEMOS que suportam JSON mode
+                    modelos_json_suportados = [
+                        "gpt-4o",
+                        "gpt-4o-mini",
+                        "gpt-4-turbo",
+                        "gpt-4-0125-preview",
+                        "gpt-3.5-turbo-0125"
+                    ]
+                    
+                    # Verificar se modelo suporta JSON mode
+                    suporta_json = any(m in modelo for m in modelos_json_suportados)
+                    
+                    if suporta_json:
+                        parametros_api["response_format"] = {"type": "json_object"}
+                        logger.debug(f"✅ Usando JSON mode para {modelo}")
+                    else:
+                        logger.warning(
+                            f"⚠️  Modelo {modelo} pode não suportar JSON mode oficialmente. "
+                            "Tentando mesmo assim..."
+                        )
+                        # Tentar mesmo assim (pode funcionar em modelos beta)
+                        parametros_api["response_format"] = {"type": "json_object"}
+                
+                # IMPORTANTE: OpenAI mudou API em 2024
+                # Modelos novos (GPT-4o, GPT-5) usam 'max_completion_tokens'
+                # Modelos antigos (GPT-3.5, GPT-4 original) usam 'max_tokens'
                 if max_tokens is not None:
-                    parametros_api["max_tokens"] = max_tokens
+                    # Lista de modelos que usam max_completion_tokens (API nova)
+                    modelos_nova_api = [
+                        "gpt-4o",
+                        "gpt-4o-mini", 
+                        "gpt-5-nano-2025-08-07",
+                        "gpt-4-turbo"
+                    ]
+                    
+                    # Verificar se modelo usa API nova
+                    usa_api_nova = any(modelo_novo in modelo for modelo_novo in modelos_nova_api)
+                    
+                    if usa_api_nova:
+                        parametros_api["max_completion_tokens"] = max_tokens
+                        logger.debug(f"Usando max_completion_tokens={max_tokens} para {modelo}")
+                    else:
+                        parametros_api["max_tokens"] = max_tokens
+                        logger.debug(f"Usando max_tokens={max_tokens} para {modelo}")
+                
+                # Logar parâmetros da chamada (INFO para debug)
+                logger.info("=" * 80)
+                logger.info("📤 PARÂMETROS DA CHAMADA OPENAI:")
+                logger.info(f"Modelo: {parametros_api.get('model')}")
+                logger.info(f"Temperature: {parametros_api.get('temperature', 'padrão')}")
+                logger.info(f"Max tokens/completion: {parametros_api.get('max_tokens') or parametros_api.get('max_completion_tokens', 'não definido')}")
+                logger.info(f"Response format: {parametros_api.get('response_format', 'texto livre')}")
+                logger.info(f"Número de mensagens: {len(parametros_api.get('messages', []))}")
+                
+                # Logar preview do prompt (primeiros 300 chars da última mensagem)
+                if parametros_api.get('messages'):
+                    ultima_msg = parametros_api['messages'][-1]
+                    prompt_preview = ultima_msg.get('content', '')[:300]
+                    logger.info(f"Prompt (preview): {prompt_preview}...")
+                
+                logger.info("=" * 80)
                 
                 # Fazer a chamada à API OpenAI
+                logger.debug(f"Parâmetros completos (DEBUG): {parametros_api}")
                 resposta_da_api = self.cliente_openai.chat.completions.create(**parametros_api)
                 
                 # Calcular tempo de resposta
                 tempo_de_resposta_segundos = time.time() - timestamp_inicio
                 
+                # DEBUG: Logar TODA a resposta da OpenAI
+                logger.info("=" * 80)
+                logger.info("📥 RESPOSTA COMPLETA DA OPENAI:")
+                logger.info(f"Modelo usado: {resposta_da_api.model}")
+                logger.info(f"ID da resposta: {resposta_da_api.id}")
+                logger.info(f"Finish reason: {resposta_da_api.choices[0].finish_reason}")
+                logger.info(f"Message role: {resposta_da_api.choices[0].message.role}")
+                logger.info(f"Message content type: {type(resposta_da_api.choices[0].message.content)}")
+                logger.info(f"Message content length: {len(resposta_da_api.choices[0].message.content) if resposta_da_api.choices[0].message.content else 'None'}")
+                
+                # Logar primeiros 500 caracteres do content
+                content_preview = resposta_da_api.choices[0].message.content
+                if content_preview:
+                    logger.info(f"Content (primeiros 500 chars):\n{content_preview[:500]}")
+                else:
+                    logger.error(f"⚠️  CONTENT É VAZIO OU NONE: {repr(content_preview)}")
+                
+                # Logar usage (tokens)
+                logger.info(f"Tokens - Prompt: {resposta_da_api.usage.prompt_tokens}, "
+                           f"Completion: {resposta_da_api.usage.completion_tokens}, "
+                           f"Total: {resposta_da_api.usage.total_tokens}")
+                
+                # Se houver refusal, logar
+                if hasattr(resposta_da_api.choices[0].message, 'refusal') and resposta_da_api.choices[0].message.refusal:
+                    logger.error(f"🚫 REFUSAL detectado: {resposta_da_api.choices[0].message.refusal}")
+                
+                # Logar objeto completo em formato JSON (para debug avançado)
+                try:
+                    import json
+                    resposta_dict = resposta_da_api.model_dump() if hasattr(resposta_da_api, 'model_dump') else resposta_da_api.dict()
+                    logger.debug(f"Resposta OpenAI (JSON completo):\n{json.dumps(resposta_dict, indent=2, ensure_ascii=False)}")
+                except Exception as e:
+                    logger.debug(f"Não foi possível serializar resposta para JSON: {e}")
+                
+                logger.info("=" * 80)
+                
                 # Extrair texto da resposta
                 texto_da_resposta = resposta_da_api.choices[0].message.content
+                
+                # VALIDAÇÃO: content pode ser None ou vazio (refusal ou erro)
+                if texto_da_resposta is None or texto_da_resposta.strip() == "":
+                    finish_reason = resposta_da_api.choices[0].finish_reason
+                    
+                    logger.error(f"❌ Resposta da API retornou content vazio!")
+                    logger.error(f"Content value: {repr(texto_da_resposta)}")
+                    logger.error(f"Finish reason: {finish_reason}")
+                    
+                    # Verificar se foi por limite de tokens
+                    if finish_reason == "length":
+                        completion_tokens = resposta_da_api.usage.completion_tokens
+                        reasoning_tokens = resposta_da_api.usage.completion_tokens_details.reasoning_tokens if hasattr(resposta_da_api.usage, 'completion_tokens_details') else 0
+                        
+                        logger.error("=" * 80)
+                        logger.error("🚨 ERRO: LIMITE DE TOKENS ATINGIDO")
+                        logger.error(f"Completion tokens usados: {completion_tokens}")
+                        logger.error(f"Reasoning tokens: {reasoning_tokens}")
+                        logger.error(f"Max tokens configurado: {parametros_api.get('max_completion_tokens') or parametros_api.get('max_tokens')}")
+                        logger.error("💡 SOLUÇÃO: Aumente o max_tokens na chamada do agente")
+                        logger.error("=" * 80)
+                        
+                        raise ValueError(
+                            f"Limite de tokens atingido ({completion_tokens} tokens usados, "
+                            f"{reasoning_tokens} reasoning). Aumente max_tokens."
+                        )
+                    
+                    if hasattr(resposta_da_api.choices[0].message, 'refusal'):
+                        logger.error(f"Refusal: {resposta_da_api.choices[0].message.refusal}")
+                    
+                    # Logar informações completas da resposta para debug
+                    logger.error(f"Resposta completa da API: {resposta_da_api}")
+                    logger.error(f"Parâmetros enviados: {parametros_api}")
+                    
+                    raise ValueError(
+                        f"API retornou content vazio (finish_reason: {finish_reason})"
+                    )
                 
                 # Extrair informações de uso (tokens)
                 tokens_de_prompt = resposta_da_api.usage.prompt_tokens
@@ -358,6 +569,25 @@ class GerenciadorLLM:
                 )
                 
                 return texto_da_resposta
+            
+            except BadRequestError as erro:
+                # Erro 400: Request inválido (schema errado, parâmetros inválidos, etc)
+                # NÃO FAZER RETRY - problema está no código/schema, não vai se resolver sozinho
+                ultima_excecao = erro
+                erro_str = str(erro)
+                
+                logger.error("=" * 80)
+                logger.error(f"❌ BadRequestError (400) - REQUEST INVÁLIDO")
+                logger.error(f"Tentativa: {numero_da_tentativa_atual}")
+                logger.error(f"Erro: {erro_str}")
+                logger.error(f"Modelo: {modelo}")
+                logger.error(f"Parâmetros enviados: {parametros_api}")
+                logger.error("=" * 80)
+                logger.error("🚫 ABORTAR: Erro 400 não é recuperável via retry.")
+                logger.error("💡 AÇÃO: Verifique o schema Pydantic ou parâmetros da chamada.")
+                
+                # Sair do loop imediatamente - não adianta retry
+                break
             
             except RateLimitError as erro:
                 # Rate limit atingido: implementar backoff exponencial
@@ -433,14 +663,25 @@ class GerenciadorLLM:
         estatisticas_globais_llm.adicionar_chamada(estatistica_falha)
         
         # Lançar exceção apropriada baseada no tipo do último erro
-        mensagem_erro_final = (
-            f"Falha ao chamar LLM após {NUMERO_MAXIMO_DE_TENTATIVAS_RETRY} tentativas. "
-            f"Último erro: {str(ultima_excecao)}"
-        )
+        if isinstance(ultima_excecao, BadRequestError):
+            # BadRequest (400) - erro no schema/parâmetros
+            mensagem_erro_final = (
+                f"❌ BadRequest (400): Request inválido. "
+                f"Verifique schema Pydantic ou parâmetros. "
+                f"Erro: {str(ultima_excecao)}"
+            )
+        else:
+            # Outros erros
+            mensagem_erro_final = (
+                f"Falha ao chamar LLM após {NUMERO_MAXIMO_DE_TENTATIVAS_RETRY} tentativas. "
+                f"Último erro: {str(ultima_excecao)}"
+            )
         
         logger.error(mensagem_erro_final)
         
-        if isinstance(ultima_excecao, RateLimitError):
+        if isinstance(ultima_excecao, BadRequestError):
+            raise ErroGeralAPI(mensagem_erro_final) from ultima_excecao
+        elif isinstance(ultima_excecao, RateLimitError):
             raise ErroLimiteTaxaExcedido(mensagem_erro_final) from ultima_excecao
         elif isinstance(ultima_excecao, APITimeoutError):
             raise ErroTimeoutAPI(mensagem_erro_final) from ultima_excecao

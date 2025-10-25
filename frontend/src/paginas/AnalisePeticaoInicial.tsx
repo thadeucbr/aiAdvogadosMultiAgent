@@ -22,13 +22,17 @@
  * - Exibir resultados estruturados
  * 
  * NOTA PARA LLMs:
- * Este é o componente principal da TAREFA-049. Ele coordena todo o fluxo,
- * mas componentes individuais (upload, documentos, agentes, resultados)
- * serão criados nas tarefas seguintes (050-056).
- * Por ora, usamos placeholders simples para cada etapa.
+ * Este é o componente principal da TAREFA-049. Todos os subcomponentes
+ * foram implementados nas tarefas seguintes (050-056) e estão integrados.
+ * 
+ * SUBCOMPONENTES (Etapa 5 - Resultados):
+ * - TAREFA-053: Próximos Passos (ComponenteProximosPassos) ✅
+ * - TAREFA-054: Gráfico de Prognóstico (ComponenteGraficoPrognostico) ✅
+ * - TAREFA-055: Pareceres Individualizados (ComponentePareceresIndividualizados) ✅
+ * - TAREFA-056: Documento de Continuação (ComponenteDocumentoContinuacao) ✅
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { FileText, CheckCircle2, Users, BarChart3, FileCheck } from 'lucide-react';
 import type {
   DocumentoSugerido,
@@ -41,6 +45,8 @@ import { ComponenteSelecaoAgentesPeticao } from '../componentes/peticao/Componen
 import { ComponenteProximosPassos } from '../componentes/peticao/ComponenteProximosPassos';
 import { ComponenteGraficoPrognostico } from '../componentes/peticao/ComponenteGraficoPrognostico';
 import { ComponentePareceresIndividualizados } from '../componentes/peticao/ComponentePareceresIndividualizados';
+import { ComponenteDocumentoContinuacao } from '../componentes/peticao/ComponenteDocumentoContinuacao';
+import { iniciarAnalise, pollingAnalise, obterResultadoAnalise } from '../servicos/servicoApiPeticoes';
 
 // ===== TIPOS LOCAIS =====
 
@@ -324,6 +330,7 @@ export function AnalisePeticaoInicial(): JSX.Element {
         
         {etapaAtual === 4 && (
           <EtapaProcessamento
+            key={`processamento-${peticaoId}`}
             peticaoId={peticaoId}
             agentesSelecionados={agentesSelecionados}
             progresso={progressoAnalise}
@@ -491,8 +498,11 @@ function EtapaSelecaoAgentes({
 /**
  * ETAPA 4: Processamento
  * 
- * NOTA: Implementação básica de polling. Componentes visuais completos (barras de progresso,
- * animações, etc.) serão refinados nas tarefas seguintes.
+ * IMPLEMENTAÇÃO:
+ * - Inicia análise via POST /api/peticoes/{id}/analisar
+ * - Faz polling do progresso via GET /api/peticoes/{id}/status-analise
+ * - Atualiza barra de progresso em tempo real
+ * - Busca resultado quando status = "concluida"
  */
 function EtapaProcessamento({
   peticaoId,
@@ -511,11 +521,126 @@ function EtapaProcessamento({
   onAnaliseConcluida: (resultado: ResultadoAnaliseProcesso) => void;
   onErro: (erro: string) => void;
 }) {
+  // Flag persistente para prevenir dupla execução (React 18 StrictMode)
+  const analiseIniciadaRef = useRef(false);
+  
+  // Log de montagem do componente
+  useEffect(() => {
+    console.log('[EtapaProcessamento] 🔵 COMPONENTE MONTADO', {
+      peticaoId,
+      agentesSelecionados,
+      analiseJaIniciada: analiseIniciadaRef.current
+    });
+    
+    return () => {
+      console.log('[EtapaProcessamento] 🔴 COMPONENTE DESMONTADO', {
+        peticaoId,
+        analiseJaIniciada: analiseIniciadaRef.current
+      });
+    };
+  }, []);
+  
+  /**
+   * useEffect para iniciar análise e fazer polling
+   * 
+   * FLUXO:
+   * 1. Inicia análise (POST /api/peticoes/{id}/analisar) - apenas 1 vez
+   * 2. Inicia polling (GET /api/peticoes/{id}/status-analise) - a cada 2s
+   * 3. Atualiza progresso/etapa no state pai
+   * 4. Quando concluir, busca resultado completo
+   * 5. Limpa interval ao desmontar componente
+   */
+  useEffect(() => {
+    let intervalId: number | undefined;
+    
+    const iniciarAnaliseEPolling = async () => {
+      console.log('[EtapaProcessamento] 🚀 Tentando iniciar análise...', {
+        analiseJaIniciada: analiseIniciadaRef.current,
+        peticaoId
+      });
+      
+      // Proteção contra dupla execução (StrictMode desmonta/remonta em dev)
+      if (analiseIniciadaRef.current) {
+        console.log('[EtapaProcessamento] ⚠️  Análise já iniciada (useRef), ignorando chamada duplicada');
+        return;
+      }
+      analiseIniciadaRef.current = true;
+      console.log('[EtapaProcessamento] ✅ Flag setada, prosseguindo com análise...');
+      
+      try {
+        console.log('[EtapaProcessamento] 📤 CHAMANDO API iniciarAnalise...', {
+          peticaoId,
+          agentesSelecionados,
+          timestamp: new Date().toISOString()
+        });
+        
+        // 1. Iniciar análise (POST)
+        await iniciarAnalise(peticaoId, {
+          agentes_selecionados: agentesSelecionados,
+        });
+        
+        console.log('[EtapaProcessamento] ✅ API iniciarAnalise retornou sucesso. Iniciando polling...');
+        
+        // 2. Iniciar polling (GET a cada 2s)
+        intervalId = pollingAnalise(
+          peticaoId,
+          // onProgress: atualiza barra de progresso
+          (progressoAtual, etapaAtual) => {
+            console.log('[EtapaProcessamento] Progresso:', progressoAtual, '%', '-', etapaAtual);
+            onProgressoAtualizado(progressoAtual, etapaAtual);
+          },
+          // onComplete: busca resultado e passa para pai
+          async () => {
+            console.log('[EtapaProcessamento] Análise concluída! Buscando resultado...');
+            try {
+              const respostaResultado = await obterResultadoAnalise(peticaoId);
+              console.log('[EtapaProcessamento] Resultado obtido:', respostaResultado.data);
+              onAnaliseConcluida(respostaResultado.data);
+            } catch (erroResultado) {
+              console.error('[EtapaProcessamento] Erro ao buscar resultado:', erroResultado);
+              onErro(
+                erroResultado instanceof Error
+                  ? erroResultado.message
+                  : 'Erro ao buscar resultado da análise'
+              );
+            }
+          },
+          // onError: reporta erro para pai
+          (mensagemErro) => {
+            console.error('[EtapaProcessamento] Erro no polling:', mensagemErro);
+            onErro(mensagemErro);
+          }
+        );
+      } catch (erroInicio) {
+        console.error('[EtapaProcessamento] Erro ao iniciar análise:', erroInicio);
+        onErro(
+          erroInicio instanceof Error
+            ? erroInicio.message
+            : 'Erro ao iniciar análise'
+        );
+      }
+    };
+    
+    // Executar apenas 1 vez ao montar
+    iniciarAnaliseEPolling();
+    
+    // Cleanup: limpar interval ao desmontar
+    return () => {
+      if (intervalId !== undefined) {
+        console.log('[EtapaProcessamento] Limpando polling (componente desmontado)');
+        clearInterval(intervalId);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Array vazio = executar apenas 1 vez (ao montar)
+  
+  // ===== RENDERIZAÇÃO =====
+  
   return (
     <div className="text-center py-12">
       <BarChart3 className="w-16 h-16 text-primary-600 mx-auto mb-4 animate-pulse" />
       <h2 className="text-xl font-semibold text-gray-900 mb-2">
-        Análise em Andamento
+        Análise Multi-Agent em Andamento
       </h2>
       <p className="text-gray-600 mb-6">
         Nossos agentes especialistas estão analisando sua petição...
@@ -537,37 +662,6 @@ function EtapaProcessamento({
       <p className="text-sm text-gray-500">
         Isso pode levar alguns minutos. Por favor, não feche esta página.
       </p>
-      
-      {/* Simular conclusão para desenvolvimento */}
-      <button
-        onClick={() => {
-          onAnaliseConcluida({
-            peticao_id: peticaoId,
-            proximos_passos: {
-              estrategia_recomendada: 'Estratégia simulada',
-              passos: [],
-            },
-            prognostico: {
-              cenario_mais_provavel: 'Vitória parcial',
-              cenarios: [],
-              recomendacao_geral: 'Recomendação simulada',
-              fatores_criticos: [],
-            },
-            pareceres_advogados: {},
-            pareceres_peritos: {},
-            documento_continuacao: {
-              tipo_peca: 'contestacao',
-              conteudo_markdown: '# Contestação Simulada',
-              conteudo_html: '<h1>Contestação Simulada</h1>',
-              sugestoes_personalizacao: [],
-            },
-            timestamp_conclusao: new Date().toISOString(),
-          });
-        }}
-        className="mt-6 btn btn-secondary text-xs"
-      >
-        Simular Conclusão (Dev)
-      </button>
     </div>
   );
 }
@@ -637,7 +731,7 @@ function EtapaResultados({
         />
       </div>
       
-      {/* Documento de Continuação (TAREFA-056 - Placeholder) */}
+      {/* Documento de Continuação (TAREFA-056 - Implementado) */}
       <div>
         <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
           <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary-100 text-primary-600 font-bold text-sm">
@@ -645,27 +739,7 @@ function EtapaResultados({
           </span>
           Documento Gerado
         </h3>
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-          <div className="flex items-start gap-3">
-            <div className="flex-shrink-0 text-yellow-600">
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div>
-              <h4 className="text-sm font-medium text-yellow-800 mb-1">
-                Componente em Desenvolvimento
-              </h4>
-              <p className="text-sm text-yellow-700">
-                O componente de visualização e download do documento gerado 
-                será implementado na <strong>TAREFA-056</strong>.
-              </p>
-              <p className="text-sm text-yellow-700 mt-2">
-                <strong>Preview:</strong> {resultado.documento_continuacao.tipo_peca} ({resultado.documento_continuacao.sugestoes_personalizacao.length} sugestões de personalização)
-              </p>
-            </div>
-          </div>
-        </div>
+        <ComponenteDocumentoContinuacao documento={resultado.documento_continuacao} />
       </div>
       
       {/* Botão de Nova Análise */}

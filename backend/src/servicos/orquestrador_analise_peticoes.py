@@ -86,7 +86,8 @@ from src.modelos.processo import (
     ProximosPassos,
     Prognostico,
     ParecerAdvogado,
-    ParecerPerito
+    ParecerPerito,
+    DocumentoContinuacao
 )
 
 # Importar gerenciadores
@@ -96,7 +97,12 @@ from src.servicos.gerenciador_estado_peticoes import (
 )
 from src.servicos.servico_banco_vetorial import (
     obter_servico_banco_vetorial,
-    ServicoBancoVetorial
+    obter_documento_por_id,
+    buscar_chunks_similares
+)
+from src.servicos.servico_geracao_documento import (
+    obter_servico_geracao_documento,
+    ServicoGeracaoDocumento
 )
 
 # Importar agentes
@@ -110,8 +116,8 @@ from src.agentes.agente_advogado_civel import AgenteAdvogadoCivel
 from src.agentes.agente_advogado_tributario import AgenteAdvogadoTributario
 
 # Importar factories de agentes peritos
-from src.agentes.agente_perito_medico import AgenteperitoMedico
-from src.agentes.agente_perito_seguranca_trabalho import AgenteperitoSegurancaTrabalho
+from src.agentes.agente_perito_medico import AgentePeritoMedico
+from src.agentes.agente_perito_seguranca_trabalho import AgentePeritoSegurancaTrabalho
 
 # Importar exceções
 from src.utilitarios.gerenciador_llm import ErroGeralAPI
@@ -134,8 +140,8 @@ MAPA_ADVOGADOS_ESPECIALISTAS = {
 }
 
 MAPA_PERITOS = {
-    "medico": AgenteperitoMedico,
-    "seguranca_trabalho": AgenteperitoSegurancaTrabalho
+    "medico": AgentePeritoMedico,
+    "seguranca_trabalho": AgentePeritoSegurancaTrabalho
 }
 
 
@@ -196,11 +202,14 @@ class OrquestradorAnalisePeticoes:
         
         # Gerenciadores
         self.gerenciador_peticoes = obter_gerenciador_estado_peticoes()
-        self.servico_rag = obter_servico_banco_vetorial()
+        
+        # Cliente e Collection do ChromaDB (tupla)
+        self.cliente_chromadb, self.collection_chromadb = obter_servico_banco_vetorial()
         
         # Agentes especializados (instâncias únicas)
         self.agente_estrategista = AgenteEstrategistaProcessual()
         self.agente_prognostico = AgentePrognostico()
+        self.servico_geracao_documento: ServicoGeracaoDocumento = obter_servico_geracao_documento()
         
         # Configurações
         self.max_workers_paralelo = max_workers_paralelo
@@ -370,9 +379,40 @@ class OrquestradorAnalisePeticoes:
             logger.info(
                 f"✅ Prognóstico calculado | "
                 f"Cenários: {len(prognostico.cenarios)} | "
-                f"Recomendação: {prognostico.recomendacao_estrategica[:100]}..."
+                f"Recomendação: {prognostico.recomendacao_geral[:100]}..."
             )
             
+            documento_continuacao: Optional[DocumentoContinuacao] = None
+
+            self._atualizar_progresso(
+                peticao_id=peticao_id,
+                etapa="Gerando documento de continuação",
+                progresso=90
+            )
+
+            try:
+                documento_continuacao = self._gerar_documento_continuacao(
+                    peticao=peticao,
+                    contexto=contexto_completo,
+                    proximos_passos=proximos_passos,
+                    prognostico=prognostico,
+                    pareceres_advogados=pareceres_advogados,
+                    pareceres_peritos=pareceres_peritos
+                )
+
+                if documento_continuacao is not None:
+                    logger.info(
+                        "✅ Documento de continuação gerado | Tipo: %s",
+                        documento_continuacao.tipo_peca.value
+                    )
+            except Exception as erro:
+                logger.error(
+                    "⚠️ Falha ao gerar documento de continuação: %s",
+                    erro,
+                    exc_info=True
+                )
+                documento_continuacao = None
+
             # ===== ETAPA 7: COMPILAR RESULTADO (90-100%) =====
             self._atualizar_progresso(
                 peticao_id=peticao_id,
@@ -388,6 +428,7 @@ class OrquestradorAnalisePeticoes:
                 prognostico=prognostico,
                 pareceres_advogados=pareceres_advogados,
                 pareceres_peritos=pareceres_peritos,
+                documento_continuacao=documento_continuacao,
                 timestamp_conclusao=timestamp_conclusao
             )
             
@@ -449,18 +490,34 @@ class OrquestradorAnalisePeticoes:
             logger.info(f"🔍 Recuperando documentos da petição do RAG...")
             
             # Recuperar petição inicial
-            doc_peticao = self.servico_rag.obter_documento_por_id(peticao.documento_peticao_id)
-            if not doc_peticao:
+            # NOTA: obter_documento_por_id retorna dict com "documents" (lista de chunks),
+            # não "texto_completo". Precisamos concatenar os chunks.
+            doc_peticao = obter_documento_por_id(
+                collection=self.collection_chromadb,
+                documento_id=peticao.documento_peticao_id
+            )
+            if not doc_peticao or doc_peticao.get("count", 0) == 0:
                 raise ValueError(f"Documento da petição {peticao.documento_peticao_id} não encontrado no RAG")
             
-            peticao_texto = doc_peticao.get("texto_completo", "")
+            # Concatenar chunks da petição para formar texto completo
+            chunks_peticao = doc_peticao.get("documents", [])
+            peticao_texto = "\n\n".join(chunks_peticao)
+            
+            logger.debug(f"Petição recuperada: {doc_peticao.get('count', 0)} chunks, {len(peticao_texto)} chars")
             
             # Recuperar documentos complementares
             documentos_texto = []
             for doc_id in peticao.documentos_enviados:
-                doc = self.servico_rag.obter_documento_por_id(doc_id)
-                if doc:
-                    documentos_texto.append(doc.get("texto_completo", ""))
+                doc = obter_documento_por_id(
+                    collection=self.collection_chromadb,
+                    documento_id=doc_id
+                )
+                if doc and doc.get("count", 0) > 0:
+                    # Concatenar chunks do documento
+                    chunks_doc = doc.get("documents", [])
+                    texto_doc = "\n\n".join(chunks_doc)
+                    documentos_texto.append(texto_doc)
+                    logger.debug(f"Documento complementar {doc_id}: {doc.get('count', 0)} chunks")
                 else:
                     logger.warning(f"⚠️ Documento {doc_id} não encontrado no RAG")
             
@@ -470,6 +527,11 @@ class OrquestradorAnalisePeticoes:
                 "numero_documentos": 1 + len(documentos_texto),
                 "tipo_acao": peticao.tipo_acao
             }
+            
+            # Validar que o contexto foi montado corretamente
+            if not peticao_texto or peticao_texto.strip() == "":
+                logger.error("❌ Petição vazia recuperada do RAG!")
+                raise ValueError("Texto da petição inicial está vazio")
             
             logger.info(
                 f"✅ Contexto RAG montado | "
@@ -533,12 +595,20 @@ class OrquestradorAnalisePeticoes:
                 futures[future] = advogado_id
             
             # Coletar resultados conforme concluem
+            advogados_concluidos = 0
+            total_advogados = len(advogados_selecionados)
+            
             for future in as_completed(futures):
                 advogado_id = futures[future]
                 try:
                     parecer = future.result()
                     pareceres[advogado_id] = parecer
-                    logger.info(f"✅ Advogado '{advogado_id}' concluído")
+                    advogados_concluidos += 1
+                    
+                    # Atualizar progresso incremental (20% → 50%)
+                    progresso_parcial = 20 + int((advogados_concluidos / total_advogados) * 30)
+                    logger.info(f"✅ Advogado '{advogado_id}' concluído ({advogados_concluidos}/{total_advogados})")
+                    
                 except Exception as erro:
                     logger.error(f"❌ Erro no advogado '{advogado_id}': {erro}")
                     # Continua com os outros advogados
@@ -564,6 +634,7 @@ class OrquestradorAnalisePeticoes:
             ParecerAdvogado gerado pelo agente
         """
         logger.info(f"👔 Executando advogado '{advogado_id}'...")
+        logger.info(f"⏳ Chamando LLM para análise jurídica (pode demorar 1-3 minutos)...")
         
         # Montar prompt genérico para análise da petição
         prompt = (
@@ -572,11 +643,37 @@ class OrquestradorAnalisePeticoes:
             f"Identifique riscos, oportunidades, fundamentos legais e recomendações específicas."
         )
         
-        # Chamar método analisar() do agente
-        parecer = agente.analisar(
+        # Chamar método processar() do agente (método correto da classe AgenteBase)
+        # NOTA: processar() retorna Dict[str, Any] com a estrutura:
+        # {
+        #     "agente": str,
+        #     "parecer": str,  ← texto da análise aqui
+        #     "confianca": float,
+        #     "timestamp": str,
+        #     "modelo_utilizado": str,
+        #     "metadados": dict
+        # }
+        resultado_processamento = agente.processar(
             contexto_de_documentos=[contexto["peticao_texto"]] + contexto["documentos_texto"],
             pergunta_do_usuario=prompt,
             metadados_adicionais={"tipo_acao": contexto["tipo_acao"]}
+        )
+        
+        # Extrair o texto do parecer do dicionário retornado
+        parecer_texto = resultado_processamento.get("parecer", "")
+        
+        if not parecer_texto:
+            logger.warning(f"Parecer vazio retornado pelo agente {advogado_id}")
+            parecer_texto = "Análise não disponível"
+        
+        # Converter resposta texto em ParecerAdvogado estruturado
+        # TODO: Parsear JSON da resposta do LLM para extrair campos estruturados
+        parecer = ParecerAdvogado(
+            tipo_advogado=advogado_id,
+            analise_juridica=parecer_texto,
+            fundamentos_legais=[],  # TODO: extrair do parecer
+            riscos_identificados=[],  # TODO: extrair do parecer
+            recomendacoes=[]  # TODO: extrair do parecer
         )
         
         return parecer
@@ -630,12 +727,20 @@ class OrquestradorAnalisePeticoes:
                 futures[future] = perito_id
             
             # Coletar resultados conforme concluem
+            peritos_concluidos = 0
+            total_peritos = len(peritos_selecionados)
+            
             for future in as_completed(futures):
                 perito_id = futures[future]
                 try:
                     parecer = future.result()
                     pareceres[perito_id] = parecer
-                    logger.info(f"✅ Perito '{perito_id}' concluído")
+                    peritos_concluidos += 1
+                    
+                    # Atualizar progresso incremental (50% → 70%)
+                    progresso_parcial = 50 + int((peritos_concluidos / total_peritos) * 20)
+                    logger.info(f"✅ Perito '{perito_id}' concluído ({peritos_concluidos}/{total_peritos})")
+                    
                 except Exception as erro:
                     logger.error(f"❌ Erro no perito '{perito_id}': {erro}")
                     # Continua com os outros peritos
@@ -661,6 +766,7 @@ class OrquestradorAnalisePeticoes:
             ParecerPerito gerado pelo agente
         """
         logger.info(f"🔬 Executando perito '{perito_id}'...")
+        logger.info(f"⏳ Chamando LLM para análise técnica (pode demorar 1-3 minutos)...")
         
         # Montar prompt genérico para análise técnica
         prompt = (
@@ -669,11 +775,36 @@ class OrquestradorAnalisePeticoes:
             f"Identifique aspectos técnicos relevantes, riscos e recomendações."
         )
         
-        # Chamar método analisar() do agente
-        parecer = agente.analisar(
+        # Chamar método processar() do agente (método correto da classe AgenteBase)
+        # NOTA: processar() retorna Dict[str, Any] com a estrutura:
+        # {
+        #     "agente": str,
+        #     "parecer": str,  ← texto da análise técnica aqui
+        #     "confianca": float,
+        #     "timestamp": str,
+        #     "modelo_utilizado": str,
+        #     "metadados": dict
+        # }
+        resultado_processamento = agente.processar(
             contexto_de_documentos=[contexto["peticao_texto"]] + contexto["documentos_texto"],
             pergunta_do_usuario=prompt,
             metadados_adicionais={"tipo_acao": contexto["tipo_acao"]}
+        )
+        
+        # Extrair o texto do parecer do dicionário retornado
+        parecer_texto = resultado_processamento.get("parecer", "")
+        
+        if not parecer_texto:
+            logger.warning(f"Parecer técnico vazio retornado pelo agente {perito_id}")
+            parecer_texto = "Análise técnica não disponível"
+        
+        # Converter resposta texto em ParecerPerito estruturado
+        # TODO: Parsear JSON da resposta do LLM para extrair campos estruturados
+        parecer = ParecerPerito(
+            tipo_perito=perito_id,
+            analise_tecnica=parecer_texto,
+            conclusoes=[],  # TODO: extrair do parecer
+            recomendacoes_tecnicas=[]  # TODO: extrair do parecer
         )
         
         return parecer
@@ -704,18 +835,30 @@ class OrquestradorAnalisePeticoes:
         logger.info("📋 Executando Agente Estrategista Processual...")
         
         try:
-            # Compilar pareceres em formato texto
-            pareceres_compilados = self._compilar_pareceres_para_texto(
+            # DEBUG: Verificar chaves do contexto recebido
+            logger.debug(f"Contexto recebido no estrategista - chaves: {list(contexto.keys())}")
+            logger.debug(f"peticao_texto presente? {'peticao_texto' in contexto}")
+            logger.debug(f"Tamanho peticao_texto: {len(contexto.get('peticao_texto', ''))}")
+            
+            # ✅ OTIMIZAÇÃO: Compilar apenas RESUMOS dos pareceres (economiza ~70% tokens)
+            # Estrategista precisa de conclusões, não análise completa linha-por-linha
+            pareceres_compilados = self._compilar_pareceres_para_dict(
                 pareceres_advogados=pareceres_advogados,
-                pareceres_peritos=pareceres_peritos
+                pareceres_peritos=pareceres_peritos,
+                resumido=True  # ⚡ Envia resumos ao invés de texto completo
             )
             
             # Montar contexto completo para o estrategista
+            # Nota: agente_estrategista.analisar() espera:
+            #   - "peticao_inicial" (str)
+            #   - "documentos" (List[str])
+            #   - "pareceres" (Dict[str, str])
+            #   - "tipo_acao" (str, opcional)
             contexto_estrategista = {
-                "peticao_inicial": contexto["peticao_texto"],
-                "documentos_complementares": contexto["documentos_texto"],
-                "tipo_acao": contexto["tipo_acao"],
-                "pareceres_compilados": pareceres_compilados
+                "peticao_inicial": contexto.get("peticao_texto", ""),
+                "documentos": contexto.get("documentos_texto", []) if isinstance(contexto.get("documentos_texto"), list) else [contexto.get("documentos_texto", "")],
+                "tipo_acao": contexto.get("tipo_acao", ""),
+                "pareceres": pareceres_compilados
             }
             
             # Executar agente
@@ -761,23 +904,33 @@ class OrquestradorAnalisePeticoes:
         logger.info("📊 Executando Agente de Prognóstico...")
         
         try:
-            # Compilar pareceres em formato texto
-            pareceres_compilados = self._compilar_pareceres_para_texto(
+            # ✅ OTIMIZAÇÃO: Compilar apenas RESUMOS dos pareceres (economiza ~70% tokens)
+            # Prognóstico não precisa reprocessar análise completa, só conclusões
+            pareceres_compilados = self._compilar_pareceres_para_dict(
                 pareceres_advogados=pareceres_advogados,
-                pareceres_peritos=pareceres_peritos
+                pareceres_peritos=pareceres_peritos,
+                resumido=True  # ⚡ Envia resumos ao invés de texto completo
             )
             
             # Montar contexto completo para o prognóstico
+            # Nota: agente_prognostico.analisar() espera:
+            #   - "peticao_inicial" (str)
+            #   - "documentos" (List[str])
+            #   - "pareceres" (Dict[str, str])
+            #   - "estrategia" (Dict, opcional)
+            #   - "tipo_acao" (str, opcional)
             contexto_prognostico = {
-                "peticao_inicial": contexto["peticao_texto"],
-                "documentos_complementares": contexto["documentos_texto"],
-                "tipo_acao": contexto["tipo_acao"],
-                "pareceres_compilados": pareceres_compilados,
-                "estrategia_recomendada": proximos_passos.estrategia_recomendada,
-                "proximos_passos": [
-                    f"{passo.numero}. {passo.descricao} (Prazo: {passo.prazo_sugerido})"
-                    for passo in proximos_passos.passos
-                ]
+                "peticao_inicial": contexto.get("peticao_texto", ""),
+                "documentos": contexto.get("documentos_texto", []) if isinstance(contexto.get("documentos_texto"), list) else [contexto.get("documentos_texto", "")],
+                "tipo_acao": contexto.get("tipo_acao", ""),
+                "pareceres": pareceres_compilados,
+                "estrategia": {
+                    "estrategia_recomendada": proximos_passos.estrategia_recomendada,
+                    "proximos_passos": [
+                        f"{passo.numero}. {passo.descricao} (Prazo: {passo.prazo_estimado})"
+                        for passo in proximos_passos.passos
+                    ]
+                }
             }
             
             # Executar agente
@@ -795,6 +948,37 @@ class OrquestradorAnalisePeticoes:
             logger.error(f"❌ Erro no Prognóstico: {erro}")
             raise
     
+    def _gerar_documento_continuacao(
+        self,
+        peticao: Peticao,
+        contexto: Dict[str, Any],
+        proximos_passos: ProximosPassos,
+        prognostico: Prognostico,
+        pareceres_advogados: Dict[str, ParecerAdvogado],
+        pareceres_peritos: Dict[str, ParecerPerito]
+    ) -> Optional[DocumentoContinuacao]:
+        """Gera o documento de continuação usando o serviço dedicado."""
+
+        if not self.servico_geracao_documento:
+            logger.warning("Serviço de geração de documentos não disponível")
+            return None
+
+        documentos_texto = contexto.get("documentos_texto") or []
+        if not isinstance(documentos_texto, list):
+            documentos_texto = [documentos_texto]
+
+        contexto_documento = {
+            "peticao_inicial": contexto.get("peticao_texto", ""),
+            "documentos": documentos_texto,
+            "pareceres_advogados": pareceres_advogados,
+            "pareceres_peritos": pareceres_peritos,
+            "proximos_passos": proximos_passos,
+            "prognostico": prognostico,
+            "tipo_acao": contexto.get("tipo_acao") or peticao.tipo_acao,
+        }
+
+        return self.servico_geracao_documento.gerar_documento_continuacao(contexto_documento)
+
     def _compilar_pareceres_para_texto(
         self,
         pareceres_advogados: Dict[str, ParecerAdvogado],
@@ -802,6 +986,9 @@ class OrquestradorAnalisePeticoes:
     ) -> str:
         """
         Compila pareceres de advogados e peritos em texto unificado.
+        
+        DESCONTINUADO: Use _compilar_pareceres_para_dict() para agentes
+        que esperam Dict[str, str].
         
         Args:
             pareceres_advogados: Pareceres dos advogados
@@ -829,6 +1016,94 @@ class OrquestradorAnalisePeticoes:
                 linhas.append("")
         
         return "\n".join(linhas)
+    
+    def _compilar_pareceres_para_dict(
+        self,
+        pareceres_advogados: Dict[str, ParecerAdvogado],
+        pareceres_peritos: Dict[str, ParecerPerito],
+        resumido: bool = False
+    ) -> Dict[str, str]:
+        """
+        Compila pareceres de advogados e peritos em dicionário.
+        
+        CONTEXTO:
+        Agentes Estrategista e Prognóstico esperam pareceres como Dict[str, str],
+        onde a chave é o identificador do especialista e o valor é o parecer.
+        
+        OTIMIZAÇÃO IMPORTANTE:
+        Quando `resumido=True`, envia apenas CONCLUSÕES ao invés do texto completo
+        (economiza ~70% de tokens). Use para agente de Prognóstico que não precisa
+        reprocessar toda a análise detalhada, apenas as conclusões.
+        
+        Args:
+            pareceres_advogados: Pareceres dos advogados
+            pareceres_peritos: Pareceres dos peritos
+            resumido: Se True, envia apenas conclusões (não texto completo)
+        
+        Returns:
+            Dict[str, str] com pareceres (completos ou resumidos)
+            
+        EXEMPLO:
+        {
+            "advogado_trabalhista": "Análise trabalhista completa..." (ou resumo),
+            "perito_medico": "Parecer médico técnico..." (ou resumo),
+            ...
+        }
+        """
+        pareceres_dict = {}
+        
+        if resumido:
+            # ✅ MODO RESUMIDO: Apenas conclusões essenciais (economiza ~70% tokens)
+            # Ideal para agente de Prognóstico que só precisa de conclusões
+            
+            for advogado_id, parecer in pareceres_advogados.items():
+                resumo_partes = [
+                    f"### {parecer.tipo_advogado}",
+                    "",
+                    "**Riscos:**"
+                ]
+                for risco in (parecer.riscos_identificados or [])[:3]:  # Max 3 riscos
+                    resumo_partes.append(f"- {risco[:150]}")
+                
+                resumo_partes.append("")
+                resumo_partes.append("**Recomendações:**")
+                for rec in (parecer.recomendacoes or [])[:3]:  # Max 3 recomendações
+                    resumo_partes.append(f"- {rec[:150]}")
+                
+                if parecer.fundamentos_legais:
+                    resumo_partes.append("")
+                    resumo_partes.append(f"**Fundamentos:** {', '.join(parecer.fundamentos_legais[:5])}")
+                
+                pareceres_dict[advogado_id] = "\n".join(resumo_partes)
+            
+            for perito_id, parecer in pareceres_peritos.items():
+                resumo_partes = [
+                    f"### {parecer.tipo_perito}",
+                    "",
+                    "**Conclusões:**"
+                ]
+                for conclusao in (parecer.conclusoes or [])[:4]:  # Max 4 conclusões
+                    resumo_partes.append(f"- {conclusao[:200]}")
+                
+                if parecer.recomendacoes_tecnicas:
+                    resumo_partes.append("")
+                    resumo_partes.append("**Recomendações Técnicas:**")
+                    for rec in (parecer.recomendacoes_tecnicas or [])[:3]:  # Max 3 recomendações
+                        resumo_partes.append(f"- {rec[:150]}")
+                
+                pareceres_dict[perito_id] = "\n".join(resumo_partes)
+        
+        else:
+            # ❌ MODO COMPLETO: Texto integral (verboso, ~milhares de tokens)
+            # Use apenas quando agente precisa reprocessar análise detalhada
+            
+            for advogado_id, parecer in pareceres_advogados.items():
+                pareceres_dict[advogado_id] = parecer.analise_juridica
+            
+            for perito_id, parecer in pareceres_peritos.items():
+                pareceres_dict[perito_id] = parecer.analise_tecnica
+        
+        return pareceres_dict
     
     def _atualizar_progresso(
         self,

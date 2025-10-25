@@ -1631,19 +1631,40 @@ async def endpoint_iniciar_analise_peticao(
         )
     
     # Validar que petição está no status correto
-    if peticao.status != StatusPeticao.AGUARDANDO_DOCUMENTOS:
+    # Aceita: AGUARDANDO_DOCUMENTOS (primeira vez) ou ERRO (reprocessamento)
+    # Rejeita: PROCESSANDO (já em andamento) ou CONCLUIDA (já finalizada)
+    status_permitidos = [StatusPeticao.AGUARDANDO_DOCUMENTOS, StatusPeticao.ERRO]
+    
+    if peticao.status not in status_permitidos:
+        # Mensagens específicas por status
+        if peticao.status == StatusPeticao.PROCESSANDO:
+            mensagem_erro = (
+                f"Análise já está em andamento. "
+                f"Consulte o progresso em GET /api/peticoes/{peticao_id}/status-analise."
+            )
+        elif peticao.status == StatusPeticao.CONCLUIDA:
+            mensagem_erro = (
+                f"Petição já foi analisada. "
+                f"Consulte o resultado em GET /api/peticoes/{peticao_id}/resultado."
+            )
+        else:
+            mensagem_erro = (
+                f"Petição está em status '{peticao.status.value}'. "
+                f"Análise só pode ser iniciada se status = 'aguardando_documentos' ou 'erro' (reprocessamento)."
+            )
+        
         logger.warning(
             f"[PETICAO-ANALISE] Status inválido - peticao_id: {peticao_id}, "
-            f"status_atual: {peticao.status.value}, status_esperado: aguardando_documentos"
+            f"status_atual: {peticao.status.value}, status_permitidos: {[s.value for s in status_permitidos]}"
         )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                f"Petição está em status '{peticao.status.value}'. "
-                f"Análise só pode ser iniciada se status = 'aguardando_documentos'. "
-                f"Se análise já foi iniciada, consulte GET /api/peticoes/{peticao_id}/status-analise."
-            )
+            detail=mensagem_erro
         )
+    
+    # Se estava em erro, logar que está reprocessando
+    if peticao.status == StatusPeticao.ERRO:
+        logger.info(f"[PETICAO-ANALISE] Reprocessando petição que estava em erro: {peticao_id}")
     
     # Extrair agentes selecionados
     agentes_selecionados = requisicao.agentes_selecionados
@@ -2100,7 +2121,11 @@ async def endpoint_obter_resultado_analise(peticao_id: str):
             tipo: parecer.dict()
             for tipo, parecer in resultado.pareceres_peritos.items()
         },
-        documento_continuacao=resultado.documento_continuacao.dict(),
+        documento_continuacao=(
+            resultado.documento_continuacao.dict()
+            if resultado.documento_continuacao is not None
+            else None
+        ),
         tempo_processamento_segundos=(
             (resultado.timestamp_conclusao - peticao.timestamp_criacao).total_seconds()
         ),

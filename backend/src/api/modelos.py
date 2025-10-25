@@ -22,10 +22,10 @@ async def upload(file: UploadFile):
         sucesso=True,
         mensagem="Upload concluído",
         # ...
-    )
-```
-
-JUSTIFICATIVA PARA LLMs:
+        documento_continuacao: Optional[Dict[str, Any]] = Field(
+            default=None,
+            description="Documento de continuação gerado automaticamente (pode ser None se ainda não houver documento)"
+        )
 - Centraliza todos os modelos de API em um único arquivo
 - Type hints explícitos facilitam compreensão
 - Validações customizadas em um só lugar
@@ -2428,8 +2428,8 @@ class RespostaResultadoAnalisePeticao(BaseModel):
         )
     )
     
-    documento_continuacao: Dict[str, Any] = Field(
-        ...,
+    documento_continuacao: Optional[Dict[str, Any]] = Field(
+        default=None,
         description=(
             "Documento de continuação gerado automaticamente. "
             "Contém: tipo_peca, conteudo_markdown, conteudo_html, sugestoes_personalizacao"

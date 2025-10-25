@@ -144,7 +144,6 @@ class AgentePrognostico(AgenteBase):
         )
         
         # Configuração de LLM otimizada para análise probabilística
-        # Usar GPT-5-nano para análise (melhor custo-benefício)
         self.modelo_llm_padrao = "gpt-5-nano-2025-08-07"
         
         # Temperatura MUITO BAIXA (0.2) para garantir objetividade
@@ -152,7 +151,7 @@ class AgentePrognostico(AgenteBase):
         self.temperatura_padrao = 0.2
         
         logger.info(
-            f"Agente '{self.nome_do_agente}' inicializado "
+            f"⚙️  Agente '{self.nome_do_agente}' inicializado "
             f"(modelo: {self.modelo_llm_padrao}, temperatura: {self.temperatura_padrao})"
         )
     
@@ -468,10 +467,11 @@ Agora, analise probabilisticamente este caso e forneça seu prognóstico em JSON
                 prompt=prompt,
                 modelo=self.modelo_llm_padrao,
                 temperatura=self.temperatura_padrao,
-                max_tokens=4000  # Prognóstico pode ser extenso (múltiplos cenários)
+                max_tokens=20000,  # ✅ Aumentado para 20000 para acomodar reasoning tokens do gpt-5-nano
+                response_schema=Prognostico  # ✅ STRUCTURED OUTPUTS: garante formato exato
             )
             
-            logger.debug(f"Resposta do LLM recebida: {len(resposta_llm)} caracteres")
+            logger.info(f"✅ Resposta recebida: {len(resposta_llm) if resposta_llm else 0} caracteres")
             
         except Exception as e:
             logger.error(f"Erro ao chamar LLM: {str(e)}")

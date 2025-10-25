@@ -473,6 +473,30 @@ class ProximosPassos(BaseModel):
 
 # ===== MODELOS DE PROGNÓSTICO =====
 
+class ValoresEstimados(BaseModel):
+    """Valores financeiros esperados para um cenário específico."""
+
+    receber: float = Field(
+        ...,
+        description="Valor que o cliente provavelmente receberá (R$)",
+        ge=0
+    )
+
+    pagar: float = Field(
+        ...,
+        description="Valor que o cliente provavelmente terá que pagar (custas, honorários) em R$",
+        ge=0
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "receber": 50000.00,
+                "pagar": 0.00
+            }
+        }
+
+
 class Cenario(BaseModel):
     """
     Cenário/desfecho possível do processo com probabilidade estimada.
@@ -515,9 +539,9 @@ class Cenario(BaseModel):
         max_length=1000
     )
     
-    valores_estimados: Dict[str, float] = Field(
-        default_factory=dict,
-        description="Valores financeiros estimados: {'receber': X, 'pagar': Y} em R$"
+    valores_estimados: ValoresEstimados = Field(
+        ...,
+        description="Valores financeiros estimados (receber/pagar) em R$"
     )
     
     tempo_estimado_meses: int = Field(
@@ -674,7 +698,7 @@ class ParecerAdvogado(BaseModel):
         ...,
         description="Análise jurídica detalhada do caso sob a perspectiva desta especialização",
         min_length=100,
-        max_length=10000
+        max_length=50000  # Aumentado para suportar análises detalhadas (antes: 10000)
     )
     
     fundamentos_legais: List[str] = Field(
@@ -748,7 +772,7 @@ class ParecerPerito(BaseModel):
         ...,
         description="Análise técnica detalhada sob a perspectiva da especialização do perito",
         min_length=100,
-        max_length=10000
+        max_length=50000  # Aumentado para suportar análises técnicas detalhadas (antes: 10000)
     )
     
     conclusoes: List[str] = Field(
@@ -897,9 +921,9 @@ class ResultadoAnaliseProcesso(BaseModel):
         description="Pareceres técnicos dos peritos (chave = tipo_perito)"
     )
     
-    documento_continuacao: DocumentoContinuacao = Field(
-        ...,
-        description="Documento de continuação gerado automaticamente"
+    documento_continuacao: Optional[DocumentoContinuacao] = Field(
+        default=None,
+        description="Documento de continuação gerado automaticamente (pode ser None se ainda não disponível)"
     )
     
     timestamp_conclusao: datetime = Field(

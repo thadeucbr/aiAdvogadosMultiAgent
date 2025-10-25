@@ -1246,6 +1246,67 @@ def verificar_saude_banco_vetorial() -> dict[str, Any]:
     return resultado
 
 
+# ===== FUNÇÃO FACTORY (SINGLETON) =====
+
+# Cache global para singleton
+_instancia_chromadb: Optional[tuple[chromadb.ClientAPI, Collection]] = None
+
+
+def obter_servico_banco_vetorial() -> tuple[chromadb.ClientAPI, Collection]:
+    """
+    Factory function (singleton) para obter instância do ChromaDB.
+    
+    CONTEXTO:
+    Esta função garante que apenas UMA conexão com ChromaDB seja criada
+    durante toda a execução da aplicação (padrão Singleton).
+    
+    QUANDO USAR:
+    Use esta função em vez de chamar inicializar_chromadb() diretamente
+    sempre que precisar acessar o ChromaDB em outros módulos.
+    
+    BENEFÍCIOS:
+    - ✅ Performance: Evita reconexões desnecessárias
+    - ✅ Memória: Uma única instância em toda aplicação
+    - ✅ Simplicidade: Interface unificada
+    
+    EXEMPLO:
+    ```python
+    # Em qualquer módulo:
+    from src.servicos.servico_banco_vetorial import obter_servico_banco_vetorial
+    
+    cliente, collection = obter_servico_banco_vetorial()
+    
+    # Usar cliente e collection normalmente
+    resultados = buscar_chunks_similares(collection, "nexo causal", k=5)
+    ```
+    
+    Returns:
+        tuple[chromadb.ClientAPI, Collection]: Tupla com (cliente, collection)
+    
+    Raises:
+        ErroDeInicializacao: Se falhar ao conectar ao ChromaDB
+    """
+    global _instancia_chromadb
+    
+    # Se já existe instância, retornar cache
+    if _instancia_chromadb is not None:
+        logger.debug("♻️ Reutilizando instância existente do ChromaDB (singleton)")
+        return _instancia_chromadb
+    
+    # Primeira vez: criar instância
+    logger.info("🔄 Criando nova instância do ChromaDB (singleton)...")
+    try:
+        cliente, collection = inicializar_chromadb()
+        _instancia_chromadb = (cliente, collection)
+        logger.info("✅ Instância do ChromaDB criada e armazenada em cache")
+        return _instancia_chromadb
+    except Exception as erro:
+        logger.error(f"❌ Erro ao criar instância do ChromaDB: {erro}")
+        raise ErroDeInicializacao(
+            f"Falha ao inicializar ChromaDB: {erro}"
+        ) from erro
+
+
 # ===== BLOCO DE TESTES (Desenvolvimento) =====
 
 if __name__ == "__main__":

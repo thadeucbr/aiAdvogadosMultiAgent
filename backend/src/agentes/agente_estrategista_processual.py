@@ -151,14 +151,14 @@ class AgenteEstrategistaProcessual(AgenteBase):
             "e considera aspectos práticos, riscos e oportunidades processuais."
         )
         
-        # Modelo de LLM: GPT-5-nano para análise estratégica complexa
+        # Modelo de LLM: GPT-5-nano para análise estratégica
         self.modelo_llm_padrao = "gpt-5-nano-2025-08-07"
         
         # Temperatura: baixa para objetividade (análise estratégica requer precisão)
         self.temperatura_padrao = 0.3
         
         logger.info(
-            f"Agente '{self.nome_do_agente}' inicializado com sucesso. "
+            f"⚙️  Agente '{self.nome_do_agente}' inicializado. "
             f"Modelo: {self.modelo_llm_padrao}, Temperatura: {self.temperatura_padrao}"
         )
     
@@ -254,9 +254,13 @@ pareceres dos especialistas), você deve elaborar:
 
 ## FORMATO DE SAÍDA
 
-Responda EXCLUSIVAMENTE em JSON, seguindo esta estrutura EXATA:
+**IMPORTANTE: RESPONDA APENAS E EXCLUSIVAMENTE EM FORMATO JSON.**
+**NÃO INCLUA TEXTO ANTES OU DEPOIS DO JSON.**
+**NÃO USE MARKDOWN (```json).**
+**APENAS O JSON PURO.**
 
-```json
+Estrutura EXATA obrigatória:
+
 {{
   "estrategia_recomendada": "string (100-2000 caracteres)",
   "passos": [
@@ -265,19 +269,16 @@ Responda EXCLUSIVAMENTE em JSON, seguindo esta estrutura EXATA:
       "descricao": "string (20-1000 caracteres)",
       "prazo_estimado": "string (ex: '15 dias')",
       "documentos_necessarios": ["string", "string"]
-    }},
-    ...
+    }}
   ],
   "caminhos_alternativos": [
     {{
       "titulo": "string (5-200 caracteres)",
       "descricao": "string (20-1000 caracteres)",
       "quando_considerar": "string (20-500 caracteres)"
-    }},
-    ...
+    }}
   ]
 }}
-```
 
 ## DIRETRIZES DE QUALIDADE
 
@@ -379,23 +380,25 @@ Agora, analise estrategicamente este caso e forneça sua resposta em JSON.
             metadados_adicionais=metadados_adicionais
         )
         
-        logger.debug(f"Prompt montado: {len(prompt)} caracteres")
+        logger.info(f"📝 Prompt montado: {len(prompt)} caracteres")
+        logger.info(f"🔧 Modelo: {self.modelo_llm_padrao}, Temperatura: {self.temperatura_padrao}, Max tokens: 4000")
         
-        # CHAMAR LLM
-        logger.info("Chamando LLM para análise estratégica...")
+                # CHAMAR LLM
+        logger.info("🤖 Chamando LLM para análise estratégica...")
         
         try:
             resposta_llm = self.gerenciador_llm.chamar_llm(
                 prompt=prompt,
                 modelo=self.modelo_llm_padrao,
                 temperatura=self.temperatura_padrao,
-                max_tokens=4000  # Estratégia pode ser extensa
+                max_tokens=20000,  # ✅ Aumentado para 20000 para acomodar reasoning tokens do gpt-5-nano
+                response_schema=ProximosPassos  # ✅ STRUCTURED OUTPUTS: garante formato exato
             )
             
-            logger.debug(f"Resposta do LLM recebida: {len(resposta_llm)} caracteres")
+            logger.info(f"✅ Resposta recebida: {len(resposta_llm) if resposta_llm else 0} caracteres")
             
         except Exception as e:
-            logger.error(f"Erro ao chamar LLM: {str(e)}")
+            logger.error(f"❌ Erro ao chamar LLM: {str(e)}")
             raise Exception(f"Falha na comunicação com LLM: {str(e)}")
         
         # PARSEAR RESPOSTA JSON
@@ -419,11 +422,15 @@ Agora, analise estrategicamente este caso e forneça sua resposta em JSON.
                     dados_estrategia = json.loads(json_extraido)
                     logger.info("JSON extraído com sucesso do texto")
                 else:
+                    logger.error("❌ Não foi possível encontrar JSON na resposta")
+                    logger.error(f"Tipo da resposta: {type(resposta_llm)}")
+                    logger.error(f"Tamanho da resposta: {len(resposta_llm) if resposta_llm else 'None'}")
+                    logger.error(f"Resposta COMPLETA do LLM:\n{resposta_llm}")
                     raise ValueError("Não foi possível encontrar JSON na resposta")
                     
             except Exception as e:
                 logger.error(f"Erro ao extrair JSON: {str(e)}")
-                logger.error(f"Resposta do LLM: {resposta_llm[:500]}...")
+                logger.error(f"Resposta COMPLETA do LLM:\n{resposta_llm}")
                 raise ValueError(
                     f"Não foi possível parsear resposta do LLM como JSON: {str(e)}"
                 )

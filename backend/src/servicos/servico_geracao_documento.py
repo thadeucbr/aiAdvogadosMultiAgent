@@ -40,14 +40,20 @@ O documento gerado é o produto final entregue ao advogado.
 
 import logging
 import re
-import json
 from typing import Dict, Any, List, Optional
 from functools import lru_cache
 
-import markdown
+# markdown é opcional; se não disponível, usamos fallback simples
+try:  # pragma: no cover - import guard
+    import markdown  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - ambiente sem dependência opcional
+    markdown = None  # type: ignore
+    logging.getLogger(__name__).warning(
+        "Biblioteca 'markdown' não instalada. Fallback basico será usado para gerar HTML."
+    )
 
-from agentes.gerenciador_llm import obter_gerenciador_llm, GerenciadorLLM
-from modelos.processo import (
+from src.utilitarios.gerenciador_llm import obter_gerenciador_llm, GerenciadorLLM
+from src.modelos.processo import (
     DocumentoContinuacao,
     TipoPecaContinuacao,
     ProximosPassos,
@@ -175,11 +181,13 @@ class ServicoGeracaoDocumento:
         logger.info("Etapa 4/7: Chamando gpt-5-nano-2025-08-07 para gerar documento...")
         try:
             conteudo_markdown = self.gerenciador_llm.chamar_llm(
-                mensagem_do_sistema="Você é um redator jurídico experiente especializado em documentos processuais formais.",
-                prompt_do_usuario=prompt,
+                prompt=prompt,
                 modelo=self.modelo_padrao,
                 temperatura=self.temperatura_padrao,
-                max_tokens=self.max_tokens_padrao
+                max_tokens=self.max_tokens_padrao,
+                mensagens_de_sistema=(
+                    "Você é um redator jurídico experiente especializado em documentos processuais formais."
+                )
             )
             logger.info(f"Documento gerado com {len(conteudo_markdown)} caracteres")
         except Exception as e:
@@ -636,6 +644,12 @@ de forma clara para facilitar a decisão do magistrado.
         Raises:
             Exception: Se conversão falhar
         """
+        if markdown is None:
+            logger.warning(
+                "Biblioteca 'markdown' ausente. Retornando HTML básico com quebras de linha."
+            )
+            return conteudo_markdown.replace("\n", "<br>\n")
+        
         try:
             # Converter com extensões úteis
             html = markdown.markdown(
