@@ -67,7 +67,7 @@ Aqui está o **Roadmap v2.0** atualizado:
 - ✅ TAREFA-041: Backend - Endpoint de Upload de Petição Inicial
 - ✅ TAREFA-042: Backend - Serviço de Análise de Documentos Relevantes
 
-**Próximo passo:** TAREFA-043 (Backend - Endpoint de Upload de Documentos Complementares)
+**Próximo passo:** TAREFA-044 (Backend - Criar Agente "Analista de Estratégia Processual")
 
 ---
 
@@ -416,7 +416,7 @@ Esta é uma nova funcionalidade estratégica que diferencia o produto. O fluxo �
 - ✅ TAREFA-040: Modelo de dados (Petição, Prognóstico, Cenários, Pareceres)
 - ✅ TAREFA-041: Endpoint de upload de petição inicial
 - ✅ TAREFA-042: Serviço de análise de documentos relevantes (LLM)
-- TAREFA-043: Endpoint de upload de documentos complementares
+- ✅ TAREFA-043: Endpoint de upload de documentos complementares
 - TAREFA-044: Agente "Analista de Estratégia Processual"
 - TAREFA-045: Agente "Analista de Prognóstico"
 - TAREFA-046: Orquestrador de análise de petições (multi-agent)
@@ -627,30 +627,32 @@ Esta é uma nova funcionalidade estratégica que diferencia o produto. O fluxo �
 
 ---
 
-#### 🟡 TAREFA-043: Backend - Endpoint de Upload de Documentos Complementares
+#### ✅ TAREFA-043: Backend - Endpoint de Upload de Documentos Complementares
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-042, TAREFA-036 (Upload Assíncrono)  
 **Estimativa:** 2-3 horas  
-**Status:** 🟡 PENDENTE
+**Status:** ✅ CONCLUÍDA
 
 **Escopo:**
-- [ ] Atualizar `backend/src/api/rotas_peticoes.py`:
-  - [ ] **POST /api/peticoes/{peticao_id}/documentos**:
-    - [ ] Recebe múltiplos arquivos (documentos complementares)
-    - [ ] Para cada arquivo:
-      - [ ] Faz upload assíncrono (reutiliza TAREFA-035)
-      - [ ] Associa documento à petição (adiciona ID em `documentos_enviados`)
-    - [ ] Retorna lista de `upload_id`s (202 Accepted)
-  - [ ] **GET /api/peticoes/{peticao_id}/documentos**:
-    - [ ] Lista todos os documentos associados à petição
-    - [ ] Retorna: documentos sugeridos + documentos já enviados (com status de processamento)
-  - [ ] Validação: só permite upload se petição está em status AGUARDANDO_DOCUMENTOS
+- [x] Atualizar `backend/src/api/rotas_peticoes.py`:
+  - [x] **POST /api/peticoes/{peticao_id}/documentos**:
+    - [x] Recebe múltiplos arquivos (documentos complementares)
+    - [x] Para cada arquivo:
+      - [x] Faz upload assíncrono (reutiliza TAREFA-035)
+      - [x] Associa documento à petição (adiciona ID em `documentos_enviados`)
+    - [x] Retorna lista de `upload_id`s (202 Accepted)
+  - [x] **GET /api/peticoes/{peticao_id}/documentos**:
+    - [x] Lista todos os documentos associados à petição
+    - [x] Retorna: documentos sugeridos + documentos já enviados (com status de processamento)
+  - [x] Validação: só permite upload se petição está em status AGUARDANDO_DOCUMENTOS
 
 **Entregáveis:**
-- Endpoint para upload de documentos complementares
-- Associação de documentos à petição
-- Listagem de documentos da petição
-- Changelog completo: `changelogs/TAREFA-043_backend-upload-documentos-complementares.md`
+- ✅ Endpoint para upload de documentos complementares (655 linhas)
+- ✅ Endpoint para listagem de documentos da petição (200 linhas)
+- ✅ Método adicionar_documentos_enviados() no gerenciador (45 linhas)
+- ✅ Integração completa com sistema de upload assíncrono (TAREFA-036)
+- ✅ Documentação completa em ARQUITETURA.md (+450 linhas)
+- ✅ Changelog completo: `changelogs/TAREFA-043_backend-upload-documentos-complementares.md`
 
 ---
 

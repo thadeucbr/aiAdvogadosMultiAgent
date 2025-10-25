@@ -266,6 +266,46 @@ class GerenciadorEstadoPeticoes:
             if documento_id not in documentos_enviados:
                 documentos_enviados.append(documento_id)
     
+    def adicionar_documentos_enviados(
+        self,
+        peticao_id: str,
+        documento_ids: List[str]
+    ) -> None:
+        """
+        Registra que múltiplos documentos complementares foram enviados.
+        
+        CONTEXTO (TAREFA-043):
+        Quando o advogado faz upload de múltiplos documentos complementares
+        simultaneamente, registramos todos os IDs de uma vez.
+        
+        DIFERENÇA DE adicionar_documento_enviado():
+        - adicionar_documento_enviado: 1 documento por vez
+        - adicionar_documentos_enviados: múltiplos documentos de uma vez (bulk)
+        
+        Args:
+            peticao_id: ID da petição
+            documento_ids: Lista de IDs de documentos enviados (IDs no ChromaDB)
+        
+        Raises:
+            ValueError: Se petição não existir
+        
+        Examples:
+            >>> gerenciador.adicionar_documentos_enviados(
+            ...     peticao_id="peticao-123",
+            ...     documento_ids=["doc-001", "doc-002", "doc-003"]
+            ... )
+        """
+        with self._lock:
+            self._validar_peticao_existe(peticao_id)
+            
+            # Obter lista atual de documentos enviados
+            documentos_enviados = self._peticoes_em_processamento[peticao_id]["peticao"].documentos_enviados
+            
+            # Adicionar cada documento (evitando duplicatas)
+            for documento_id in documento_ids:
+                if documento_id not in documentos_enviados:
+                    documentos_enviados.append(documento_id)
+    
     def definir_agentes_selecionados(
         self,
         peticao_id: str,

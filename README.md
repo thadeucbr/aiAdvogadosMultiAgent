@@ -169,7 +169,7 @@ npm run dev
 
 ## 📋 Status do Projeto
 
-**Versão Atual:** 0.19.0 (FASE 7 - Análise de Documentos Relevantes com LLM)  
+**Versão Atual:** 0.20.0 (FASE 7 - Upload de Documentos Complementares para Petição)  
 **Última Atualização:** 2025-10-25
 
 ### ✅ Concluído
@@ -307,7 +307,31 @@ npm run dev
   - Validações específicas: apenas PDF/DOCX (não imagens), tamanho máximo 50MB
   - Documentação completa em ARQUITETURA.md (seção "Petições Iniciais FASE 7")
   - **PONTO DE ENTRADA:** Primeira etapa do fluxo de análise de petição inicial
-- [x] **Backend: Serviço de Análise de Documentos Relevantes (TAREFA-042)** 🆕
+- [x] - [x] **Backend: Serviço de Análise de Documentos Relevantes (TAREFA-042)** 🆕
+  - Novo serviço `servico_analise_documentos_relevantes.py` (860 linhas) para sugestão automática de documentos usando GPT-4
+  - 4 exceções customizadas, constantes de configuração (GPT-4, temperatura 0.3, timeout 60s, 5 chunks RAG)
+  - Prompt engineering robusto (200 linhas) com formato JSON estruturado para sugestões de documentos
+  - Método principal: analisar_peticao_e_sugerir_documentos() em 6 etapas (validar, recuperar texto, RAG, LLM, parsear, atualizar)
+  - Nova função obter_documento_por_id() em servico_banco_vetorial.py (110 linhas) para buscar chunks por documento_id
+  - Novo endpoint POST /api/peticoes/{peticao_id}/analisar-documentos (processamento assíncrono, 202 Accepted)
+  - Integração ChromaDB + LLM + GerenciadorEstadoPeticoes
+  - Tratamento completo de erros (5 tipos de exceções)
+  - Documentação completa em ARQUITETURA.md (+120 linhas)
+  - **ANÁLISE INTELIGENTE:** LLM identifica automaticamente documentos necessários (tipo, justificativa, prioridade)
+- [x] **Backend: Endpoint de Upload de Documentos Complementares (TAREFA-043)** 🆕
+  - Novo endpoint POST /api/peticoes/{peticao_id}/documentos (655 linhas) para upload de múltiplos documentos
+  - Novo endpoint GET /api/peticoes/{peticao_id}/documentos (200 linhas) para listagem completa
+  - Novo método adicionar_documentos_enviados() no gerenciador de petições (bulk operation)
+  - Upload múltiplo simultâneo (PDF, DOCX, PNG, JPEG) com processamento assíncrono individual
+  - Validação de estado (apenas aguardando_documentos), validação de tipo/tamanho por arquivo
+  - Integração total com sistema de upload assíncrono (TAREFA-036)
+  - Response com lista de upload_ids para polling individual (202 Accepted)
+  - Listagem retorna: documentos_sugeridos (LLM) + documentos_enviados (com status de processamento)
+  - Documentação completa em ARQUITETURA.md (+450 linhas) com exemplos UI e JavaScript
+  - **UPLOAD COMPLEMENTARES:** Advogado envia múltiplos documentos com progresso individual em tempo real
+
+### 🔄 Em Andamento
+
   - Novo serviço `servico_analise_documentos_relevantes.py` (860 linhas) para análise automática de petições
   - Usa LLM (GPT-4) para sugerir documentos necessários com justificativas e prioridades
   - 4 exceções customizadas, prompt engineering robusto com formato JSON estruturado
@@ -317,11 +341,23 @@ npm run dev
   - Processamento assíncrono em background (10-60s), tratamento completo de erros
   - Prompt da LLM retorna 3-15 documentos com tipo, justificativa, prioridade (essencial/importante/desejavel)
   - Documentação completa em ARQUITETURA.md (+120 linhas)
-  - **SEGUNDO PASSO:** LLM identifica documentos necessários para análise completa do caso
+  - **UPLOAD COMPLEMENTARES:** Advogado envia múltiplos documentos com progresso individual em tempo real
 
 ### 🚧 Próximos Passos (FASE 7: Análise de Petição Inicial)
 
-- [ ] **TAREFA-043:** Backend - Endpoint de Upload de Documentos Complementares (PRÓXIMA)
+- [ ] **TAREFA-044:** Backend - Criar Agente "Analista de Estratégia Processual" (PRÓXIMA)
+- [ ] **TAREFA-045:** Backend - Criar Agente "Analista de Prognóstico"
+- [ ] **TAREFA-046:** Backend - Refatorar Orquestrador para Análise de Petições
+- [ ] **TAREFA-047:** Backend - Serviço de Geração de Documento de Continuação
+- [ ] **TAREFA-048:** Backend - Endpoint de Análise Completa de Petição
+- [ ] **TAREFA-049:** Frontend - Criar Página de Análise de Petição Inicial
+- [ ] **TAREFA-050:** Frontend - Componente de Upload de Petição Inicial
+- [ ] **TAREFA-051:** Frontend - Componente de Exibição de Documentos Sugeridos
+- [ ] **TAREFA-052:** Frontend - Componente de Seleção de Agentes para Petição
+- [ ] **TAREFA-053:** Frontend - Componente de Visualização de Próximos Passos
+- [ ] **TAREFA-054:** Frontend - Componente de Gráfico de Prognóstico
+- [ ] **TAREFA-055:** Frontend - Componente de Pareceres Individualizados
+- [ ] **TAREFA-056:** Frontend - Componente de Documento de Continuação Gerado
 
 ---
 

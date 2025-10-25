@@ -2099,6 +2099,8 @@ Sistema de análise de petição inicial com sugestão de documentos, prognósti
 - `POST /api/peticoes/iniciar` - Criar petição e fazer upload assíncrono (TAREFA-041)
 - `GET /api/peticoes/status/{peticao_id}` - Consultar status da petição (TAREFA-041)
 - `POST /api/peticoes/{peticao_id}/analisar-documentos` - Analisar petição e sugerir documentos (TAREFA-042)
+- `POST /api/peticoes/{peticao_id}/documentos` - Upload de documentos complementares (TAREFA-043)
+- `GET /api/peticoes/{peticao_id}/documentos` - Listar documentos da petição (TAREFA-043)
 - `GET /api/peticoes/health` - Health check do serviço (TAREFA-041)
 
 #### `POST /api/peticoes/iniciar`
@@ -2394,6 +2396,326 @@ Para um caso de acidente de trabalho, a LLM pode sugerir:
    - Exibir lista de documentos sugeridos
    - Marcar prioridade (cores: vermelho=essencial, amarelo=importante, cinza=desejavel)
    - Permitir upload de cada documento
+
+---
+
+#### `POST /api/peticoes/{peticao_id}/documentos`
+**Status:** ✅ IMPLEMENTADO (TAREFA-043)
+
+**Descrição:** Upload de múltiplos documentos complementares para uma petição inicial.
+
+**Contexto de Negócio:**
+Após a LLM sugerir documentos relevantes (via `POST /{peticao_id}/analisar-documentos`), este endpoint permite que o advogado envie os documentos disponíveis. Aceita múltiplos arquivos simultaneamente e processa cada um de forma assíncrona.
+
+**Padrão Assíncrono:**
+- Aceita MÚLTIPLOS arquivos simultaneamente
+- Cada arquivo é processado de forma assíncrona (upload + OCR + vetorização)
+- Retorna lista de `upload_ids` (um por arquivo) IMEDIATAMENTE (202 Accepted)
+- Cliente faz polling de cada upload via `GET /api/documentos/status-upload/{upload_id}`
+
+**Request Parameters:**
+- `peticao_id` (string, obrigatório): UUID da petição (path parameter)
+
+**Request Body (multipart/form-data):**
+- `arquivos` (list<File>, obrigatório): Lista de arquivos complementares
+
+**Exemplo de Request:**
+```
+POST /api/peticoes/550e8400-e29b-41d4-a716-446655440000/documentos
+Content-Type: multipart/form-data
+
+arquivos: laudo_medico.pdf (file)
+arquivos: cat_acidente.pdf (file)
+arquivos: comprovante_afastamento.jpg (file)
+```
+
+**Response (202 Accepted):**
+```json
+{
+  "sucesso": true,
+  "mensagem": "3 documento(s) sendo processado(s). Use os upload_ids para acompanhar o progresso.",
+  "peticao_id": "550e8400-e29b-41d4-a716-446655440000",
+  "documentos_enviados": [
+    {
+      "nome_arquivo": "laudo_medico.pdf",
+      "upload_id": "a1b2c3d4-5678-90ab-cdef-1234567890ab",
+      "documento_id": "doc_001",
+      "status": "INICIADO",
+      "tamanho_bytes": 2548736
+    },
+    {
+      "nome_arquivo": "cat_acidente.pdf",
+      "upload_id": "e5f6g7h8-9012-34ij-klmn-5678901234op",
+      "documento_id": "doc_002",
+      "status": "INICIADO",
+      "tamanho_bytes": 1024512
+    },
+    {
+      "nome_arquivo": "comprovante_afastamento.jpg",
+      "upload_id": "i9j0k1l2-3456-78mn-opqr-9012345678st",
+      "documento_id": "doc_003",
+      "status": "INICIADO",
+      "tamanho_bytes": 512000
+    }
+  ]
+}
+```
+
+**Campos de Resposta:**
+- `sucesso`: Indica se operação foi bem-sucedida
+- `mensagem`: Mensagem descritiva do resultado
+- `peticao_id`: UUID da petição
+- `documentos_enviados`: Lista de documentos sendo processados
+  - `nome_arquivo`: Nome original do arquivo
+  - `upload_id`: UUID para fazer polling de progresso (use em `GET /api/documentos/status-upload/{upload_id}`)
+  - `documento_id`: UUID do documento no sistema (será usado no ChromaDB)
+  - `status`: Status inicial do upload (sempre "INICIADO")
+  - `tamanho_bytes`: Tamanho do arquivo em bytes
+
+**Status HTTP:**
+- `202 Accepted`: Documentos sendo processados em background
+- `400 Bad Request`: Petição em estado inválido (não está em `aguardando_documentos`)
+- `404 Not Found`: Petição não encontrada
+- `413 Request Entity Too Large`: Arquivo muito grande (máximo 50MB por arquivo)
+- `415 Unsupported Media Type`: Tipo de arquivo não suportado
+- `500 Internal Server Error`: Erro ao salvar ou processar arquivo
+
+**Fluxo de Uso:**
+1. Advogado consulta `GET /api/peticoes/status/{peticao_id}` e vê documentos sugeridos
+2. Advogado seleciona os arquivos disponíveis (pode ser menos que os sugeridos)
+3. Advogado envia via `POST /api/peticoes/{peticao_id}/documentos`
+4. Backend valida petição (deve estar em status `aguardando_documentos`)
+5. Backend inicia upload assíncrono de CADA arquivo (reutiliza TAREFA-036)
+6. Backend associa `documento_id` de cada arquivo à petição
+7. Backend retorna lista de `upload_ids` (202 Accepted)
+8. Cliente faz polling de cada `upload_id` usando `GET /api/documentos/status-upload/{upload_id}`
+9. Quando uploads concluírem, documentos ficam associados à petição e disponíveis para análise
+
+**Tipos de Arquivo Aceitos:**
+- PDF (.pdf): Documentos em formato PDF
+- DOCX (.docx): Documentos do Microsoft Word
+- PNG (.png): Imagens/documentos escaneados
+- JPEG (.jpg, .jpeg): Imagens/documentos escaneados
+
+**Validações:**
+- Petição deve existir
+- Petição deve estar em status `AGUARDANDO_DOCUMENTOS` (não pode adicionar docs após iniciar análise)
+- Tamanho máximo por arquivo: 50MB (configurável via `TAMANHO_MAXIMO_ARQUIVO_MB`)
+- Pelo menos 1 arquivo deve ser enviado
+
+**Integração com Sistema de Upload Assíncrono:**
+Reutiliza completamente a infraestrutura da TAREFA-036:
+- Validação de tipo de arquivo
+- Validação de tamanho
+- Processamento em background via `servico_ingestao_documentos.processar_documento_em_background()`
+- Feedback de progresso (0-100%) via `GerenciadorEstadoUploads`
+- Armazenamento no ChromaDB com vetorização
+
+**Próximos Passos (após uploads concluírem):**
+1. Fazer polling de cada `upload_id` até status = "CONCLUIDO"
+2. Consultar `GET /api/peticoes/{peticao_id}/documentos` para ver documentos enviados
+3. Selecionar agentes para análise (advogados especialistas + peritos)
+4. Iniciar análise completa via `POST /api/peticoes/{peticao_id}/analisar`
+
+**Exemplo de Uso (JavaScript):**
+```javascript
+// Selecionar múltiplos arquivos
+const arquivos = document.getElementById('input-files').files;
+
+// Criar FormData
+const formData = new FormData();
+for (let i = 0; i < arquivos.length; i++) {
+  formData.append('arquivos', arquivos[i]);
+}
+
+// Enviar para backend
+const response = await fetch(`/api/peticoes/${peticaoId}/documentos`, {
+  method: 'POST',
+  body: formData
+});
+
+const resultado = await response.json();
+
+// Fazer polling de cada upload
+for (const doc of resultado.documentos_enviados) {
+  await fazerPollingUpload(doc.upload_id);
+}
+```
+
+---
+
+#### `GET /api/peticoes/{peticao_id}/documentos`
+**Status:** ✅ IMPLEMENTADO (TAREFA-043)
+
+**Descrição:** Lista todos os documentos associados a uma petição (sugeridos pela LLM + enviados pelo advogado).
+
+**Contexto de Negócio:**
+Permite visualizar:
+1. Documentos sugeridos pela LLM (com prioridades e justificativas)
+2. Documentos já enviados pelo advogado (com status de processamento)
+
+Útil para:
+- Advogado verificar quais documentos ainda faltam
+- Advogado ver status de processamento de cada documento enviado
+- UI mostrar lista de "documentos pendentes" vs "documentos enviados"
+
+**Request Parameters:**
+- `peticao_id` (string, obrigatório): UUID da petição (path parameter)
+
+**Response (200 OK):**
+```json
+{
+  "sucesso": true,
+  "peticao_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status_peticao": "aguardando_documentos",
+  "documentos_sugeridos": [
+    {
+      "tipo_documento": "Laudo Médico Pericial",
+      "justificativa": "Necessário para comprovar nexo causal entre acidente e lesão",
+      "prioridade": "essencial"
+    },
+    {
+      "tipo_documento": "CAT - Comunicação de Acidente de Trabalho",
+      "justificativa": "Documento obrigatório para processos trabalhistas de acidente",
+      "prioridade": "essencial"
+    },
+    {
+      "tipo_documento": "Comprovante de Afastamento INSS",
+      "justificativa": "Comprova período de afastamento e recebimento de auxílio-doença",
+      "prioridade": "importante"
+    },
+    {
+      "tipo_documento": "Testemunhas do Acidente",
+      "justificativa": "Depoimentos ajudam a reconstruir as circunstâncias do acidente",
+      "prioridade": "desejavel"
+    }
+  ],
+  "documentos_enviados": [
+    {
+      "documento_id": "doc_001",
+      "nome_arquivo": "laudo_medico.pdf",
+      "upload_id": "a1b2c3d4-5678-90ab-cdef-1234567890ab",
+      "status_upload": "CONCLUIDO",
+      "progresso_percentual": 100,
+      "etapa_atual": "Concluído",
+      "timestamp_criacao": "2025-10-25T10:30:00",
+      "timestamp_atualizacao": "2025-10-25T10:30:45"
+    },
+    {
+      "documento_id": "doc_002",
+      "nome_arquivo": "cat_acidente.pdf",
+      "upload_id": "e5f6g7h8-9012-34ij-klmn-5678901234op",
+      "status_upload": "PROCESSANDO",
+      "progresso_percentual": 65,
+      "etapa_atual": "Vetorizando texto",
+      "timestamp_criacao": "2025-10-25T10:31:00",
+      "timestamp_atualizacao": "2025-10-25T10:31:30"
+    }
+  ],
+  "total_sugeridos": 4,
+  "total_enviados": 2
+}
+```
+
+**Campos de Resposta:**
+- `sucesso`: Sempre `true` (se endpoint não lançar exceção)
+- `peticao_id`: UUID da petição
+- `status_peticao`: Status atual da petição (aguardando_documentos, processando, concluida, erro)
+- `documentos_sugeridos`: Lista de documentos que a LLM recomendou
+  - `tipo_documento`: Nome/tipo do documento (ex: "Laudo Médico Pericial")
+  - `justificativa`: Por que este documento é relevante
+  - `prioridade`: Nível de importância (essencial, importante, desejavel)
+- `documentos_enviados`: Lista de documentos que o advogado já enviou
+  - `documento_id`: UUID do documento no sistema
+  - `nome_arquivo`: Nome original do arquivo
+  - `upload_id`: UUID do upload (pode ser usado para consultar detalhes)
+  - `status_upload`: Status do processamento (INICIADO, SALVANDO, PROCESSANDO, CONCLUIDO, ERRO)
+  - `progresso_percentual`: Progresso do processamento (0-100)
+  - `etapa_atual`: Descrição da etapa atual (ex: "Extraindo texto", "Vetorizando")
+  - `timestamp_criacao`: Quando o upload foi iniciado
+  - `timestamp_atualizacao`: Última atualização de status
+- `total_sugeridos`: Total de documentos sugeridos
+- `total_enviados`: Total de documentos já enviados
+
+**Status HTTP:**
+- `200 OK`: Listagem retornada com sucesso
+- `404 Not Found`: Petição não encontrada
+- `500 Internal Server Error`: Erro ao buscar informações
+
+**Fluxo de Uso:**
+1. Advogado consulta `GET /api/peticoes/{peticao_id}/documentos`
+2. UI exibe duas seções:
+   - **Documentos Sugeridos**: Cards com tipo, justificativa, prioridade (badges coloridos)
+   - **Documentos Enviados**: Lista com nome, status, barra de progresso
+3. Para documentos sugeridos ainda não enviados:
+   - Mostrar botão "Fazer Upload"
+   - Ou botão "Não Possuo" (para documentos não-essenciais)
+4. Para documentos enviados em processamento:
+   - Mostrar barra de progresso
+   - Atualizar via polling (a cada 2-3s)
+5. Quando todos documentos ESSENCIAIS estiverem enviados:
+   - Habilitar botão "Avançar para Análise"
+
+**Exemplo de UI:**
+```
+┌─────────────────────────────────────────────┐
+│ DOCUMENTOS SUGERIDOS PELA IA                │
+├─────────────────────────────────────────────┤
+│ ⚠️ Laudo Médico Pericial       [ESSENCIAL]  │
+│    "Necessário para comprovar nexo causal"  │
+│    [✓ Enviado: laudo_medico.pdf]            │
+│                                             │
+│ ⚠️ CAT - Comunicação Acidente  [ESSENCIAL]  │
+│    "Documento obrigatório para processos"   │
+│    [📤 Fazer Upload]                        │
+│                                             │
+│ ⚠️ Comprovante Afastamento     [IMPORTANTE] │
+│    "Comprova afastamento e auxílio"         │
+│    [📤 Fazer Upload] [Não Possuo]           │
+│                                             │
+│ ℹ️ Testemunhas do Acidente     [DESEJAVEL]  │
+│    "Depoimentos ajudam a reconstruir"       │
+│    [📤 Fazer Upload] [Não Possuo]           │
+└─────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────┐
+│ DOCUMENTOS ENVIADOS (2)                     │
+├─────────────────────────────────────────────┤
+│ ✓ laudo_medico.pdf                          │
+│   [████████████████████████] 100%           │
+│   Concluído                                 │
+│                                             │
+│ ⏳ cat_acidente.pdf                         │
+│   [█████████████░░░░░░░] 65%                │
+│   Vetorizando texto...                      │
+└─────────────────────────────────────────────┘
+
+[Avançar para Análise] (desabilitado até CAT ser enviado)
+```
+
+**Integração com Polling:**
+```javascript
+// Fazer polling para atualizar status dos documentos enviados
+async function atualizarDocumentos() {
+  const response = await fetch(`/api/peticoes/${peticaoId}/documentos`);
+  const dados = await response.json();
+  
+  // Atualizar UI com documentos_enviados
+  for (const doc of dados.documentos_enviados) {
+    atualizarBarraProgresso(doc.documento_id, doc.progresso_percentual);
+    atualizarStatus(doc.documento_id, doc.status_upload, doc.etapa_atual);
+  }
+  
+  // Se algum documento ainda está processando, continuar polling
+  const temProcessando = dados.documentos_enviados.some(
+    doc => doc.status_upload === 'PROCESSANDO' || doc.status_upload === 'SALVANDO'
+  );
+  
+  if (temProcessando) {
+    setTimeout(atualizarDocumentos, 2000); // Polling a cada 2s
+  }
+}
+```
 
 ---
 

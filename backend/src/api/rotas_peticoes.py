@@ -879,3 +879,634 @@ async def endpoint_analisar_documentos_peticao(
         ),
         "peticao_id": peticao_id
     }
+
+
+# ===== ENDPOINT DE UPLOAD DE DOCUMENTOS COMPLEMENTARES (TAREFA-043) =====
+
+@router.post(
+    "/{peticao_id}/documentos",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Upload de documentos complementares para petição",
+    description="""
+    Faz upload de documentos complementares para uma petição inicial.
+    
+    **CONTEXTO DE NEGÓCIO (TAREFA-043):**
+    Após a LLM sugerir documentos relevantes (via POST /{peticao_id}/analisar-documentos),
+    este endpoint permite que o advogado envie os documentos disponíveis.
+    
+    Documentos complementares são:
+    - Laudos médicos periciais
+    - Comprovantes de afastamento (INSS)
+    - CATs (Comunicação de Acidente de Trabalho)
+    - Contratos de trabalho
+    - Holerites/comprovantes de renda
+    - Testemunhos
+    - Documentos pessoais (RG, CPF, etc.)
+    - Qualquer outro documento relevante ao processo
+    
+    **PADRÃO ASSÍNCRONO:**
+    - Este endpoint aceita MÚLTIPLOS arquivos simultaneamente
+    - Cada arquivo é processado de forma assíncrona (upload + OCR + vetorização)
+    - Retorna lista de upload_ids (um por arquivo) IMEDIATAMENTE (202 Accepted)
+    - Cliente faz polling de cada upload via GET /api/documentos/status-upload/{upload_id}
+    - Quando todos os uploads concluírem, documentos ficam associados à petição
+    
+    **FLUXO DE USO:**
+    1. Advogado consulta GET /api/peticoes/status/{peticao_id} e vê documentos sugeridos
+    2. Advogado seleciona os arquivos disponíveis (pode ser menos que os sugeridos)
+    3. Advogado envia via POST /api/peticoes/{peticao_id}/documentos
+    4. Backend valida petição (deve estar em status AGUARDANDO_DOCUMENTOS)
+    5. Backend inicia upload assíncrono de CADA arquivo (reutiliza TAREFA-036)
+    6. Backend associa documento_id de cada arquivo à petição
+    7. Backend retorna lista de upload_ids (202 Accepted)
+    8. Cliente faz polling de cada upload_id
+    9. Quando uploads concluírem, advogado pode iniciar análise completa
+    
+    **VALIDAÇÕES:**
+    - Petição deve existir
+    - Petição deve estar em status AGUARDANDO_DOCUMENTOS (não pode adicionar docs após iniciar análise)
+    - Tipos de arquivo aceitos: PDF, DOCX, PNG, JPEG (mesmos da análise tradicional)
+    - Tamanho máximo por arquivo: 50MB (configurável)
+    
+    **TIPOS DE ARQUIVO ACEITOS:**
+    - PDF (.pdf): Documentos em formato PDF
+    - DOCX (.docx): Documentos do Microsoft Word
+    - PNG (.png): Imagens/documentos escaneados
+    - JPEG (.jpg, .jpeg): Imagens/documentos escaneados
+    
+    **RETORNO:**
+    - Lista de upload_ids (um por arquivo enviado)
+    - Cada upload_id pode ser usado para fazer polling de progresso
+    - GET /api/documentos/status-upload/{upload_id} → progresso 0-100%
+    
+    **EXEMPLO DE REQUEST (multipart/form-data):**
+    ```
+    POST /api/peticoes/550e8400-e29b-41d4-a716-446655440000/documentos
+    Content-Type: multipart/form-data
+    
+    arquivos: laudo_medico.pdf (file)
+    arquivos: cat_acidente.pdf (file)
+    arquivos: comprovante_afastamento.jpg (file)
+    ```
+    
+    **EXEMPLO DE RESPONSE (202 Accepted):**
+    ```json
+    {
+      "sucesso": true,
+      "mensagem": "3 documentos sendo processados...",
+      "peticao_id": "550e8400-e29b-41d4-a716-446655440000",
+      "documentos_enviados": [
+        {
+          "nome_arquivo": "laudo_medico.pdf",
+          "upload_id": "a1b2c3d4-...",
+          "documento_id": "doc_001",
+          "status": "INICIADO"
+        },
+        {
+          "nome_arquivo": "cat_acidente.pdf",
+          "upload_id": "e5f6g7h8-...",
+          "documento_id": "doc_002",
+          "status": "INICIADO"
+        },
+        {
+          "nome_arquivo": "comprovante_afastamento.jpg",
+          "upload_id": "i9j0k1l2-...",
+          "documento_id": "doc_003",
+          "status": "INICIADO"
+        }
+      ]
+    }
+    ```
+    """,
+    response_description="""
+    Retorna lista de documentos sendo processados com seus respectivos upload_ids.
+    
+    Use cada upload_id para fazer polling de progresso:
+    - GET /api/documentos/status-upload/{upload_id}
+    """
+)
+async def endpoint_upload_documentos_complementares(
+    peticao_id: str,
+    arquivos: List[UploadFile] = File(
+        ...,
+        description="Lista de arquivos complementares (PDF, DOCX, PNG, JPEG)"
+    ),
+    background_tasks: BackgroundTasks = BackgroundTasks()
+) -> dict:
+    """
+    Endpoint para upload de documentos complementares para petição.
+    
+    CONTEXTO DE NEGÓCIO (TAREFA-043):
+    Permite envio de múltiplos documentos complementares para uma petição inicial.
+    Cada documento é processado de forma assíncrona (upload + OCR + vetorização)
+    e associado à petição.
+    
+    FLUXO TÉCNICO:
+    1. Validar que petição existe e está em status AGUARDANDO_DOCUMENTOS
+    2. Para cada arquivo:
+       a. Gerar documento_id único (UUID)
+       b. Iniciar upload assíncrono (reutiliza sistema da TAREFA-036)
+       c. Associar documento_id à petição (adicionar em documentos_enviados)
+       d. Retornar upload_id para polling
+    3. Retornar lista de upload_ids imediatamente (202 Accepted)
+    
+    INTEGRAÇÃO COM UPLOAD ASSÍNCRONO:
+    Reutiliza completamente a infraestrutura da TAREFA-036:
+    - Validação de tipo de arquivo
+    - Validação de tamanho
+    - Processamento em background
+    - Feedback de progresso (0-100%)
+    - Armazenamento no ChromaDB
+    
+    Args:
+        peticao_id: UUID da petição que receberá os documentos
+        arquivos: Lista de arquivos enviados via multipart/form-data
+        background_tasks: FastAPI BackgroundTasks para processamento assíncrono
+    
+    Returns:
+        Dict com:
+        - sucesso: bool
+        - mensagem: str (descrição do resultado)
+        - peticao_id: str (UUID da petição)
+        - documentos_enviados: list (informações de cada upload iniciado)
+    
+    Raises:
+        404: Petição não encontrada
+        400: Petição em estado inválido (não está em AGUARDANDO_DOCUMENTOS)
+        415: Tipo de arquivo não suportado
+        413: Arquivo muito grande
+        500: Erro interno do servidor
+    """
+    logger.info(
+        f"[PETICAO] Solicitação de upload de documentos complementares - "
+        f"peticao_id: {peticao_id}, numero_arquivos: {len(arquivos)}"
+    )
+    
+    # ===== VALIDAR QUE PETIÇÃO EXISTE =====
+    
+    gerenciador_peticoes = obter_gerenciador_estado_peticoes()
+    peticao = gerenciador_peticoes.obter_peticao(peticao_id)
+    
+    if peticao is None:
+        logger.warning(
+            f"[PETICAO] Tentativa de upload em petição inexistente: {peticao_id}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Petição com ID '{peticao_id}' não foi encontrada"
+        )
+    
+    # ===== VALIDAR ESTADO DA PETIÇÃO =====
+    
+    # Apenas petições em AGUARDANDO_DOCUMENTOS podem receber novos documentos
+    # Se já iniciou análise (PROCESSANDO, CONCLUIDA), não pode mais adicionar docs
+    if peticao.status != StatusPeticao.AGUARDANDO_DOCUMENTOS:
+        logger.warning(
+            f"[PETICAO] Tentativa de upload em petição com status inválido: "
+            f"peticao_id={peticao_id}, status={peticao.status.value}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Não é possível adicionar documentos a esta petição. "
+                f"Status atual: {peticao.status.value}. "
+                f"Documentos só podem ser adicionados em status 'aguardando_documentos'."
+            )
+        )
+    
+    # ===== VALIDAR QUE HÁ ARQUIVOS =====
+    
+    if not arquivos or len(arquivos) == 0:
+        logger.warning(
+            f"[PETICAO] Tentativa de upload sem arquivos - peticao_id: {peticao_id}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Nenhum arquivo foi enviado. Envie pelo menos 1 documento."
+        )
+    
+    logger.info(
+        f"[PETICAO] Validações OK - iniciando processamento de {len(arquivos)} arquivo(s)"
+    )
+    
+    # ===== PROCESSAR CADA ARQUIVO (UPLOAD ASSÍNCRONO) =====
+    
+    # Importar serviço de ingestão (para processamento em background)
+    from src.servicos import servico_ingestao_documentos
+    
+    # Lista para armazenar informações de cada documento enviado
+    documentos_enviados_info = []
+    
+    # IDs de documentos para associar à petição
+    ids_documentos_para_associar = []
+    
+    for arquivo in arquivos:
+        # ===== VALIDAÇÕES POR ARQUIVO =====
+        
+        nome_original = arquivo.filename
+        
+        logger.info(
+            f"[PETICAO] Processando arquivo: {nome_original}"
+        )
+        
+        # Validar tipo de arquivo (mesmas validações do endpoint /upload tradicional)
+        if not validar_tipo_de_arquivo_peticao(nome_original):
+            # Nota: Para documentos complementares, aceitamos também imagens (PNG, JPEG)
+            # então reutilizamos validação de documentos tradicionais
+            extensao = obter_extensao_do_arquivo_peticao(nome_original)
+            
+            # Extensões permitidas para documentos complementares (mais permissivas)
+            extensoes_complementares_permitidas = [".pdf", ".docx", ".png", ".jpg", ".jpeg"]
+            
+            if extensao not in extensoes_complementares_permitidas:
+                logger.warning(
+                    f"[PETICAO] Tipo de arquivo não permitido: {nome_original} "
+                    f"(extensão: {extensao})"
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                    detail=(
+                        f"Tipo de arquivo não suportado: '{nome_original}'. "
+                        f"Extensões permitidas: {', '.join(extensoes_complementares_permitidas)}"
+                    )
+                )
+        
+        # Obter tamanho do arquivo (ler todo o conteúdo em memória)
+        conteudo_arquivo = await arquivo.read()
+        tamanho_bytes = len(conteudo_arquivo)
+        
+        # Validar tamanho
+        if not validar_tamanho_de_arquivo_peticao(tamanho_bytes):
+            tamanho_mb = tamanho_bytes / (1024 * 1024)
+            logger.warning(
+                f"[PETICAO] Arquivo muito grande: {nome_original} ({tamanho_mb:.2f} MB)"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=(
+                    f"Arquivo muito grande: '{nome_original}' ({tamanho_mb:.2f} MB). "
+                    f"Tamanho máximo permitido: {configuracoes.TAMANHO_MAXIMO_ARQUIVO_MB} MB"
+                )
+            )
+        
+        # ===== GERAR IDS ÚNICOS =====
+        
+        # UUID para o documento (usado no ChromaDB)
+        documento_id = str(uuid.uuid4())
+        
+        # UUID para o upload (usado no gerenciador de estado de uploads)
+        upload_id = str(uuid.uuid4())
+        
+        logger.info(
+            f"[PETICAO] IDs gerados para '{nome_original}' - "
+            f"documento_id: {documento_id}, upload_id: {upload_id}"
+        )
+        
+        # ===== SALVAR ARQUIVO TEMPORARIAMENTE =====
+        
+        # Caminho para pasta de uploads temporários
+        pasta_uploads_temp = Path(configuracoes.DIRETORIO_DADOS) / "uploads_temp"
+        pasta_uploads_temp.mkdir(parents=True, exist_ok=True)
+        
+        # Nome do arquivo no disco (usando documento_id para evitar conflitos)
+        extensao = obter_extensao_do_arquivo_peticao(nome_original)
+        nome_arquivo_disco = f"{documento_id}{extensao}"
+        caminho_arquivo = pasta_uploads_temp / nome_arquivo_disco
+        
+        # Escrever arquivo no disco
+        try:
+            with open(caminho_arquivo, "wb") as arquivo_disco:
+                arquivo_disco.write(conteudo_arquivo)
+            
+            logger.info(
+                f"[PETICAO] Arquivo salvo temporariamente: {caminho_arquivo} "
+                f"({tamanho_bytes} bytes)"
+            )
+        except Exception as erro:
+            mensagem_erro = f"Erro ao salvar arquivo '{nome_original}': {str(erro)}"
+            logger.error(f"[PETICAO] {mensagem_erro}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=mensagem_erro
+            )
+        
+        # ===== CRIAR REGISTRO NO GERENCIADOR DE UPLOADS =====
+        
+        try:
+            gerenciador_uploads = obter_gerenciador_estado_uploads()
+            
+            # Determinar tipo de documento baseado na extensão
+            mapeamento_tipo = {
+                ".pdf": "pdf",
+                ".docx": "docx",
+                ".png": "imagem",
+                ".jpg": "imagem",
+                ".jpeg": "imagem"
+            }
+            tipo_documento = mapeamento_tipo.get(extensao, "pdf")
+            
+            # Criar upload com status INICIADO e progresso 0%
+            gerenciador_uploads.criar_upload(
+                upload_id=upload_id,
+                nome_arquivo=nome_original,
+                tamanho_bytes=tamanho_bytes,
+                tipo_documento=tipo_documento,
+                metadados={
+                    "documento_id": documento_id,
+                    "peticao_id": peticao_id,  # Associar à petição
+                    "tipo_origem": "documento_complementar"  # Indicar que é documento complementar
+                }
+            )
+            
+            logger.info(
+                f"[PETICAO] Registro de upload criado: upload_id={upload_id}, "
+                f"status=INICIADO"
+            )
+        
+        except ValueError as erro:
+            mensagem_erro = f"Erro ao criar registro de upload para '{nome_original}': {str(erro)}"
+            logger.error(f"[PETICAO] {mensagem_erro}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=mensagem_erro
+            )
+        
+        # ===== AGENDAR PROCESSAMENTO EM BACKGROUND =====
+        
+        data_hora_atual = datetime.now()
+        data_upload_iso = data_hora_atual.isoformat()
+        
+        background_tasks.add_task(
+            servico_ingestao_documentos.processar_documento_em_background,
+            upload_id=upload_id,
+            caminho_arquivo=str(caminho_arquivo),
+            documento_id=documento_id,
+            nome_arquivo_original=nome_original,
+            tipo_documento=tipo_documento,
+            data_upload=data_upload_iso
+        )
+        
+        logger.info(
+            f"[PETICAO] Processamento agendado em background para '{nome_original}' - "
+            f"upload_id={upload_id}"
+        )
+        
+        # ===== ADICIONAR À LISTA DE DOCUMENTOS ENVIADOS =====
+        
+        documentos_enviados_info.append({
+            "nome_arquivo": nome_original,
+            "upload_id": upload_id,
+            "documento_id": documento_id,
+            "status": "INICIADO",
+            "tamanho_bytes": tamanho_bytes
+        })
+        
+        ids_documentos_para_associar.append(documento_id)
+    
+    # ===== ASSOCIAR DOCUMENTOS À PETIÇÃO =====
+    
+    try:
+        gerenciador_peticoes.adicionar_documentos_enviados(
+            peticao_id=peticao_id,
+            documento_ids=ids_documentos_para_associar
+        )
+        
+        logger.info(
+            f"[PETICAO] {len(ids_documentos_para_associar)} documento(s) associado(s) "
+            f"à petição {peticao_id}"
+        )
+    except Exception as erro:
+        mensagem_erro = f"Erro ao associar documentos à petição: {str(erro)}"
+        logger.error(f"[PETICAO] {mensagem_erro}", exc_info=True)
+        # Não lançar exceção aqui, pois os uploads já foram iniciados
+        # Apenas logar o erro
+    
+    # ===== RETORNAR RESPOSTA (202 ACCEPTED) =====
+    
+    resposta = {
+        "sucesso": True,
+        "mensagem": (
+            f"{len(documentos_enviados_info)} documento(s) sendo processado(s). "
+            f"Use os upload_ids para acompanhar o progresso."
+        ),
+        "peticao_id": peticao_id,
+        "documentos_enviados": documentos_enviados_info
+    }
+    
+    logger.info(
+        f"[PETICAO] Upload de {len(documentos_enviados_info)} documento(s) complementar(es) "
+        f"iniciado com sucesso - peticao_id: {peticao_id}"
+    )
+    
+    return resposta
+
+
+@router.get(
+    "/{peticao_id}/documentos",
+    status_code=status.HTTP_200_OK,
+    summary="Listar documentos de uma petição",
+    description="""
+    Lista todos os documentos associados a uma petição.
+    
+    **CONTEXTO DE NEGÓCIO (TAREFA-043):**
+    Permite visualizar:
+    1. Documentos sugeridos pela LLM (com prioridades)
+    2. Documentos já enviados pelo advogado (com status de processamento)
+    
+    **UTILIDADE:**
+    - Advogado pode verificar quais documentos ainda faltam
+    - Advogado pode ver status de processamento de cada documento enviado
+    - UI pode mostrar lista de "documentos pendentes" vs "documentos enviados"
+    
+    **RETORNO:**
+    - documentos_sugeridos: Lista de documentos que a LLM recomendou
+      - Cada item contém: tipo, justificativa, prioridade (essencial/importante/desejavel)
+    - documentos_enviados: Lista de documentos que o advogado já enviou
+      - Cada item contém: documento_id, nome_arquivo, status_upload, progresso, etc.
+    
+    **FLUXO DE USO:**
+    1. Advogado consulta GET /api/peticoes/{peticao_id}/documentos
+    2. UI exibe:
+       - Seção "Documentos Sugeridos" (checkboxes para marcar os que já foram enviados)
+       - Seção "Documentos Enviados" (com barra de progresso de cada upload)
+    3. Advogado envia documentos faltantes via POST /api/peticoes/{peticao_id}/documentos
+    4. Advogado consulta novamente para ver atualização
+    
+    **EXEMPLO DE RESPONSE:**
+    ```json
+    {
+      "sucesso": true,
+      "peticao_id": "550e8400-...",
+      "status_peticao": "aguardando_documentos",
+      "documentos_sugeridos": [
+        {
+          "tipo_documento": "Laudo Médico Pericial",
+          "justificativa": "Necessário para comprovar nexo causal entre acidente e lesão",
+          "prioridade": "essencial"
+        },
+        {
+          "tipo_documento": "CAT - Comunicação de Acidente de Trabalho",
+          "justificativa": "Documento obrigatório para processos trabalhistas de acidente",
+          "prioridade": "essencial"
+        }
+      ],
+      "documentos_enviados": [
+        {
+          "documento_id": "doc_001",
+          "nome_arquivo": "laudo_medico.pdf",
+          "upload_id": "a1b2c3d4-...",
+          "status_upload": "CONCLUIDO",
+          "progresso_percentual": 100,
+          "data_envio": "2025-10-25T10:30:00"
+        }
+      ],
+      "total_sugeridos": 2,
+      "total_enviados": 1
+    }
+    ```
+    """,
+    response_description="""
+    Retorna informações completas sobre documentos da petição:
+    - Documentos sugeridos pela LLM
+    - Documentos já enviados pelo advogado (com status)
+    """
+)
+async def endpoint_listar_documentos_peticao(
+    peticao_id: str
+) -> dict:
+    """
+    Endpoint para listar documentos de uma petição.
+    
+    CONTEXTO DE NEGÓCIO (TAREFA-043):
+    Lista documentos sugeridos (pela LLM) e documentos enviados (pelo advogado),
+    permitindo que o advogado veja o que ainda falta enviar.
+    
+    FLUXO TÉCNICO:
+    1. Buscar petição no gerenciador de estado
+    2. Obter documentos_sugeridos (lista de DocumentoSugerido)
+    3. Obter documentos_enviados (lista de documento_ids)
+    4. Para cada documento_id em documentos_enviados:
+       a. Buscar status do upload no gerenciador de uploads
+       b. Incluir informações de progresso, status, etc.
+    5. Retornar tudo estruturado
+    
+    Args:
+        peticao_id: UUID da petição
+    
+    Returns:
+        Dict com:
+        - sucesso: bool
+        - peticao_id: str
+        - status_peticao: str
+        - documentos_sugeridos: list (documentos que LLM recomendou)
+        - documentos_enviados: list (documentos que advogado já enviou)
+        - total_sugeridos: int
+        - total_enviados: int
+    
+    Raises:
+        404: Petição não encontrada
+        500: Erro interno do servidor
+    """
+    logger.info(
+        f"[PETICAO] Solicitação de listagem de documentos - peticao_id: {peticao_id}"
+    )
+    
+    # ===== BUSCAR PETIÇÃO =====
+    
+    gerenciador_peticoes = obter_gerenciador_estado_peticoes()
+    peticao = gerenciador_peticoes.obter_peticao(peticao_id)
+    
+    if peticao is None:
+        logger.warning(
+            f"[PETICAO] Tentativa de listar documentos de petição inexistente: {peticao_id}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Petição com ID '{peticao_id}' não foi encontrada"
+        )
+    
+    # ===== OBTER DOCUMENTOS SUGERIDOS =====
+    
+    # Converter DocumentoSugerido (Pydantic) para dict
+    documentos_sugeridos_list = []
+    if peticao.documentos_sugeridos:
+        for doc_sugerido in peticao.documentos_sugeridos:
+            documentos_sugeridos_list.append({
+                "tipo_documento": doc_sugerido.tipo_documento,
+                "justificativa": doc_sugerido.justificativa,
+                "prioridade": doc_sugerido.prioridade.value  # Enum → string
+            })
+    
+    # ===== OBTER DOCUMENTOS ENVIADOS =====
+    
+    documentos_enviados_list = []
+    gerenciador_uploads = obter_gerenciador_estado_uploads()
+    
+    if peticao.documentos_enviados:
+        for documento_id in peticao.documentos_enviados:
+            # Buscar informações de upload deste documento
+            # Nota: Precisamos encontrar o upload_id associado ao documento_id
+            # Isso é feito iterando pelos uploads e verificando metadados
+            
+            # (Solução simplificada: buscar todos os uploads e filtrar)
+            # NOTA PARA LLM FUTURA: Isto pode ser otimizado com índice reverso
+            # documento_id -> upload_id no gerenciador de uploads
+            
+            upload_info = None
+            
+            # Buscar upload relacionado a este documento_id
+            # (Iteramos pelos uploads em memória - OK para MVP, otimizar depois)
+            for uid, estado_upload in gerenciador_uploads.estado_uploads.items():
+                metadados = estado_upload.get("metadados", {})
+                if metadados.get("documento_id") == documento_id:
+                    upload_info = {
+                        "documento_id": documento_id,
+                        "upload_id": uid,
+                        "nome_arquivo": estado_upload.get("nome_arquivo", "desconhecido"),
+                        "status_upload": estado_upload.get("status", "DESCONHECIDO"),
+                        "progresso_percentual": estado_upload.get("progresso_percentual", 0),
+                        "etapa_atual": estado_upload.get("etapa_atual", ""),
+                        "timestamp_criacao": estado_upload.get("timestamp_criacao", ""),
+                        "timestamp_atualizacao": estado_upload.get("timestamp_atualizacao", "")
+                    }
+                    break
+            
+            if upload_info:
+                documentos_enviados_list.append(upload_info)
+            else:
+                # Documento foi associado mas upload não foi encontrado
+                # (possível se upload foi limpo da memória)
+                logger.warning(
+                    f"[PETICAO] Documento {documento_id} associado à petição {peticao_id} "
+                    f"mas upload não encontrado no gerenciador"
+                )
+                documentos_enviados_list.append({
+                    "documento_id": documento_id,
+                    "upload_id": None,
+                    "nome_arquivo": "desconhecido",
+                    "status_upload": "DESCONHECIDO",
+                    "progresso_percentual": 0,
+                    "etapa_atual": "",
+                    "timestamp_criacao": "",
+                    "timestamp_atualizacao": ""
+                })
+    
+    # ===== PREPARAR RESPOSTA =====
+    
+    resposta = {
+        "sucesso": True,
+        "peticao_id": peticao_id,
+        "status_peticao": peticao.status.value,
+        "documentos_sugeridos": documentos_sugeridos_list,
+        "documentos_enviados": documentos_enviados_list,
+        "total_sugeridos": len(documentos_sugeridos_list),
+        "total_enviados": len(documentos_enviados_list)
+    }
+    
+    logger.info(
+        f"[PETICAO] Listagem de documentos retornada - peticao_id: {peticao_id}, "
+        f"sugeridos: {len(documentos_sugeridos_list)}, "
+        f"enviados: {len(documentos_enviados_list)}"
+    )
+    
+    return resposta
