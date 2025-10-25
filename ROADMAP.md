@@ -61,8 +61,9 @@ Aqui está o **Roadmap v2.0** atualizado:
 - ✅ TAREFA-035: Backend - Refatorar Serviço de Ingestão para Background
 - ✅ TAREFA-036: Backend - Criar Endpoints de Upload Assíncrono
 - ✅ TAREFA-037: Frontend - Refatorar Serviço de API de Upload
+- ✅ TAREFA-038: Frontend - Implementar Polling de Upload no Componente
 
-**Próximo passo:** TAREFA-038 (Frontend - Implementar Polling de Upload no Componente)
+**Próximo passo:** TAREFA-039 (Backend - Feedback de Progresso Detalhado no Upload)
 
 ---
 
@@ -281,40 +282,39 @@ Atualmente, o upload de documentos é **síncrono** (bloqueante). Quando o usuá
 
 ---
 
-#### 🟡 TAREFA-038: Frontend - Implementar Polling de Upload no Componente
+#### ✅ TAREFA-038: Frontend - Implementar Polling de Upload no Componente
 **Prioridade:** 🔴 CRÍTICA  
 **Dependências:** TAREFA-037, TAREFA-016 (Componente de Upload)  
 **Estimativa:** 4-5 horas  
-**Status:** 🟡 PENDENTE
+**Status:** ✅ CONCLUÍDA
 
 **Escopo:**
-- [ ] Refatorar `frontend/src/componentes/upload/ComponenteUploadDocumentos.tsx`:
-  - [ ] Adicionar novos estados por arquivo:
-    - [ ] `uploadId` (UUID retornado pelo backend)
-    - [ ] `statusUpload` (INICIADO | SALVANDO | PROCESSANDO | CONCLUIDO | ERRO)
-    - [ ] `etapaAtual` (descrição textual: "Salvando arquivo", "Extraindo texto", "Vetorizando")
-    - [ ] `progressoPercentual` (0-100)
-    - [ ] `intervalId` (controle do polling por arquivo)
-  - [ ] Modificar handler de upload:
-    - [ ] Substituir `uploadDocumentos()` (síncrono) por `iniciarUploadAssincrono()`
-    - [ ] Para cada arquivo, receber `upload_id` em <100ms
-    - [ ] Iniciar polling individual por arquivo (`iniciarPollingUpload(upload_id)`)
-  - [ ] Criar função `iniciarPollingUpload(upload_id)`:
-    - [ ] setInterval a cada 2s chamando `verificarStatusUpload(upload_id)`
-    - [ ] Atualizar UI com progresso e etapa atual
-    - [ ] Se status = CONCLUIDO → Chamar `obterResultadoUpload(upload_id)` e parar polling
-    - [ ] Se status = ERRO → Exibir mensagem de erro e parar polling
-  - [ ] UI de progresso por arquivo:
-    - [ ] Barra de progresso individual (0-100%)
-    - [ ] Etapa atual abaixo da barra (ex: "Extraindo texto - 25%")
-    - [ ] Ícone de status (loading, check, error)
-    - [ ] Botão de cancelar (opcional - limpa polling e remove da lista)
-  - [ ] Cleanup robusto:
-    - [ ] useEffect com cleanup function para limpar intervalos quando componente desmontar
-    - [ ] Prevenir memory leaks e requisições desnecessárias
-  - [ ] Suporte a múltiplos uploads simultâneos:
-    - [ ] Cada arquivo tem seu próprio polling independente
-    - [ ] UI mostra progresso de todos os arquivos em paralelo
+- [x] Refatorar `frontend/src/componentes/upload/ComponenteUploadDocumentos.tsx`:
+  - [x] Adicionar novos estados por arquivo:
+    - [x] `uploadId` (UUID retornado pelo backend)
+    - [x] `statusUpload` (INICIADO | SALVANDO | PROCESSANDO | CONCLUIDO | ERRO)
+    - [x] `etapaAtual` (descrição textual: "Salvando arquivo", "Extraindo texto", "Vetorizando")
+    - [x] `progressoPercentual` (0-100)
+    - [x] `intervalId` (controle do polling por arquivo)
+  - [x] Modificar handler de upload:
+    - [x] Substituir `uploadDocumentos()` (síncrono) por `iniciarUploadAssincrono()`
+    - [x] Para cada arquivo, receber `upload_id` em <100ms
+    - [x] Iniciar polling individual por arquivo (`iniciarPollingUpload(upload_id)`)
+  - [x] Criar função `iniciarPollingUpload(upload_id)`:
+    - [x] setInterval a cada 2s chamando `verificarStatusUpload(upload_id)`
+    - [x] Atualizar UI com progresso e etapa atual
+    - [x] Se status = CONCLUIDO → Chamar `obterResultadoUpload(upload_id)` e parar polling
+    - [x] Se status = ERRO → Exibir mensagem de erro e parar polling
+  - [x] UI de progresso por arquivo:
+    - [x] Barra de progresso individual (0-100%)
+    - [x] Etapa atual abaixo da barra (ex: "Extraindo texto - 25%")
+    - [x] Ícone de status (loading, check, error)
+  - [x] Cleanup robusto:
+    - [x] useEffect com cleanup function para limpar intervalos quando componente desmontar
+    - [x] Prevenir memory leaks e requisições desnecessárias
+  - [x] Suporte a múltiplos uploads simultâneos:
+    - [x] Cada arquivo tem seu próprio polling independente
+    - [x] UI mostra progresso de todos os arquivos em paralelo
 
 **Entregáveis:**
 - ✅ Componente de upload com polling assíncrono

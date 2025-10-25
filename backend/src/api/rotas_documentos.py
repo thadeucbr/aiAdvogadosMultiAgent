@@ -1223,7 +1223,7 @@ async def endpoint_iniciar_upload_assincrono(
             nome_arquivo=nome_original,
             tamanho_bytes=tamanho_bytes,
             tipo_documento=tipo_documento.value,
-            documento_id=documento_id
+            metadados={"documento_id": documento_id}  # Armazenar documento_id nos metadados
         )
         
         logger.info(

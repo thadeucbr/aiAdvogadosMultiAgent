@@ -6,13 +6,20 @@
  * Advogados usam este componente para enviar petições, laudos, sentenças
  * e outros documentos do processo para análise pelos agentes de IA.
  * 
+ * ATUALIZAÇÃO (TAREFA-038):
+ * Migrado de upload síncrono para upload assíncrono com polling individual por arquivo.
+ * Agora cada arquivo tem seu próprio progresso em tempo real, sem risco de timeout HTTP.
+ * 
  * FUNCIONALIDADES:
  * - Drag-and-drop de múltiplos arquivos
  * - Validação client-side (tipo, tamanho)
  * - Preview de arquivos selecionados
- * - Progress bar durante upload
+ * - **NOVO:** Progress bar INDIVIDUAL por arquivo com etapas detalhadas
+ * - **NOVO:** Polling independente por arquivo (não bloqueia UI)
+ * - **NOVO:** Feedback em tempo real (Salvando, Extraindo texto, OCR, Vetorizando)
  * - Feedback visual de sucesso/erro
  * - Remoção de arquivos antes do upload
+ * - **NOVO:** Suporte a múltiplos uploads simultâneos sem travamento
  * 
  * TIPOS ACEITOS:
  * - PDF (texto ou escaneado)
@@ -24,6 +31,13 @@
  * - Extensões permitidas: .pdf, .docx, .png, .jpg, .jpeg
  * - Arquivos duplicados não são aceitos
  * 
+ * PADRÃO ASSÍNCRONO (TAREFA-038):
+ * 1. Upload retorna upload_id imediatamente (<100ms)
+ * 2. Processamento em background (sem bloqueio)
+ * 3. Polling individual a cada 2s por arquivo
+ * 4. Feedback detalhado de progresso (0-100%)
+ * 5. UI responsiva com múltiplos uploads simultâneos
+ * 
  * USO:
  * ```tsx
  * <ComponenteUploadDocumentos
@@ -33,25 +47,26 @@
  * ```
  */
 
-import React, { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Upload, X, File, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import {
-  uploadDocumentos,
-  validarArquivosParaUpload,
+  iniciarUploadAssincrono,
+  verificarStatusUpload,
+  obterResultadoUpload,
 } from '../../servicos/servicoApiDocumentos';
 import type {
   InformacaoDocumentoUploadado,
   ArquivoParaUpload,
-  StatusArquivo,
-  ErroValidacaoArquivo,
 } from '../../tipos/tiposDocumentos';
 import {
   TAMANHO_MAXIMO_ARQUIVO_MB,
   TIPOS_MIME_ACEITOS,
   formatarTamanhoArquivo,
   obterExtensaoArquivo,
+  StatusUpload as StatusUploadEnum,
 } from '../../tipos/tiposDocumentos';
+import { validarArquivosParaUpload } from '../../servicos/servicoApiDocumentos';
 import { ComponenteBotoesShortcut } from '../analise/ComponenteBotoesShortcut';
 
 
@@ -105,20 +120,12 @@ export function ComponenteUploadDocumentos({
   /**
    * Lista de arquivos selecionados pelo usuário
    * Cada arquivo tem seu próprio status, progresso, preview, etc.
+   * 
+   * ATUALIZAÇÃO (TAREFA-038):
+   * Agora cada arquivo também tem uploadId, statusUpload, etapaAtual, intervalId
+   * para controle de polling individual.
    */
   const [arquivosSelecionados, setArquivosSelecionados] = useState<ArquivoParaUpload[]>([]);
-
-  /**
-   * Indica se o upload está em andamento
-   * Desabilita ações do usuário durante upload
-   */
-  const [uploadEmAndamento, setUploadEmAndamento] = useState<boolean>(false);
-
-  /**
-   * Progresso global do upload (0-100)
-   * Média do progresso de todos os arquivos
-   */
-  const [progressoGlobal, setProgressoGlobal] = useState<number>(0);
 
   /**
    * Mensagens de erro de validação
@@ -134,6 +141,15 @@ export function ComponenteUploadDocumentos({
    * Armazenamos aqui para exibir ao usuário.
    */
   const [shortcutsSugeridos, setShortcutsSugeridos] = useState<string[]>([]);
+
+  /**
+   * Ref para armazenar intervalos de polling ativos
+   * 
+   * CONTEXTO (BUG FIX):
+   * Usar ref em vez de estado para os intervalIds evita re-renderizações
+   * desnecessárias e garante acesso aos valores atuais no cleanup.
+   */
+  const intervalosPollingsRef = useRef<Map<string, number>>(new Map());
 
 
   // ===== FUNÇÕES AUXILIARES =====
@@ -231,13 +247,16 @@ export function ComponenteUploadDocumentos({
    * CONTEXTO:
    * Hook useDropzone fornece funcionalidade drag-and-drop.
    * Retorna props para aplicar na div de drop zone.
+   * 
+   * ATUALIZAÇÃO (TAREFA-038):
+   * Não desabilita mais durante upload - permite múltiplos uploads simultâneos
    */
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: handleArquivosSelecionados,
     accept: TIPOS_MIME_ACEITOS,
     maxSize: tamanhoMaximoArquivoMB * 1024 * 1024,
     multiple: permitirMultiplosArquivos,
-    disabled: uploadEmAndamento,
+    // Removido: disabled: uploadEmAndamento (permite múltiplos uploads)
   });
 
 
@@ -282,23 +301,27 @@ export function ComponenteUploadDocumentos({
 
     setArquivosSelecionados([]);
     setErrosValidacao([]);
-    setProgressoGlobal(0);
     setShortcutsSugeridos([]); // Limpar shortcuts também (TAREFA-017)
   };
 
   /**
-   * Inicia o upload dos arquivos selecionados
+   * Inicia o upload assíncrono dos arquivos selecionados
    * 
-   * CONTEXTO:
-   * Função principal de upload. Envia arquivos ao backend,
-   * atualiza progresso e notifica callbacks.
+   * CONTEXTO (TAREFA-038):
+   * Função principal de upload migrada para padrão assíncrono.
+   * Agora cada arquivo retorna upload_id imediatamente e o processamento
+   * ocorre em background com polling individual.
    * 
    * IMPLEMENTAÇÃO:
-   * 1. Marcar estado como "enviando"
-   * 2. Chamar API de upload com callback de progresso
-   * 3. Atualizar status dos arquivos conforme resposta
-   * 4. Notificar componente pai (callbacks)
-   * 5. Limpar lista se sucesso, manter se erro
+   * 1. Para cada arquivo, chamar iniciarUploadAssincrono()
+   * 2. Receber upload_id em <100ms
+   * 3. Iniciar polling individual (iniciarPollingUpload)
+   * 4. UI atualiza em tempo real via polling (a cada 2s)
+   * 5. Não bloqueia mais a interface
+   * 
+   * DIFERENÇA DO PADRÃO ANTERIOR:
+   * - Antes: uploadDocumentos() bloqueava 30s-2min → risco de timeout
+   * - Agora: iniciarUploadAssincrono() retorna em <100ms → zero timeouts
    */
   const handleFazerUpload = async (): Promise<void> => {
     if (arquivosSelecionados.length === 0) {
@@ -306,8 +329,7 @@ export function ComponenteUploadDocumentos({
     }
 
     try {
-      // Marcar upload como em andamento
-      setUploadEmAndamento(true);
+      // Limpar erros anteriores
       setErrosValidacao([]);
 
       // Atualizar status de todos os arquivos para "enviando"
@@ -315,97 +337,299 @@ export function ComponenteUploadDocumentos({
         arquivos.map((arquivo) => ({
           ...arquivo,
           status: 'enviando',
+          progresso: 0,
+          etapaAtual: 'Iniciando upload...',
         }))
       );
 
-      // Extrair objetos File dos arquivos
-      const arquivosParaEnviar = arquivosSelecionados.map((a) => a.arquivo);
+      // Processar cada arquivo individualmente com padrão assíncrono
+      for (const arquivoItem of arquivosSelecionados) {
+        try {
+          // 1. Iniciar upload assíncrono (retorna em <100ms)
+          const respostaInicio = await iniciarUploadAssincrono(arquivoItem.arquivo);
+          const uploadId = respostaInicio.upload_id;
 
-      // Fazer upload com callback de progresso
-      const resposta = await uploadDocumentos(
-        arquivosParaEnviar,
-        (progresso) => {
-          setProgressoGlobal(progresso);
-        }
-      );
+          // 2. Atualizar arquivo com upload_id retornado
+          setArquivosSelecionados((arquivos) =>
+            arquivos.map((a) =>
+              a.id === arquivoItem.id
+                ? {
+                    ...a,
+                    uploadId,
+                    statusUpload: respostaInicio.status,
+                    etapaAtual: 'Upload iniciado',
+                    progresso: 0,
+                  }
+                : a
+            )
+          );
 
-      // Verificar se upload foi bem-sucedido
-      if (resposta.sucesso) {
-        // Atualizar status dos arquivos para "sucesso"
-        setArquivosSelecionados((arquivos) =>
-          arquivos.map((arquivo, index) => ({
-            ...arquivo,
-            status: 'sucesso',
-            progresso: 100,
-            idDocumentoBackend: resposta.documentos[index]?.id_documento,
-          }))
-        );
+          // 3. Iniciar polling individual para este arquivo
+          iniciarPollingUpload(arquivoItem.id, uploadId);
+          
+        } catch (erro) {
+          // Erro ao iniciar upload deste arquivo específico
+          const mensagemErro = erro instanceof Error ? erro.message : 'Erro ao iniciar upload';
+          
+          setArquivosSelecionados((arquivos) =>
+            arquivos.map((a) =>
+              a.id === arquivoItem.id
+                ? {
+                    ...a,
+                    status: 'erro',
+                    mensagemErro,
+                    etapaAtual: 'Erro ao iniciar',
+                  }
+                : a
+            )
+          );
 
-        // Armazenar shortcuts sugeridos (TAREFA-017)
-        if (resposta.shortcuts_sugeridos && resposta.shortcuts_sugeridos.length > 0) {
-          setShortcutsSugeridos(resposta.shortcuts_sugeridos);
-        }
-
-        // Notificar componente pai
-        if (aoFinalizarUploadComSucesso) {
-          const ids = resposta.documentos.map((doc) => doc.id_documento);
-          aoFinalizarUploadComSucesso(ids, resposta.documentos);
-        }
-
-        // Limpar lista de arquivos após 3 segundos (dar tempo para ver shortcuts)
-        setTimeout(() => {
-          handleLimparTudo();
-        }, 3000);
-        
-      } else {
-        // Upload falhou - marcar arquivos como erro
-        setArquivosSelecionados((arquivos) =>
-          arquivos.map((arquivo) => ({
-            ...arquivo,
-            status: 'erro',
-            mensagemErro: resposta.mensagem,
-          }))
-        );
-
-        // Exibir erros
-        if (resposta.erros && resposta.erros.length > 0) {
-          setErrosValidacao(resposta.erros);
-        }
-
-        // Notificar componente pai
-        if (aoOcorrerErroNoUpload) {
-          aoOcorrerErroNoUpload(resposta.mensagem);
+          console.error(`Erro ao iniciar upload de ${arquivoItem.arquivo.name}:`, erro);
         }
       }
       
     } catch (erro) {
-      // Erro na comunicação com backend
+      // Erro geral no processo
       const mensagemErro = erro instanceof Error ? erro.message : 'Erro desconhecido';
-
-      // Marcar todos os arquivos como erro
-      setArquivosSelecionados((arquivos) =>
-        arquivos.map((arquivo) => ({
-          ...arquivo,
-          status: 'erro',
-          mensagemErro,
-        }))
-      );
-
       setErrosValidacao([mensagemErro]);
-
-      // Notificar componente pai
-      if (aoOcorrerErroNoUpload) {
-        aoOcorrerErroNoUpload(mensagemErro);
-      }
-      
-    } finally {
-      // Sempre marcar upload como não mais em andamento
-      setUploadEmAndamento(false);
+      console.error('Erro geral no upload:', erro);
     }
   };
 
+  /**
+   * Inicia polling para acompanhar progresso de um upload específico
+   * 
+   * CONTEXTO (TAREFA-038):
+   * Função responsável por fazer polling (verificação periódica) do status
+   * de upload de um arquivo. Atualiza a UI em tempo real conforme o backend
+   * processa o arquivo (salvando, extraindo texto, OCR, vetorizando).
+   * 
+   * BUG FIX:
+   * Usa ref (intervalosPollingsRef) para armazenar intervalIds em vez do estado,
+   * evitando que o useEffect de cleanup cancele os intervalos prematuramente.
+   * 
+   * IMPLEMENTAÇÃO:
+   * 1. setInterval a cada 2s chamando verificarStatusUpload()
+   * 2. Atualizar estado do arquivo com progresso e etapa atual
+   * 3. Se CONCLUIDO → Obter resultado final e parar polling
+   * 4. Se ERRO → Exibir erro e parar polling
+   * 
+   * @param arquivoId - ID temporário do arquivo no estado React
+   * @param uploadId - UUID do upload retornado pelo backend
+   */
+  const iniciarPollingUpload = (arquivoId: string, uploadId: string): void => {
+    const INTERVALO_POLLING_MS = 2000; // 2 segundos
+
+    const intervalId = setInterval(async () => {
+      try {
+        // Consultar status atual do upload
+        const respostaStatus = await verificarStatusUpload(uploadId);
+        const {
+          status,
+          etapa_atual,
+          progresso_percentual,
+          mensagem_erro,
+        } = respostaStatus;
+
+        // Atualizar estado do arquivo com progresso atual
+        setArquivosSelecionados((arquivos) =>
+          arquivos.map((a) =>
+            a.id === arquivoId
+              ? {
+                  ...a,
+                  statusUpload: status,
+                  etapaAtual: etapa_atual,
+                  progresso: progresso_percentual,
+                  mensagemErro: mensagem_erro,
+                }
+              : a
+          )
+        );
+
+        // Verificar se processamento foi concluído
+        if (status === StatusUploadEnum.CONCLUIDO) {
+          // Parar polling
+          clearInterval(intervalId);
+          intervalosPollingsRef.current.delete(uploadId);
+
+          // Obter resultado final
+          const respostaResultado = await obterResultadoUpload(uploadId);
+          const resultado = respostaResultado;
+
+          // Atualizar arquivo com status final de sucesso
+          setArquivosSelecionados((arquivos) =>
+            arquivos.map((a) =>
+              a.id === arquivoId
+                ? {
+                    ...a,
+                    status: 'sucesso' as const,
+                    progresso: 100,
+                    idDocumentoBackend: resultado.documento_id,
+                    etapaAtual: 'Upload concluído',
+                  }
+                : a
+            )
+          );
+          
+          // Verificação de conclusão agora é feita pelo useEffect
+        } else if (status === StatusUploadEnum.ERRO) {
+          // Parar polling
+          clearInterval(intervalId);
+          intervalosPollingsRef.current.delete(uploadId);
+
+          // Marcar arquivo como erro
+          setArquivosSelecionados((arquivos) =>
+            arquivos.map((a) =>
+              a.id === arquivoId
+                ? {
+                    ...a,
+                    status: 'erro',
+                    mensagemErro: mensagem_erro || 'Erro durante processamento',
+                  }
+                : a
+            )
+          );
+
+          // Notificar erro
+          if (aoOcorrerErroNoUpload && mensagem_erro) {
+            aoOcorrerErroNoUpload(mensagem_erro);
+          }
+        }
+        
+      } catch (erro) {
+        // Erro durante polling (problema de rede, etc.)
+        console.error(`Erro durante polling do upload ${uploadId}:`, erro);
+        
+        // Parar polling após erro
+        clearInterval(intervalId);
+        intervalosPollingsRef.current.delete(uploadId);
+
+        const mensagemErro = erro instanceof Error ? erro.message : 'Erro ao verificar status';
+        
+        setArquivosSelecionados((arquivos) =>
+          arquivos.map((a) =>
+            a.id === arquivoId
+              ? {
+                  ...a,
+                  status: 'erro',
+                  mensagemErro,
+                }
+              : a
+          )
+        );
+      }
+    }, INTERVALO_POLLING_MS);
+
+    // Salvar intervalId no ref (não causa re-renderização)
+    intervalosPollingsRef.current.set(uploadId, intervalId);
+  };
+
+  /**
+   * Verifica se todos os uploads foram concluídos (sucesso ou erro)
+   * 
+   * CONTEXTO (TAREFA-038):
+   * Chamada após cada arquivo ser concluído. Quando TODOS os arquivos
+   * terminarem (sucesso ou erro), notifica o componente pai e limpa a lista.
+   */
+  const verificarSeUploadsForamConcluidos = (): void => {
+    console.log('[DEBUG] Verificando uploads concluídos...', {
+      arquivos: arquivosSelecionados,
+      totalArquivos: arquivosSelecionados.length,
+    });
+
+    // Verificar usando o estado atual (não dentro do setter)
+    const todosProcessados = arquivosSelecionados.every(
+      (a) => a.status === 'sucesso' || a.status === 'erro'
+    );
+
+    console.log('[DEBUG] Todos processados?', todosProcessados);
+
+    if (todosProcessados && arquivosSelecionados.length > 0) {
+      // Filtrar apenas os bem-sucedidos
+      const arquivosComSucesso = arquivosSelecionados.filter((a) => a.status === 'sucesso');
+      
+      console.log('[DEBUG] Arquivos com sucesso:', {
+        total: arquivosComSucesso.length,
+        ids: arquivosComSucesso.map(a => a.idDocumentoBackend),
+      });
+
+      if (arquivosComSucesso.length > 0 && aoFinalizarUploadComSucesso) {
+        // Notificar componente pai
+        const ids = arquivosComSucesso
+          .map((a) => a.idDocumentoBackend)
+          .filter((id): id is string => id !== undefined);
+        
+        console.log('[DEBUG] Chamando callback com IDs:', ids);
+
+        // Como não temos mais a lista completa de InformacaoDocumentoUploadado,
+        // passamos apenas os IDs. O componente pai pode buscar detalhes se necessário.
+        aoFinalizarUploadComSucesso(ids, []);
+      }
+
+      // Limpar lista após 3 segundos (dar tempo para ver resultados)
+      setTimeout(() => {
+        handleLimparTudo();
+      }, 3000);
+    }
+  };
+
+  /**
+   * Cleanup ao desmontar componente
+   * 
+   * CONTEXTO (TAREFA-038):
+   * CRÍTICO para prevenir memory leaks. Quando o componente é desmontado,
+   * todos os intervalos de polling ativos precisam ser limpos.
+   * 
+   * BUG FIX:
+   * Usa ref (intervalosPollingsRef) para acessar os intervalos ativos.
+   * Array vazio como dependência garante que só executa no unmount.
+   */
+  useEffect(() => {
+    const intervalosAtivos = intervalosPollingsRef.current;
+    
+    // Cleanup function executada APENAS quando componente desmontar
+    return () => {
+      // Limpar todos os intervalos de polling
+      intervalosAtivos.forEach((intervalId) => {
+        clearInterval(intervalId);
+      });
+      intervalosAtivos.clear();
+
+      // Limpar previews de arquivos
+      arquivosSelecionados.forEach((arquivo) => {
+        if (arquivo.preview) {
+          URL.revokeObjectURL(arquivo.preview);
+        }
+      });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Array vazio = executa apenas no mount/unmount
+
+  /**
+   * Monitora mudanças nos arquivos para verificar conclusão
+   * 
+   * BUG FIX:
+   * Em vez de chamar verificarSeUploadsForamConcluidos com setTimeout,
+   * usamos useEffect para reagir quando o estado muda.
+   */
+  useEffect(() => {
+    verificarSeUploadsForamConcluidos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arquivosSelecionados]);
+
 
   // ===== RENDERIZAÇÃO =====
+
+  /**
+   * Verifica se há algum upload em andamento
+   * 
+   * CONTEXTO (TAREFA-038):
+   * Helper para determinar se há arquivos sendo processados.
+   * Usado para desabilitar ações durante upload.
+   */
+  const temUploadEmAndamento = arquivosSelecionados.some(
+    (a) => a.status === 'enviando'
+  );
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6">
@@ -417,7 +641,7 @@ export function ComponenteUploadDocumentos({
           border-2 border-dashed rounded-lg p-8 text-center cursor-pointer
           transition-colors duration-200
           ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 bg-gray-50'}
-          ${uploadEmAndamento ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-400 hover:bg-blue-50'}
+          hover:border-blue-400 hover:bg-blue-50
         `}
       >
         <input {...getInputProps()} />
@@ -468,7 +692,7 @@ export function ComponenteUploadDocumentos({
               Arquivos selecionados ({arquivosSelecionados.length})
             </h3>
             
-            {!uploadEmAndamento && (
+            {!temUploadEmAndamento && (
               <button
                 onClick={handleLimparTudo}
                 className="text-sm text-gray-600 hover:text-gray-900"
@@ -484,43 +708,27 @@ export function ComponenteUploadDocumentos({
                 key={arquivoItem.id}
                 arquivoItem={arquivoItem}
                 onRemover={handleRemoverArquivo}
-                desabilitado={uploadEmAndamento}
+                desabilitado={arquivoItem.status === 'enviando'}
               />
             ))}
           </div>
 
-          {/* BARRA DE PROGRESSO GLOBAL */}
-          {uploadEmAndamento && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm text-gray-600">
-                <span>Fazendo upload...</span>
-                <span>{progressoGlobal}%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${progressoGlobal}%` }}
-                />
-              </div>
-            </div>
-          )}
-
           {/* BOTÃO DE UPLOAD */}
           <button
             onClick={handleFazerUpload}
-            disabled={uploadEmAndamento || arquivosSelecionados.length === 0}
+            disabled={temUploadEmAndamento || arquivosSelecionados.length === 0}
             className={`
               w-full py-3 px-4 rounded-lg font-medium
               transition-colors duration-200
               flex items-center justify-center space-x-2
               ${
-                uploadEmAndamento || arquivosSelecionados.length === 0
+                temUploadEmAndamento || arquivosSelecionados.length === 0
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   : 'bg-blue-600 text-white hover:bg-blue-700'
               }
             `}
           >
-            {uploadEmAndamento ? (
+            {temUploadEmAndamento ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
                 <span>Enviando...</span>
@@ -562,6 +770,10 @@ export function ComponenteUploadDocumentos({
  * CONTEXTO:
  * Exibe informações de um arquivo: nome, tamanho, preview (se imagem),
  * status, progresso, botão de remover.
+ * 
+ * ATUALIZAÇÃO (TAREFA-038):
+ * Agora exibe barra de progresso individual e etapa atual em tempo real
+ * para cada arquivo durante upload assíncrono.
  */
 interface PropriedadesItemArquivo {
   arquivoItem: ArquivoParaUpload;
@@ -608,48 +820,72 @@ function ItemArquivo({
   };
 
   return (
-    <div className="flex items-center space-x-4 p-4 bg-white border border-gray-200 rounded-lg">
-      {/* ÍCONE DE STATUS */}
-      <div className="flex-shrink-0">
-        {renderizarIcone()}
-      </div>
+    <div className="p-4 bg-white border border-gray-200 rounded-lg">
+      <div className="flex items-center space-x-4">
+        {/* ÍCONE DE STATUS */}
+        <div className="flex-shrink-0">
+          {renderizarIcone()}
+        </div>
 
-      {/* INFORMAÇÕES DO ARQUIVO */}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-900 truncate">
-          {arquivoItem.arquivo.name}
-        </p>
-        <p className="text-sm text-gray-500">
-          {formatarTamanhoArquivo(arquivoItem.arquivo.size)}
-        </p>
-        
-        {arquivoItem.mensagemErro && (
-          <p className="text-sm text-red-600 mt-1">
-            {arquivoItem.mensagemErro}
+        {/* INFORMAÇÕES DO ARQUIVO */}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-gray-900 truncate">
+            {arquivoItem.arquivo.name}
           </p>
+          <p className="text-sm text-gray-500">
+            {formatarTamanhoArquivo(arquivoItem.arquivo.size)}
+          </p>
+          
+          {/* MENSAGEM DE ERRO */}
+          {arquivoItem.mensagemErro && (
+            <p className="text-sm text-red-600 mt-1">
+              {arquivoItem.mensagemErro}
+            </p>
+          )}
+        </div>
+
+        {/* PREVIEW (SE IMAGEM) */}
+        {arquivoItem.preview && (
+          <div className="flex-shrink-0">
+            <img
+              src={arquivoItem.preview}
+              alt={arquivoItem.arquivo.name}
+              className="w-16 h-16 object-cover rounded"
+            />
+          </div>
+        )}
+
+        {/* BOTÃO DE REMOVER */}
+        {!desabilitado && arquivoItem.status !== 'enviando' && (
+          <button
+            onClick={() => onRemover(arquivoItem.id)}
+            className="flex-shrink-0 p-1 text-gray-400 hover:text-red-600 transition-colors"
+            title="Remover arquivo"
+          >
+            <X className="w-5 h-5" />
+          </button>
         )}
       </div>
 
-      {/* PREVIEW (SE IMAGEM) */}
-      {arquivoItem.preview && (
-        <div className="flex-shrink-0">
-          <img
-            src={arquivoItem.preview}
-            alt={arquivoItem.arquivo.name}
-            className="w-16 h-16 object-cover rounded"
-          />
+      {/* BARRA DE PROGRESSO INDIVIDUAL (TAREFA-038) */}
+      {arquivoItem.status === 'enviando' && (
+        <div className="mt-3 space-y-2">
+          {/* Etapa atual */}
+          {arquivoItem.etapaAtual && (
+            <div className="flex items-center justify-between text-xs text-gray-600">
+              <span>{arquivoItem.etapaAtual}</span>
+              <span>{arquivoItem.progresso}%</span>
+            </div>
+          )}
+          
+          {/* Barra de progresso */}
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div
+              className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${arquivoItem.progresso}%` }}
+            />
+          </div>
         </div>
-      )}
-
-      {/* BOTÃO DE REMOVER */}
-      {!desabilitado && arquivoItem.status !== 'enviando' && (
-        <button
-          onClick={() => onRemover(arquivoItem.id)}
-          className="flex-shrink-0 p-1 text-gray-400 hover:text-red-600 transition-colors"
-          title="Remover arquivo"
-        >
-          <X className="w-5 h-5" />
-        </button>
       )}
     </div>
   );

@@ -446,6 +446,11 @@ export interface RespostaResultadoUpload {
  * Representa um arquivo selecionado pelo usuário no componente de upload.
  * Usado para rastrear progresso, validação e erros.
  * 
+ * ATUALIZAÇÃO (TAREFA-038):
+ * Adicionados campos para suporte a upload assíncrono com polling individual por arquivo.
+ * Cada arquivo agora tem seu próprio upload_id, status detalhado, etapa atual e intervalId
+ * para controle de polling independente.
+ * 
  * CAMPOS:
  * - arquivo: Objeto File do JavaScript
  * - id: Identificador único temporário (gerado no frontend)
@@ -454,6 +459,10 @@ export interface RespostaResultadoUpload {
  * - status: Estado atual do arquivo
  * - mensagemErro: Mensagem de erro se houver
  * - idDocumentoBackend: ID retornado pelo backend após upload
+ * - uploadId: UUID do upload no backend (para polling) - NOVO (TAREFA-038)
+ * - statusUpload: Status detalhado do upload assíncrono - NOVO (TAREFA-038)
+ * - etapaAtual: Descrição textual da etapa em execução - NOVO (TAREFA-038)
+ * - intervalId: ID do setInterval para controle de polling - NOVO (TAREFA-038)
  */
 export interface ArquivoParaUpload {
   arquivo: File;
@@ -463,6 +472,11 @@ export interface ArquivoParaUpload {
   status: 'validando' | 'aguardando' | 'enviando' | 'sucesso' | 'erro';
   mensagemErro?: string;
   idDocumentoBackend?: string;
+  // Campos para upload assíncrono (TAREFA-038)
+  uploadId?: string;
+  statusUpload?: StatusUpload;
+  etapaAtual?: string;
+  intervalId?: number; // ID retornado por setInterval()
 }
 
 /**
