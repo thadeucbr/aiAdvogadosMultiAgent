@@ -255,8 +255,13 @@ export function ComponenteDocumentosSugeridos(
       // Chamar API: POST /api/peticoes/{peticao_id}/documentos
       const resposta = await uploadDocumentosComplementares(peticaoId, [arquivo]);
 
-      // Resposta esperada: { upload_ids: ["uuid1", "uuid2", ...] }
-      const uploadId = resposta.data.upload_ids[0]; // Pegamos o primeiro (estamos enviando 1 arquivo por vez)
+      // Resposta esperada: { documentos_enviados: [{ upload_id, documento_id, ... }] }
+      // Pegamos o upload_id do primeiro (estamos enviando 1 arquivo por vez)
+      const uploadId = resposta.data.documentos_enviados?.[0]?.upload_id;
+      
+      if (!uploadId) {
+        throw new Error('Upload ID não retornado pela API');
+      }
 
       // Atualizar estado: PROCESSANDO, armazenar upload_id
       setEstadosDocumentos(estadosAnteriores => {

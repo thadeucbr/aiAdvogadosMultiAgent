@@ -1173,7 +1173,7 @@ async def endpoint_upload_documentos_complementares(
         # ===== SALVAR ARQUIVO TEMPORARIAMENTE =====
         
         # Caminho para pasta de uploads temporários
-        pasta_uploads_temp = Path(configuracoes.DIRETORIO_DADOS) / "uploads_temp"
+        pasta_uploads_temp = Path(configuracoes.CAMINHO_UPLOADS_TEMP)
         pasta_uploads_temp.mkdir(parents=True, exist_ok=True)
         
         # Nome do arquivo no disco (usando documento_id para evitar conflitos)

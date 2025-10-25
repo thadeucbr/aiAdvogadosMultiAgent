@@ -418,20 +418,43 @@ export interface RespostaResultadoAnalisePeticao {
 }
 
 /**
- * Request para upload de documentos complementares
+ * Informações de um documento enviado (retornado pelo endpoint de upload)
+ */
+export interface DocumentoEnviadoInfo {
+  /** Nome original do arquivo */
+  nome_arquivo: string;
+  
+  /** ID do upload (para polling de status) */
+  upload_id: string;
+  
+  /** ID do documento (para referência no ChromaDB) */
+  documento_id: string;
+  
+  /** Status inicial do upload */
+  status: string;
+  
+  /** Tamanho do arquivo em bytes */
+  tamanho_bytes: number;
+}
+
+/**
+ * Response para upload de documentos complementares
  * 
  * ENDPOINT: POST /api/peticoes/{peticao_id}/documentos
  * (Envia arquivos via FormData, não JSON)
  */
 export interface RespostaUploadDocumentosComplementares {
+  /** Indica se o upload foi bem-sucedido */
+  sucesso: boolean;
+  
+  /** Mensagem de confirmação */
+  mensagem: string;
+  
   /** ID da petição */
   peticao_id: string;
   
-  /** Lista de IDs de upload criados (um por arquivo enviado) */
-  upload_ids: string[];
-  
-  /** Quantidade de arquivos recebidos */
-  quantidade_arquivos: number;
+  /** Lista de documentos enviados com suas informações */
+  documentos_enviados: DocumentoEnviadoInfo[];
 }
 
 /**
